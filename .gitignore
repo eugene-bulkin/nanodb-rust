@@ -66,3 +66,6 @@ Cargo.lock
 **/*.rs.bk
 
 # End of https://www.gitignore.io/api/intellij,rust
+
+# NanoDB Stuff
+datafiles/
