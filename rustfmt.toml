@@ -1,0 +1,6 @@
+reorder_imports = true
+reorder_imported_names = true
+single_line_if_else = true
+wrap_comments = true
+ideal_width = 100
+max_width = 120

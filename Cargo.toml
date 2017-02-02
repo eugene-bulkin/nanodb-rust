@@ -1,0 +1,23 @@
+[package]
+name = "nanodb"
+version = "0.1.0"
+authors = ["Eugene Bulkin <ebulkin@caltech.edu>"]
+
+[lib]
+name = "nanodb"
+path = "src/lib.rs"
+
+[[bin]]
+name = "nanodb"
+path = "src/bin.rs"
+doc = false
+
+[dependencies]
+rustyline = "1.0.0"
+tempdir = "0.3"
+byteorder = "1.0.0"
+lazy_static = "0.2.2"
+
+[dependencies.nom]
+version = "^2.0.1"
+features = ["verbose-errors"]
