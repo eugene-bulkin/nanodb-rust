@@ -1,10 +1,14 @@
-
+use byteorder::BigEndian;
 use std::collections::HashMap;
 use std::default::Default;
-use std::io::Write;
+use std::io;
+use std::io::{Seek, SeekFrom, Write};
 use std::iter::IntoIterator;
 use std::ops::Index;
-use super::column::ColumnInfo;
+
+use super::column::{ColumnInfo, ColumnType};
+use super::storage::WriteNanoDBExt;
+use super::storage::header_page::OFFSET_SCHEMA_START;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum NameError {
@@ -86,28 +90,66 @@ impl Schema {
         result.map(|_| ())
     }
 
-    pub fn write<W: Write>(&self, mut output: &W) -> Result<(), ()> {
-        unimplemented!()
+    pub fn write<W: WriteNanoDBExt + Seek>(&self, mut output: &mut W) -> Result<(), io::Error> {
+        output.seek(SeekFrom::Start(OFFSET_SCHEMA_START as u64));
+
+        let mut table_mapping: HashMap<Option<String>, usize> = Default::default();
+        let mut cur_table: usize = 0;
+        let num_tables: u8 = self.cols_hashed_by_table.keys().len() as u8;
+        println!("Recording {} table names.", num_tables);
+        output.write_u8(num_tables);
+        for table_name in self.cols_hashed_by_table.keys() {
+            // Ignore None table names (which shouldn't happen here).
+            match *table_name {
+                Some(ref table_name) => {
+                    try!(output.write_varchar255(table_name.clone()));
+                    table_mapping.insert(Some(table_name.clone()), cur_table);
+                }
+                None => {}
+            }
+            cur_table += 1;
+        }
+        let num_columns: u8 = self.column_infos.len() as u8;
+        println!("Recording {} columns.", num_columns);
+        try!(output.write_u8(num_columns));
+        for ref column_info in &self.column_infos {
+            println!("{:?}", column_info);
+            let column_type_byte: u8 = column_info.column_type.into();
+            try!(output.write_u8(column_type_byte));
+
+            match column_info.column_type {
+                ColumnType::Char { length: length } |
+                ColumnType::VarChar { length: length } => {
+                    try!(output.write_u16::<BigEndian>(length as u16));
+                }
+                // TODO: Handle NUMERIC here.
+                _ => {}
+            }
+
+            if column_info.table_name.is_some() {
+                if let Some(ref table_index) = table_mapping.get(&column_info.table_name) {
+                    try!(output.write_u8(**table_index as u8));
+                }
+            }
+
+            if let Some(ref column_name) = column_info.name {
+                try!(output.write_varchar255(column_name.clone()));
+            }
+        }
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
     use super::Schema;
     use super::super::column::{ColumnInfo, ColumnType};
 
     #[test]
     fn test_index() {
-        let info1 = ColumnInfo {
-            column_type: ColumnType::Integer,
-            name: Some("foo".into()),
-            table_name: None,
-        };
-        let info2 = ColumnInfo {
-            column_type: ColumnType::Float,
-            name: Some("bar".into()),
-            table_name: None,
-        };
+        let info1 = ColumnInfo::with_name(ColumnType::Integer, "foo");
+        let info2 = ColumnInfo::with_name(ColumnType::Float, "bar");
         let schema = Schema::with_columns(vec![info1.clone(), info2.clone()]).unwrap();
 
         assert_eq!(schema[0], info1);
@@ -116,19 +158,30 @@ mod tests {
 
     #[test]
     fn test_iter() {
-        let info1 = ColumnInfo {
-            column_type: ColumnType::Integer,
-            name: Some("foo".into()),
-            table_name: None,
-        };
-        let info2 = ColumnInfo {
-            column_type: ColumnType::Float,
-            name: Some("bar".into()),
-            table_name: None,
-        };
+        let info1 = ColumnInfo::with_name(ColumnType::Integer, "foo");
+        let info2 = ColumnInfo::with_name(ColumnType::Float, "bar");
         let schema = Schema::with_columns(vec![info1.clone(), info2.clone()]).unwrap();
 
         assert_eq!(schema.into_iter().collect::<Vec<ColumnInfo>>(),
-                   vec![info1.clone(), info2.clone()]);
+        vec![info1.clone(), info2.clone()]);
+    }
+
+    #[test]
+    fn test_write() {
+        let schema = Schema::with_columns(vec![
+            ColumnInfo::with_table_name(ColumnType::Integer, "A", "FOO"),
+            ColumnInfo::with_table_name(ColumnType::VarChar { length: 20 }, "B", "FOO"),
+            ColumnInfo::with_table_name(ColumnType::Integer, "C", "FOO"),
+        ])
+            .unwrap();
+        let mut buffer = vec![0x00; 512];
+        let mut expected = vec![0x00; 6];
+        expected.extend_from_slice(&[0x01, 0x03, 0x46, 0x4F, 0x4F, 0x03, 0x01, 0x00, 0x01, 0x41,
+            0x16, 0x00, 0x14, 0x00, 0x01, 0x42, 0x01, 0x00, 0x01, 0x43]);
+        expected.extend_from_slice(&[0x00; 486]);
+
+        let mut cursor = Cursor::new(buffer);
+        schema.write(&mut cursor).unwrap();
+        assert_eq!(cursor.into_inner(), expected);
     }
 }
