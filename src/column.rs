@@ -43,6 +43,30 @@ pub enum ColumnType {
     FilePointer,
 }
 
+impl From<ColumnType> for u8 {
+    fn from(col_type: ColumnType) -> u8 {
+        match col_type {
+            ColumnType::Null => 0,
+            ColumnType::Integer => 1,
+            ColumnType::SmallInt => 2,
+            ColumnType::BigInt => 3,
+            ColumnType::TinyInt => 4,
+            ColumnType::Float => 5,
+            ColumnType::Double => 6,
+            ColumnType::Numeric { scale: _, precision: _ } => 7,
+            ColumnType::Char { length: _ } => 21,
+            ColumnType::VarChar { length: _ } => 22,
+            ColumnType::Text => 23,
+            ColumnType::Blob => 24,
+            ColumnType::Date => 31,
+            ColumnType::Time => 32,
+            ColumnType::DateTime => 33,
+            ColumnType::Timestamp => 34,
+            ColumnType::FilePointer => 41,
+        }
+    }
+}
+
 impl fmt::Display for ColumnType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
