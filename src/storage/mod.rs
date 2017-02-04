@@ -31,11 +31,14 @@ pub mod table_manager;
 pub mod tuple_files;
 pub mod storage_manager;
 
+use byteorder::WriteBytesExt;
 pub use self::dbfile::{DBFile, DBFileInfo, DBFileType};
 pub use self::dbpage::DBPage;
 pub use self::file_manager::FileManager;
 pub use self::header_page::HeaderPage;
 pub use self::table_manager::TableManager;
+
+use std::io;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 /// An error that may occur while pinning or unpinning a page in some file.
@@ -65,3 +68,18 @@ pub trait Pinnable {
     /// Returns true if the object is currently pinned, false otherwise.
     fn is_pinned(&self) -> bool;
 }
+
+/// This interface provides additional writing operations for writing any given column type.
+pub trait WriteNanoDBExt: WriteBytesExt {
+    fn write_varchar255<S>(&mut self, string: S) -> io::Result<()>
+        where S: Into<String>
+    {
+        let bytes = string.into().into_bytes();
+
+        self.write_u8(bytes.len() as u8);
+        self.write(&bytes);
+        Ok(())
+    }
+}
+
+impl<W: io::Write + ?Sized> WriteNanoDBExt for W {}
