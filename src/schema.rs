@@ -2,7 +2,7 @@ use byteorder::BigEndian;
 use std::collections::HashMap;
 use std::default::Default;
 use std::io;
-use std::io::{Seek, SeekFrom, Write};
+use std::io::{Seek, SeekFrom};
 use std::iter::IntoIterator;
 use std::ops::Index;
 
@@ -91,13 +91,13 @@ impl Schema {
     }
 
     pub fn write<W: WriteNanoDBExt + Seek>(&self, mut output: &mut W) -> Result<(), io::Error> {
-        output.seek(SeekFrom::Start(OFFSET_SCHEMA_START as u64));
+        try!(output.seek(SeekFrom::Start(OFFSET_SCHEMA_START as u64)));
 
         let mut table_mapping: HashMap<Option<String>, usize> = Default::default();
         let mut cur_table: usize = 0;
         let num_tables: u8 = self.cols_hashed_by_table.keys().len() as u8;
         println!("Recording {} table names.", num_tables);
-        output.write_u8(num_tables);
+        try!(output.write_u8(num_tables));
         for table_name in self.cols_hashed_by_table.keys() {
             // Ignore None table names (which shouldn't happen here).
             match *table_name {
@@ -118,8 +118,8 @@ impl Schema {
             try!(output.write_u8(column_type_byte));
 
             match column_info.column_type {
-                ColumnType::Char { length: length } |
-                ColumnType::VarChar { length: length } => {
+                ColumnType::Char { length } |
+                ColumnType::VarChar { length } => {
                     try!(output.write_u16::<BigEndian>(length as u16));
                 }
                 // TODO: Handle NUMERIC here.
@@ -174,7 +174,7 @@ mod tests {
             ColumnInfo::with_table_name(ColumnType::Integer, "C", "FOO"),
         ])
             .unwrap();
-        let mut buffer = vec![0x00; 512];
+        let buffer = vec![0x00; 512];
         let mut expected = vec![0x00; 6];
         expected.extend_from_slice(&[0x01, 0x03, 0x46, 0x4F, 0x4F, 0x03, 0x01, 0x00, 0x01, 0x41,
             0x16, 0x00, 0x14, 0x00, 0x01, 0x42, 0x01, 0x00, 0x01, 0x43]);

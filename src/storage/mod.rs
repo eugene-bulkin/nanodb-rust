@@ -76,8 +76,8 @@ pub trait WriteNanoDBExt: WriteBytesExt {
     {
         let bytes = string.into().into_bytes();
 
-        self.write_u8(bytes.len() as u8);
-        self.write(&bytes);
+        try!(self.write_u8(bytes.len() as u8));
+        try!(self.write(&bytes));
         Ok(())
     }
 }
