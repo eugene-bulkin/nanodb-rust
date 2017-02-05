@@ -21,7 +21,7 @@ pub enum CreateCommand {
 }
 
 impl Command for CreateCommand {
-    fn execute(&mut self, server: &Server) -> Result<(), ExecutionError> {
+    fn execute(&mut self, server: &mut Server) -> Result<(), ExecutionError> {
         println!("{:?}", self);
         match server.table_manager
             .create_table(&server.file_manager, "foo", Schema::new()) {
@@ -59,6 +59,6 @@ mod tests {
             decls: vec![("A".into(), ColumnType::Integer)],
         };
 
-        assert_eq!(Ok(()), command.execute(&server));
+        assert_eq!(Ok(()), command.execute(&mut server));
     }
 }

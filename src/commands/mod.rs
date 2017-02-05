@@ -76,7 +76,7 @@ pub trait Command: ::std::fmt::Debug + Any {
     ///
     /// If executing the command results in an error, an
     /// [`ExecutionError`](enum.ExecutionError.html) will be returned.
-    fn execute(&mut self, server: &Server) -> Result<(), ExecutionError>;
+    fn execute(&mut self, server: &mut Server) -> Result<(), ExecutionError>;
 
     /// Casts the command to Any. Needed to ensure polymorphism.
     fn as_any(&self) -> &Any;

@@ -37,7 +37,7 @@ impl SelectCommand {
 }
 
 impl Command for SelectCommand {
-    fn execute(&mut self, server: &Server) -> Result<(), ExecutionError> {
+    fn execute(&mut self, server: &mut Server) -> Result<(), ExecutionError> {
         println!("{:?}", self);
         Err(ExecutionError::Unimplemented)
     }

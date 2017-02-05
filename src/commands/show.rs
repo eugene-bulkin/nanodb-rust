@@ -11,7 +11,7 @@ pub enum ShowCommand {
 }
 
 impl Command for ShowCommand {
-    fn execute(&mut self, server: &Server) -> Result<(), ExecutionError> {
+    fn execute(&mut self, server: &mut Server) -> Result<(), ExecutionError> {
         println!("{:?}", self);
         Err(ExecutionError::Unimplemented)
     }
