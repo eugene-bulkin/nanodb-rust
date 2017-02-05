@@ -32,6 +32,21 @@ impl DBPage {
         Ok(page)
     }
 
+    /// Sets the dirty flag to true or false, indicating whether the page's data has or has not been
+    /// changed in memory.
+    ///
+    /// # Arguments
+    /// - *is_dirty* - the dirty flag; true if the page's data is dirty, or false otherwise
+    fn set_dirty(&mut self, is_dirty: bool) {
+        if !self.dirty && is_dirty {
+            self.old_page_data = Some(self.page_data.clone());
+        } else if self.dirty && !is_dirty {
+            self.old_page_data = None;
+        }
+
+        self.dirty = is_dirty;
+    }
+
     pub fn read_at_position_into_offset(&self,
                                         position: usize,
                                         mut buffer: &mut [u8],
@@ -50,6 +65,20 @@ impl DBPage {
         self.read_at_position_into_offset(position, buffer, 0, len)
     }
 
+    pub fn write_at_position_into_offset(&mut self, position: usize, buffer: &[u8], offset: usize) -> Result<usize, ()> {
+        let length = buffer.len();
+        if offset + length > self.page_data.len() {
+            return Err(());
+        }
+        self.set_dirty(true);
+        &self.page_data[position..(position + length)].copy_from_slice(buffer);
+        Ok(length)
+    }
+
+    pub fn write_at_position(&mut self, position: usize, buffer: &[u8]) -> Result<usize, ()> {
+        self.write_at_position_into_offset(position, buffer, 0)
+    }
+
     pub fn invalidate(&mut self) {
         // TODO: Do stuff with buffer manager here.
     }
@@ -58,6 +87,23 @@ impl DBPage {
 impl Read for DBPage {
     fn read(&mut self, mut buffer: &mut [u8]) -> io::Result<usize> {
         self.read_at_position(self.cur_page_position as usize, buffer).map_err(|_| ErrorKind::Other.into())
+    }
+}
+
+impl Write for DBPage {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        let position = self.cur_page_position as usize;
+        match self.write_at_position(position, buffer) {
+            Ok(bytes) => {
+                self.cur_page_position += bytes as u64;
+                Ok(bytes)
+            },
+            Err(_) => { Err(ErrorKind::Other.into()) }
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        unimplemented!()
     }
 }
 

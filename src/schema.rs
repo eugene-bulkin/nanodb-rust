@@ -53,13 +53,9 @@ impl Schema {
             cols_hashed_by_table: Default::default(),
         }
     }
-    pub fn with_columns(column_infos: Vec<ColumnInfo>) -> Result<Schema, Error> {
+    pub fn with_columns<I: IntoIterator<Item = ColumnInfo>>(column_infos: I) -> Result<Schema, Error> {
         let mut result = Schema::new();
-        if !column_infos.is_empty() {
-            result.add_columns(column_infos).map(|_| result)
-        } else {
-            Ok(result)
-        }
+        result.add_columns(column_infos).map(|_| result)
     }
 
     pub fn add_column(&mut self, column: ColumnInfo) -> Result<(), Error> {
@@ -113,7 +109,6 @@ impl Schema {
         println!("Recording {} columns.", num_columns);
         try!(output.write_u8(num_columns));
         for ref column_info in &self.column_infos {
-            println!("{:?}", column_info);
             let column_type_byte: u8 = column_info.column_type.into();
             try!(output.write_u8(column_type_byte));
 

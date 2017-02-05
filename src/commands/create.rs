@@ -1,6 +1,6 @@
 use super::{Command, ExecutionError};
 
-use super::super::{ColumnType, Schema, Server};
+use super::super::{ColumnType, ColumnInfo, Schema, Server};
 
 #[derive(Debug, Clone, PartialEq)]
 /// A command for creating a new database object.
@@ -22,15 +22,25 @@ pub enum CreateCommand {
 
 impl Command for CreateCommand {
     fn execute(&mut self, server: &mut Server) -> Result<(), ExecutionError> {
-        println!("{:?}", self);
-        match server.table_manager
-            .create_table(&server.file_manager, "foo", Schema::new()) {
-            Ok(_) => {
-                println!("Created table foo.");
-                Ok(())
-            }
-            Err(e) => {
-                println!("ERROR: {:?}", e);
+        match *self {
+            CreateCommand::Table { ref name, ref decls, .. } => {
+                let column_infos: Vec<ColumnInfo> = decls.iter().map(|decl| {
+                    ColumnInfo::with_table_name(decl.1, decl.0.as_ref(), name.as_ref())
+                }).collect();
+                let schema = try!(Schema::with_columns(column_infos));
+                match server.table_manager
+                    .create_table(&server.file_manager, name.as_ref(), schema) {
+                    Ok(_) => {
+                        println!("Created table {}.", name);
+                        Ok(())
+                    }
+                    Err(e) => {
+                        println!("ERROR: {:?}", e);
+                        Err(ExecutionError::Unimplemented)
+                    }
+                }
+            },
+            CreateCommand::View => {
                 Err(ExecutionError::Unimplemented)
             }
         }
@@ -49,7 +59,6 @@ mod tests {
     use super::super::super::column::ColumnType;
 
     #[test]
-    #[ignore] // TODO: Implement
     fn test_table() {
         let mut server = Server::new();
         let mut command = CreateCommand::Table {

@@ -51,13 +51,23 @@ pub use self::create::CreateCommand;
 pub use self::select::SelectCommand;
 pub use self::show::ShowCommand;
 
+use super::schema;
+
 #[derive(Debug, Clone, PartialEq)]
 /// An error that occurred while attempting to execute a command.
 pub enum ExecutionError {
+    /// Unable to construct a schema given the column information provided.
+    CouldNotCreateSchema(schema::Error),
     /// The command tried to open a given table and was unable to.
     CouldNotOpenTable(String),
     /// The command has not been fully implemented.
     Unimplemented,
+}
+
+impl From<schema::Error> for ExecutionError {
+    fn from(error: schema::Error) -> ExecutionError {
+        ExecutionError::CouldNotCreateSchema(error)
+    }
 }
 
 /// Trait for all commands that NanoDB supports. Command classes contain both the arguments and

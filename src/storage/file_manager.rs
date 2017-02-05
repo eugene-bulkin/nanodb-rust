@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 use super::dbfile::{self, DBFile, DBFileType};
 use super::dbpage;
+use super::PinError;
 
 named!(parse_header (&[u8]) -> (u8, Result<u32, dbfile::Error>), do_parse!(
     type_id: be_u8 >>
@@ -49,6 +50,7 @@ pub enum Error {
     DBFileDoesNotExist,
     DBFileError(dbfile::Error),
     DBPageError(dbpage::Error),
+    PinError(PinError),
     DBFileParseError,
     IOError,
     CantExtendDBFile,
@@ -80,6 +82,12 @@ impl From<io::Error> for Error {
     }
 }
 
+impl From<PinError> for Error {
+    fn from(error: PinError) -> Error {
+        Error::PinError(error)
+    }
+}
+
 /// This helper function calculates the file-position of the specified page.
 /// Obviously, this value
 /// is dependent on the page size.
@@ -103,7 +111,6 @@ fn get_page_start<F: Read + Seek + Write>(dbfile: &DBFile<F>, page_no: u32) -> u
 /// * If the buffer length is not the same as the page size.
 /// * If an I/O error occurs while writing.
 pub fn save_page<F: Read + Seek + Write>(dbfile: &mut DBFile<F>, page_no: u32, buffer: &[u8]) -> Result<(), Error> {
-    println!("{:?}", buffer.len());
     if buffer.len() as u32 != dbfile.get_page_size() {
         return Err(Error::IncorrectBufferSize);
     }

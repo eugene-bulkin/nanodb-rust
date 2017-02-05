@@ -1,7 +1,7 @@
 //! The module containing NanoDB server instances.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use super::super::commands::Command;
 use super::super::storage::{FileManager, TableManager};
 
@@ -17,16 +17,22 @@ pub struct Server {
 }
 
 impl Server {
-    /// Instantiates a new server instance.
+    /// Instantiates a new server instance, storing data files in the datafiles/ folder.
     pub fn new() -> Server {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("datafiles");
+        Server::with_data_path(path)
+    }
+
+    /// Instantiates a new server instance with the data files stored at the provided path.
+    pub fn with_data_path<P: AsRef<Path>>(path: P) -> Server {
+        let path = path.as_ref();
         if !path.exists() {
             fs::create_dir(&path).unwrap();
         }
         let file_manager = FileManager::with_directory(&path).unwrap();
         Server {
             file_manager: file_manager,
-            table_manager: TableManager {},
+            table_manager: TableManager::new(),
         }
     }
 
@@ -34,7 +40,7 @@ impl Server {
     ///
     /// If an error occurs in the command, it is printed to the console.
     pub fn handle_command(&mut self, mut command: Box<Command>) {
-        match command.execute(&self) {
+        match command.execute(self) {
             Err(e) => {
                 println!("Command error: {:?}", e);
             }

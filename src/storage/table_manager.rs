@@ -2,10 +2,13 @@ use super::{DBFileType, FileManager, file_manager};
 use super::super::Schema;
 use super::tuple_files::HeapTupleFile;
 
+use std::collections::HashMap;
+
 pub struct Table {
     tuple_file: HeapTupleFile,
 }
 
+#[inline]
 fn get_table_file_name<S: Into<String>>(table_name: S) -> String {
     table_name.into() + ".tbl"
 }
@@ -21,28 +24,56 @@ impl From<file_manager::Error> for Error {
     }
 }
 
-pub struct TableManager {}
+pub struct TableManager {
+    pub open_tables: HashMap<String, Table>,
+}
 
 impl TableManager {
+    /// Instantiates the table manager
+    pub fn new() -> TableManager {
+        TableManager {
+            open_tables: HashMap::new()
+        }
+    }
+
+    /// Return a reference to a table, if it exists, from the table manager.
+    pub fn get_table<S: Into<String>>(&self, name: S) -> Option<&Table> {
+        let name = name.into();
+        let result = self.open_tables.get(&name);
+        match result {
+            Some(table) => Some(table),
+            None => {
+                None
+            }
+        }
+    }
+
     /// Creates a new table file with the table-name and schema specified in
     /// the passed-in
     /// [`Schema`](../schema/struct.Schema.html) object.
     ///
     /// TODO: Add properties
-    pub fn create_table<'a, S: Into<String>>(&self,
+    pub fn create_table<'a, S: Into<String>>(&mut self,
                                              file_manager: &FileManager,
                                              table_name: S,
                                              schema: Schema)
-                                             -> Result<Table, Error> {
+                                             -> Result<(), Error> {
+        let table_name = table_name.into();
         let page_size = 512; // TODO: Change this to .get_current_pagesize()
 
-        match file_manager.create_dbfile(get_table_file_name(table_name),
+        let table_filename = get_table_file_name(table_name.clone());
+
+        match file_manager.create_dbfile(table_filename,
                                          DBFileType::HeapTupleFile,
                                          page_size) {
             Ok(db_file) => {
-                let tuple_file = HeapTupleFile::new(db_file, schema);
+                let tuple_file = try!(HeapTupleFile::new(db_file, schema));
 
-                Ok(Table { tuple_file: tuple_file })
+                let table = Table { tuple_file: tuple_file };
+
+                self.open_tables.insert(table_name, table);
+
+                Ok(())
             }
             Err(e) => Err(e.into()),
         }
@@ -59,9 +90,10 @@ mod tests {
 
     #[test]
     fn test_create_table() {
+        const TABLE_NAME: &'static str = "foo";
         let dir = TempDir::new("test_dbfiles").expect("Unable to create test_dbfiles directory!");
         let file_manager = FileManager::with_directory(dir.path()).unwrap();
-        let table_manager = TableManager {};
+        let mut table_manager = TableManager::new();
 
         let schema = Schema::with_columns(vec![
             ColumnInfo::with_name(ColumnType::Integer, "A"),
@@ -69,7 +101,9 @@ mod tests {
         ])
             .unwrap();
 
-        let table = table_manager.create_table(&file_manager, "foo", schema.clone()).unwrap();
+        table_manager.create_table(&file_manager, TABLE_NAME, schema.clone()).unwrap();
+
+        let table = table_manager.get_table(TABLE_NAME).unwrap();
 
         assert_eq!(table.tuple_file.schema, schema);
     }
