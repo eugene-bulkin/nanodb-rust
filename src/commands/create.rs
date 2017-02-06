@@ -58,9 +58,12 @@ mod tests {
     use super::super::super::Server;
     use super::super::super::column::ColumnType;
 
+    use tempdir::TempDir;
+
     #[test]
     fn test_table() {
-        let mut server = Server::new();
+        let dir = TempDir::new("test_dbfiles").unwrap();
+        let mut server = Server::with_data_path(dir.path());
         let mut command = CreateCommand::Table {
             name: "foo".into(),
             temp: false,
