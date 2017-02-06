@@ -1,3 +1,4 @@
+#![deny(missing_docs)]
 //! NanoDB is a simple SQL relational database suitable for use in courses about relational
 //! database implementation.  Even with a simple implementation, NanoDB has grown to become quite a
 //! substantial code-base.
