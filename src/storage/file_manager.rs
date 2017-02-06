@@ -217,6 +217,31 @@ impl FileManager {
         }
     }
 
+    /// This method checks if a database file exists.
+    ///
+    /// # Arguments
+    /// * filename - the filename the DBFile is backed by.
+    pub fn dbfile_exists<P: AsRef<Path>>(&self, filename: P) -> bool {
+        self.base_dir.clone().join(filename).exists()
+    }
+
+    /// This method removes a database file in the storage directory.
+    ///
+    /// # Arguments
+    /// * filename - the filename the DBFile is backed by.
+    ///
+    /// # Errors
+    /// This function will return an error in the following situations:
+    ///
+    /// * The file does not exist.
+    pub fn remove_dbfile<P: AsRef<Path>>(&self, filename: P) -> Result<(), Error> {
+        if !self.dbfile_exists(&filename) {
+            return Err(Error::DBFileDoesNotExist);
+        }
+
+        fs::remove_file(self.base_dir.clone().join(filename)).map_err(Into::into)
+    }
+
     /// This method creates a new database file in the directory used by the
     /// storage manager.
     ///
