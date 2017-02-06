@@ -9,7 +9,7 @@ pub struct Table {
 }
 
 #[inline]
-fn get_table_file_name<S: Into<String>>(table_name: S) -> String {
+pub fn get_table_file_name<S: Into<String>>(table_name: S) -> String {
     table_name.into() + ".tbl"
 }
 
@@ -48,12 +48,21 @@ impl TableManager {
         }
     }
 
+    /// Checks if a table with the given name exists.
+    pub fn table_exists<S: Into<String>>(&self, file_manager: &FileManager, name: S) -> bool {
+        let name = name.into();
+        match self.open_tables.get(&name) {
+            Some(_) => true,
+            _ => file_manager.dbfile_exists(get_table_file_name(name))
+        }
+    }
+
     /// Creates a new table file with the table-name and schema specified in
     /// the passed-in
     /// [`Schema`](../schema/struct.Schema.html) object.
     ///
     /// TODO: Add properties
-    pub fn create_table<'a, S: Into<String>>(&mut self,
+    pub fn create_table<S: Into<String>>(&mut self,
                                              file_manager: &FileManager,
                                              table_name: S,
                                              schema: Schema)

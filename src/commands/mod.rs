@@ -46,12 +46,15 @@ use super::Server;
 mod select;
 mod show;
 mod create;
+mod drop;
 
 pub use self::create::CreateCommand;
 pub use self::select::SelectCommand;
 pub use self::show::ShowCommand;
+pub use self::drop::DropCommand;
 
 use super::schema;
+use super::storage::file_manager;
 
 #[derive(Debug, Clone, PartialEq)]
 /// An error that occurred while attempting to execute a command.
@@ -60,6 +63,10 @@ pub enum ExecutionError {
     CouldNotCreateSchema(schema::Error),
     /// The command tried to open a given table and was unable to.
     CouldNotOpenTable(String),
+    /// The table requested does not exist.
+    TableDoesNotExist(String),
+    /// The table could not be deleted.
+    CouldNotDeleteTable(file_manager::Error),
     /// The command has not been fully implemented.
     Unimplemented,
 }
