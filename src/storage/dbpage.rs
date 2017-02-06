@@ -65,7 +65,11 @@ impl DBPage {
         self.read_at_position_into_offset(position, buffer, 0, len)
     }
 
-    pub fn write_at_position_into_offset(&mut self, position: usize, buffer: &[u8], offset: usize) -> Result<usize, ()> {
+    pub fn write_at_position_into_offset(&mut self,
+                                         position: usize,
+                                         buffer: &[u8],
+                                         offset: usize)
+                                         -> Result<usize, ()> {
         let length = buffer.len();
         if offset + length > self.page_data.len() {
             return Err(());
@@ -97,8 +101,8 @@ impl Write for DBPage {
             Ok(bytes) => {
                 self.cur_page_position += bytes as u64;
                 Ok(bytes)
-            },
-            Err(_) => { Err(ErrorKind::Other.into()) }
+            }
+            Err(_) => Err(ErrorKind::Other.into()),
         }
     }
 

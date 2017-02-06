@@ -1,7 +1,7 @@
 use std::fs::File;
 
 use super::super::{DBFile, DBPage, Pinnable};
-use super::super::{file_manager};
+use super::super::file_manager;
 use super::super::super::Schema;
 
 pub struct HeapTupleFile {

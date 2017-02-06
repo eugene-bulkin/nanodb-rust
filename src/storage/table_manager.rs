@@ -1,8 +1,8 @@
+use std::collections::HashMap;
+
 use super::{DBFileType, FileManager, file_manager};
 use super::super::Schema;
 use super::tuple_files::HeapTupleFile;
-
-use std::collections::HashMap;
 
 pub struct Table {
     tuple_file: HeapTupleFile,
@@ -31,9 +31,7 @@ pub struct TableManager {
 impl TableManager {
     /// Instantiates the table manager
     pub fn new() -> TableManager {
-        TableManager {
-            open_tables: HashMap::new()
-        }
+        TableManager { open_tables: HashMap::new() }
     }
 
     /// Return a reference to a table, if it exists, from the table manager.
@@ -42,9 +40,7 @@ impl TableManager {
         let result = self.open_tables.get(&name);
         match result {
             Some(table) => Some(table),
-            None => {
-                None
-            }
+            None => None,
         }
     }
 
@@ -53,7 +49,7 @@ impl TableManager {
         let name = name.into();
         match self.open_tables.get(&name) {
             Some(_) => true,
-            _ => file_manager.dbfile_exists(get_table_file_name(name))
+            _ => file_manager.dbfile_exists(get_table_file_name(name)),
         }
     }
 
@@ -63,18 +59,16 @@ impl TableManager {
     ///
     /// TODO: Add properties
     pub fn create_table<S: Into<String>>(&mut self,
-                                             file_manager: &FileManager,
-                                             table_name: S,
-                                             schema: Schema)
-                                             -> Result<(), Error> {
+                                         file_manager: &FileManager,
+                                         table_name: S,
+                                         schema: Schema)
+                                         -> Result<(), Error> {
         let table_name = table_name.into();
         let page_size = 512; // TODO: Change this to .get_current_pagesize()
 
         let table_filename = get_table_file_name(table_name.clone());
 
-        match file_manager.create_dbfile(table_filename,
-                                         DBFileType::HeapTupleFile,
-                                         page_size) {
+        match file_manager.create_dbfile(table_filename, DBFileType::HeapTupleFile, page_size) {
             Ok(db_file) => {
                 let tuple_file = try!(HeapTupleFile::new(db_file, schema));
 

@@ -158,7 +158,7 @@ mod tests {
         let schema = Schema::with_columns(vec![info1.clone(), info2.clone()]).unwrap();
 
         assert_eq!(schema.into_iter().collect::<Vec<ColumnInfo>>(),
-        vec![info1.clone(), info2.clone()]);
+                   vec![info1.clone(), info2.clone()]);
     }
 
     #[test]
@@ -171,8 +171,8 @@ mod tests {
             .unwrap();
         let buffer = vec![0x00; 512];
         let mut expected = vec![0x00; 6];
-        expected.extend_from_slice(&[0x01, 0x03, 0x46, 0x4F, 0x4F, 0x03, 0x01, 0x00, 0x01, 0x41,
-            0x16, 0x00, 0x14, 0x00, 0x01, 0x42, 0x01, 0x00, 0x01, 0x43]);
+        expected.extend_from_slice(&[0x01, 0x03, 0x46, 0x4F, 0x4F, 0x03, 0x01, 0x00, 0x01, 0x41, 0x16, 0x00, 0x14, 0x00,
+                                 0x01, 0x42, 0x01, 0x00, 0x01, 0x43]);
         expected.extend_from_slice(&[0x00; 486]);
 
         let mut cursor = Cursor::new(buffer);

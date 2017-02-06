@@ -1,6 +1,6 @@
 use super::{Command, ExecutionError};
 
-use super::super::{Server};
+use super::super::Server;
 use super::super::storage::table_manager::get_table_file_name;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -16,7 +16,9 @@ impl Command for DropCommand {
             DropCommand::Table(ref table_name) => {
                 let table_exists = server.table_manager.table_exists(&server.file_manager, table_name.as_str());
                 if table_exists {
-                    server.file_manager.remove_dbfile(get_table_file_name(table_name.as_str())).map_err(|e| ExecutionError::CouldNotDeleteTable(e))
+                    server.file_manager
+                        .remove_dbfile(get_table_file_name(table_name.as_str()))
+                        .map_err(|e| ExecutionError::CouldNotDeleteTable(e))
                 } else {
                     Err(ExecutionError::TableDoesNotExist(table_name.clone()))
                 }
@@ -32,7 +34,7 @@ impl Command for DropCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::{CreateCommand, Command, ExecutionError};
+    use super::super::{Command, CreateCommand, ExecutionError};
     use super::super::super::Server;
     use super::super::super::column::ColumnType;
 

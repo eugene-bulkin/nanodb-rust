@@ -1,6 +1,6 @@
 use super::{Command, ExecutionError};
 
-use super::super::{ColumnType, ColumnInfo, Schema, Server};
+use super::super::{ColumnInfo, ColumnType, Schema, Server};
 
 #[derive(Debug, Clone, PartialEq)]
 /// A command for creating a new database object.
@@ -24,9 +24,9 @@ impl Command for CreateCommand {
     fn execute(&mut self, server: &mut Server) -> Result<(), ExecutionError> {
         match *self {
             CreateCommand::Table { ref name, ref decls, .. } => {
-                let column_infos: Vec<ColumnInfo> = decls.iter().map(|decl| {
-                    ColumnInfo::with_table_name(decl.1, decl.0.as_ref(), name.as_ref())
-                }).collect();
+                let column_infos: Vec<ColumnInfo> = decls.iter()
+                    .map(|decl| ColumnInfo::with_table_name(decl.1, decl.0.as_ref(), name.as_ref()))
+                    .collect();
                 let schema = try!(Schema::with_columns(column_infos));
                 match server.table_manager
                     .create_table(&server.file_manager, name.as_ref(), schema) {
@@ -39,10 +39,8 @@ impl Command for CreateCommand {
                         Err(ExecutionError::Unimplemented)
                     }
                 }
-            },
-            CreateCommand::View => {
-                Err(ExecutionError::Unimplemented)
             }
+            CreateCommand::View => Err(ExecutionError::Unimplemented),
         }
     }
 

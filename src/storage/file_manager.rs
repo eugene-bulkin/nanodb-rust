@@ -1,14 +1,12 @@
+use nom::{IResult, be_u8};
 
-use nom::IResult;
-
-use nom::be_u8;
 use std::fs::{self, File};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
+use super::PinError;
 use super::dbfile::{self, DBFile, DBFileType};
 use super::dbpage;
-use super::PinError;
 
 named!(parse_header (&[u8]) -> (u8, Result<u32, dbfile::Error>), do_parse!(
     type_id: be_u8 >>

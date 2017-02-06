@@ -163,6 +163,7 @@ impl PartialEq for DBFileInfo {
 /// - __Byte 1:__  page size _p_ (unsigned byte) - file's page size is _P_ = 2<sup>p</sup>
 #[derive(Debug, Clone)]
 pub struct DBFile<F: Read + Seek + Write> {
+    /// The DB file metadata, not dependent on the content.
     pub file_info: DBFileInfo,
     contents: F,
 }
@@ -224,16 +225,23 @@ impl<F: Read + Seek + Write> DBFile<F> {
         }
     }
 
+    /// Retrieve the page size of the current `DBFile`.
     pub fn get_page_size(&self) -> u32 {
         self.page_size
     }
 
+    /// Retrieve a reference to the contents of the current `DBFile`.
     pub fn get_contents(&self) -> &F {
         &self.contents
     }
 }
 
 impl DBFile<File> {
+    /// Sets the file length of the underlying file, if the `DBFile` is backed by an actual file
+    /// object.
+    ///
+    /// # Arguments
+    /// * size - The new file size.
     pub fn set_file_length(&mut self, size: u64) -> io::Result<()> {
         self.contents.set_len(size)
     }

@@ -49,9 +49,9 @@ mod create;
 mod drop;
 
 pub use self::create::CreateCommand;
+pub use self::drop::DropCommand;
 pub use self::select::SelectCommand;
 pub use self::show::ShowCommand;
-pub use self::drop::DropCommand;
 
 use super::schema;
 use super::storage::file_manager;
