@@ -11,19 +11,32 @@ use super::storage::WriteNanoDBExt;
 use super::storage::header_page::OFFSET_SCHEMA_START;
 
 #[derive(Debug, Clone, PartialEq)]
+/// An error that occurs when the name of a column results in an invalid schema state.
 pub enum NameError {
+    /// No columns exist with the requested name.
     NoName(ColumnInfo),
+    /// Multiple columns with the same name already existed in the schema.
     MultipleNames(ColumnInfo),
+    /// The specified column is a duplicate of an existing one.
     Duplicate(ColumnInfo),
+    /// The name of the column is not uniquely identifying.
     Ambiguous(ColumnInfo),
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// An error that can occur while handling schemas.
 pub enum Error {
+    /// An error occurred that had to do with the names of columns passed in.
     Name(NameError),
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// A schema is an ordered collection of column names and associated types.
+///
+/// Many different entities in the database code can have schema associated with them. Both tables
+/// and tuples have schemas, for obvious reasons. `SELECT` and `FROM` clauses also have schemas,
+/// used by the database engine to verify the semantics of database queries. Finally, relational
+/// algebra plan nodes also have schemas, which specify the kinds of tuples that they generate.
 pub struct Schema {
     column_infos: Vec<ColumnInfo>,
     cols_hashed_by_table: HashMap<Option<String>, HashMap<Option<String>, usize>>,
@@ -47,17 +60,34 @@ impl IntoIterator for Schema {
 }
 
 impl Schema {
+    /// Instantiates a new schema with no columns in it.
     pub fn new() -> Schema {
         Schema {
             column_infos: vec![],
             cols_hashed_by_table: Default::default(),
         }
     }
+
+    /// Instantiates a schema with the given columns.
+    ///
+    /// # Arguments
+    /// * column_infos - Some collection of column infos.
+    ///
+    /// # Errors
+    /// This constructor will fail if adding a column would fail at any point.
     pub fn with_columns<I: IntoIterator<Item = ColumnInfo>>(column_infos: I) -> Result<Schema, Error> {
         let mut result = Schema::new();
         result.add_columns(column_infos).map(|_| result)
     }
 
+    /// Add one column to the schema.
+    ///
+    /// # Arguments
+    /// * column - The information about the desired column to add.
+    ///
+    /// # Errors
+    /// This will fail if the column cannot be added, either because one with that name already
+    /// exists, or it may result in an ambiguity.
     pub fn add_column(&mut self, column: ColumnInfo) -> Result<(), Error> {
         if column.name.is_some() {
             // If the column is named, make sure it's not already in the schema with that
@@ -81,11 +111,25 @@ impl Schema {
         Ok(())
     }
 
+    /// Add multiple columns to the schema.
+    ///
+    /// # Arguments
+    /// * schema - Some collection of column info.
+    ///
+    /// # Errors
+    /// This method will fail if adding a column would fail at any point.
     pub fn add_columns<T: IntoIterator<Item = ColumnInfo>>(&mut self, schema: T) -> Result<(), Error> {
         let result: Result<Vec<()>, Error> = schema.into_iter().map(|column| self.add_column(column)).collect();
         result.map(|_| ())
     }
 
+    /// Write the schema to some output.
+    ///
+    /// # Arguments
+    /// * output - The output to write the schema to.
+    ///
+    /// # Errors
+    /// This function can fail if anything goes wrong trying to write to the given output.
     pub fn write<W: WriteNanoDBExt + Seek>(&self, mut output: &mut W) -> Result<(), io::Error> {
         try!(output.seek(SeekFrom::Start(OFFSET_SCHEMA_START as u64)));
 
