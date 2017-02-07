@@ -18,11 +18,22 @@ pub enum ColumnType {
     /// An 8-byte signed floating-point number with 53 bits of precision.
     Double,
     /// A decimal value with a specified precision and scale.
-    Numeric { scale: u32, precision: u32 },
+    Numeric {
+        /// The number of digits stored to the right of the decimal point.
+        scale: u32,
+        /// The total number of digits stored.
+        precision: u32,
+    },
     /// A fixed-length character-sequence, with a specified length.
-    Char { length: u32 },
+    Char {
+        /// The length of the string.
+        length: u32,
+    },
     /// A variable-length character-sequence, with a specified maximum length.
-    VarChar { length: u32 },
+    VarChar {
+        /// The length of the string.
+        length: u32,
+    },
     /// A large character-sequence, with a very large maximum length.
     Text,
     /// A large byte-sequence, with a very large maximum length.
