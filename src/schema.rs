@@ -1,3 +1,5 @@
+//! This module contains utilities and classes for handling table schemas.
+
 use byteorder::BigEndian;
 use std::collections::HashMap;
 use std::default::Default;
