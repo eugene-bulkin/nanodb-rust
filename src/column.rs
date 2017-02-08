@@ -1,3 +1,5 @@
+//! This module contains classes and enums for column information.
+
 use std::fmt;
 
 /// The type of a single column in a relation.
@@ -96,12 +98,22 @@ impl fmt::Display for ColumnType {
 /// can involve multiple
 /// columns.
 pub struct ColumnInfo {
+    /// The type information for the column.
     pub column_type: ColumnType,
+    /// The name of the attribute. If the name is `None`, that means this is a wildcard.
     pub name: Option<String>,
+    /// An optional table-name for the attribute, in cases where a join or Cartesian product
+    /// generates a result with duplicate attribute-names. In most cases it is expected that this
+    /// table-name will be `None`.
     pub table_name: Option<String>,
 }
 
 impl ColumnInfo {
+    /// Create a new column-info object with a name, but not associated with a table.
+    ///
+    /// # Arguments
+    /// * column_type - The type information for the column.
+    /// * name - The column name.
     pub fn with_name<S: Into<String>>(column_type: ColumnType, name: S) -> ColumnInfo {
         ColumnInfo {
             column_type: column_type,
@@ -109,6 +121,13 @@ impl ColumnInfo {
             table_name: None,
         }
     }
+
+    /// Create a new column-info object with a name that is associated with a table.
+    ///
+    /// # Arguments
+    /// * column_type - The type information for the column.
+    /// * name - The column name.
+    /// * table_name - The table name.
     pub fn with_table_name<S1: Into<String>, S2: Into<String>>(column_type: ColumnType,
                                                                name: S1,
                                                                table_name: S2)
@@ -120,6 +139,11 @@ impl ColumnInfo {
         }
     }
 
+    /// Create a new column-info object that corresponds to a wildcard selection on a table.
+    ///
+    /// # Arguments
+    /// * column_type - The type information for the column.
+    /// * table_name - The table name.
     pub fn with_wildcard<S: Into<String>>(column_type: ColumnType, table_name: S) -> ColumnInfo {
         ColumnInfo {
             column_type: column_type,
