@@ -71,6 +71,14 @@ pub trait Pinnable {
 
 /// This interface provides additional writing operations for writing any given column type.
 pub trait WriteNanoDBExt: WriteBytesExt {
+    /// Write a string to the output, assuming that it is a VARCHAR that fits in 255 bytes (i.e.
+    /// the length can be represented in one byte).
+    ///
+    /// # Arguments
+    /// * string - The string to write.
+    ///
+    /// # Errors
+    /// This will fail if writing the length or the bytes in the string themselves fail.
     fn write_varchar255<S>(&mut self, string: S) -> io::Result<()>
         where S: Into<String>
     {
