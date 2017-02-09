@@ -1,15 +1,40 @@
+//! This module contains utilities to handle pages within database files for NanoDB.
+
 use std::io::{self, ErrorKind, SeekFrom};
 use std::io::prelude::*;
 
 use super::{DBFileInfo, PinError, Pinnable};
 
 #[derive(Debug, Clone, PartialEq, Copy)]
+/// An error that can occur during the operations on a `DBPage`.
+///
+/// Currently there are no variants because there is nothing to error yet.
 pub enum Error {}
 
+/// This class represents a single page in a database file. The page's (zero-based) index in the
+/// file, and whether the page has been changed in memory, are tracked by the object.
+///
+/// Database pages do not provide any locking mechanisms to guard against concurrent access.
+/// Locking must be managed at a level above what this class provides.
+///
+/// The class provides methods to read and write a wide range of data types. Multibyte values are
+/// stored in big-endian format, with the most significant byte (MSB) stored at the lowest index,
+/// and the least significant byte (LSB) stored at the highest index. (This is also the network
+/// byte order specified by the Internet Protocol.)
+///
+/// # Design
+/// It is very important that the page is marked dirty *before* any changes are made, because this
+/// is the point when the old version of the page data is copied before changes are made.
+/// Additionally, the page's data must not be manipulated separately from the methods provided by
+/// this class, or else the old version of the page won't be recorded properly.
 pub struct DBPage {
+    /// The page number of the `DBPage`.
     pub page_no: u32,
     pin_count: u32,
     dirty: bool,
+    /// The data contained in the page.
+    ///
+    /// TODO: Ideally, this should be a `&[u8]`.
     pub page_data: Vec<u8>,
     old_page_data: Option<Vec<u8>>,
 
@@ -17,6 +42,16 @@ pub struct DBPage {
 }
 
 impl DBPage {
+    /// Instantiate a new `DBPage` instance, referring to a page number on a `DBFile` with the
+    /// provided information.
+    ///
+    /// # Arguments
+    /// * db_file_info - The `DBFile` metadata.
+    /// * page_no - The page number.
+    ///
+    /// # Error
+    /// An error can occur if the buffer manager was unable to allocate the space to store the page.
+    /// Currently the buffer manager does not exist, so this should never return an error.
     pub fn new(db_file_info: &DBFileInfo, page_no: u32) -> Result<DBPage, Error> {
         let page = DBPage {
             page_no: page_no,
@@ -47,6 +82,18 @@ impl DBPage {
         self.dirty = is_dirty;
     }
 
+
+    /// Given a position within the page, read a given amount of data into a buffer at the provided
+    /// offset.
+    ///
+    /// # Arguments
+    /// position - The byte at which to start reading.
+    /// buffer - The buffer being read into.
+    /// offset - The offset at which the buffer is being read into.
+    /// length - The number of bytes to read from the page.
+    ///
+    /// # Errors
+    /// An error can occur if the read would result in a buffer overflow.
     pub fn read_at_position_into_offset(&self,
                                         position: usize,
                                         mut buffer: &mut [u8],
@@ -60,12 +107,36 @@ impl DBPage {
         Ok(length)
     }
 
+    /// Given a position within the page, read enough data to fill the provided buffer.
+    ///
+    /// # Arguments
+    /// position - The byte at which to start reading.
+    /// buffer - The buffer being read into.
+    ///
+    /// # Errors
+    /// An error can occur if [`read_at_position_into_offset`](#method.read_at_position_into_offset)
+    /// fails.
+    #[inline]
     pub fn read_at_position(&self, position: usize, mut buffer: &mut [u8]) -> Result<usize, ()> {
         let len = buffer.len();
         self.read_at_position_into_offset(position, buffer, 0, len)
     }
 
-    pub fn write_at_position_into_offset(&mut self, position: usize, buffer: &[u8], offset: usize) -> Result<usize, ()> {
+    /// Given a position within the page, write data from the provided buffer starting from a given
+    /// offset into the page data.
+    ///
+    /// # Arguments
+    /// position - The byte at which to start writing.
+    /// buffer - The buffer being written from.
+    /// offset - The offset at which to start copying bytes.
+    ///
+    /// # Errors
+    /// An error can occur if a buffer overflow could occur while writing.
+    pub fn write_at_position_into_offset(&mut self,
+                                         position: usize,
+                                         buffer: &[u8],
+                                         offset: usize)
+                                         -> Result<usize, ()> {
         let length = buffer.len();
         if offset + length > self.page_data.len() {
             return Err(());
@@ -75,16 +146,32 @@ impl DBPage {
         Ok(length)
     }
 
+    /// Given a position within the page, write data from the provided buffer into the page data.
+    ///
+    /// # Arguments
+    /// position - The byte at which to start writing.
+    /// buffer - The buffer being written from.
+    ///
+    /// # Errors
+    /// An error can occur if
+    /// [`write_at_position_into_offset`](#method.write_at_position_into_offset) fails.
+    #[inline]
     pub fn write_at_position(&mut self, position: usize, buffer: &[u8]) -> Result<usize, ()> {
         self.write_at_position_into_offset(position, buffer, 0)
     }
 
+    /// This method makes the `DBPage` invalid by clearing all of its internal references. It is
+    /// used by the Buffer Manager when a page is removed from the cache so that no other database
+    /// code will continue to try to use the page.
+    ///
+    /// Since the buffer manager does not currently exist, this function does nothing.
     pub fn invalidate(&mut self) {
         // TODO: Do stuff with buffer manager here.
     }
 }
 
 impl Read for DBPage {
+    #[inline]
     fn read(&mut self, mut buffer: &mut [u8]) -> io::Result<usize> {
         self.read_at_position(self.cur_page_position as usize, buffer).map_err(|_| ErrorKind::Other.into())
     }
@@ -97,8 +184,8 @@ impl Write for DBPage {
             Ok(bytes) => {
                 self.cur_page_position += bytes as u64;
                 Ok(bytes)
-            },
-            Err(_) => { Err(ErrorKind::Other.into()) }
+            }
+            Err(_) => Err(ErrorKind::Other.into()),
         }
     }
 

@@ -1,14 +1,14 @@
+//! This module contains utilities to handle NanoDB's database files.
 
-use nom::IResult;
+use nom::{IResult, be_u8};
 
-use nom::be_u8;
 use std::fs::{self, File};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
+use super::PinError;
 use super::dbfile::{self, DBFile, DBFileType};
 use super::dbpage;
-use super::PinError;
 
 named!(parse_header (&[u8]) -> (u8, Result<u32, dbfile::Error>), do_parse!(
     type_id: be_u8 >>
@@ -43,24 +43,43 @@ pub struct FileManager {
 }
 
 #[derive(Debug, Clone, PartialEq, Copy)]
+/// An error that occurs while handling files.
 pub enum Error {
+    /// The base directory provided to the file manager was invalid.
     InvalidBaseDir,
+    /// An error occurred attempting to list the file paths within the base directory.
     FilePathsError,
+    /// The `DBFile` being created already exists.
     DBFileExists,
+    /// The `DBFile` being asked for does not exist.
     DBFileDoesNotExist,
+    /// A `DBFile` error occurred.
     DBFileError(dbfile::Error),
+    /// A `DBPage` error occurred.
     DBPageError(dbpage::Error),
+    /// An error occurred while attempting to pin a page.
     PinError(PinError),
+    /// A `DBFile` was unable to be parsed properly.
     DBFileParseError,
+    /// Some I/O error occurred.
     IOError,
+    /// A `DBFile` was unable to be extended due to memory constraints.
     CantExtendDBFile,
+    /// The file manager was unable to create a desired file.
     CantCreateFile,
+    /// The file manager was unable to open a desired file.
     CantOpenFile,
+    /// The page size provided by or for a `DBFile` was invalid.
     InvalidDBFilePageSize,
+    /// The file type provided by or for a `DBFile` was invalid.
     InvalidDBFileType,
+    /// The buffer size provided for reading or writing a page did not match the page size.
     IncorrectBufferSize,
+    /// A buffer was not fully written to a file.
     NotFullyWritten,
+    /// A byte sequence was not fully read from a file.
     NotFullyRead,
+    /// An error occurred while saving a page.
     PageSaveError,
 }
 
@@ -89,8 +108,7 @@ impl From<PinError> for Error {
 }
 
 /// This helper function calculates the file-position of the specified page.
-/// Obviously, this value
-/// is dependent on the page size.
+/// Obviously, this value is dependent on the page size.
 fn get_page_start<F: Read + Seek + Write>(dbfile: &DBFile<F>, page_no: u32) -> u64 {
     (page_no as u64) * (dbfile.get_page_size() as u64)
 }
@@ -192,6 +210,14 @@ pub fn load_page(dbfile: &mut DBFile<File>, page_no: u32, mut buffer: &mut [u8],
 }
 
 impl FileManager {
+    /// Create a new file manager with data files stored at the provided base directory.
+    ///
+    /// # Arguments
+    /// * base_dir - The desired base directory.
+    ///
+    /// # Errors
+    /// If the base directory does not exist or is not a directory, this will return an
+    /// `InvalidBaseDir` error.
     pub fn with_directory<P: AsRef<Path>>(base_dir: P) -> Result<FileManager, Error> {
         if !base_dir.as_ref().exists() || !base_dir.as_ref().is_dir() {
             return Err(Error::InvalidBaseDir);
@@ -202,6 +228,10 @@ impl FileManager {
         })
     }
 
+    /// Return a list of file paths of files in the base directory.
+    ///
+    /// # Errors
+    /// If the file manager is unable to read the directory, this will return an error.
     pub fn get_file_paths(&self) -> Result<Vec<PathBuf>, Error> {
         let dir = fs::read_dir(self.base_dir.as_path()).map_err(|_| Error::FilePathsError);
         if let Ok(dir) = dir {

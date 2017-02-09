@@ -4,6 +4,8 @@ use super::super::parser::select;
 
 #[derive(Debug, Clone, PartialEq)]
 /// A command for selecting rows from a table.
+///
+/// TODO: This should really be a wrapper for a select clause to handle nested queries.
 pub struct SelectCommand {
     /// The name of the table.
     ///
@@ -20,6 +22,14 @@ pub struct SelectCommand {
 }
 
 impl SelectCommand {
+    /// Creates a new select command.
+    ///
+    /// # Arguments
+    /// * table - The name of the table. TODO: This should be an arbitrary `FROM` clause.
+    /// * distinct - Whether the values should be distinct.
+    /// * value - The select values or wildcard being selected.
+    /// * limit - Optionally, how many rows to return.
+    /// * offset - Optionally, the index at which to start returning rows.
     pub fn new<S: Into<String>>(table: S,
                                 distinct: bool,
                                 value: select::Value,

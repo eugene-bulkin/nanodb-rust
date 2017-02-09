@@ -1,3 +1,6 @@
+//! This module contains utility functions for handling the first page of a `DBPage`, the header
+//! page.
+
 use byteorder::{BigEndian, ReadBytesExt};
 use std::io::{self, SeekFrom};
 
@@ -80,6 +83,11 @@ impl Deref for HeaderPage {
 }
 
 impl HeaderPage {
+    /// This helper method simply verifies that the data page provided to the `HeaderPage` class is
+    /// in fact a header-page (i.e. page 0 in the data file).
+    ///
+    /// # Errors
+    /// This method will return an error if the page is not page 0.
     pub fn verify(&self) -> Result<(), Error> {
         if self.page_no != 0 {
             Err(Error::IncorrectPage(self.page_no))
@@ -88,6 +96,9 @@ impl HeaderPage {
         }
     }
 
+    /// Returns the number of bytes that the table's schema occupies for storage in the header page.
+    ///
+    /// This method reads from the DB page in order to determine this number.
     pub fn get_schema_size(&mut self) -> Result<u16, Error> {
         try!(self.verify());
         try!(self.db_page.seek(SeekFrom::Start(OFFSET_SCHEMA_SIZE as u64)));
