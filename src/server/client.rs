@@ -25,6 +25,7 @@ impl Client {
         println!("Welcome to NanoDB.  Exit with EXIT or QUIT command.\n");
 
         let mut rl = Editor::<()>::new();
+        rl.load_history(".history").unwrap_or(());
         loop {
             let readline = rl.readline(PROMPT);
             match readline {
@@ -55,5 +56,6 @@ impl Client {
                 }
             }
         }
+        rl.save_history(".history").unwrap();
     }
 }
