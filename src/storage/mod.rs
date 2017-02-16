@@ -91,3 +91,56 @@ pub trait WriteNanoDBExt: WriteBytesExt {
 }
 
 impl<W: io::Write + ?Sized> WriteNanoDBExt for W {}
+
+/// Errors that can occur while handling a tuple.
+pub enum TupleError {
+    /// For when an IO error occurs.
+    IOError,
+    /// For when a column type is not supported for storage.
+    UnsupportedColumnType,
+    /// For when the column index provided is out of range.
+    InvalidColumnIndex,
+}
+
+impl From<io::Error> for TupleError {
+    fn from(_: io::Error) -> Self {
+        TupleError::IOError
+    }
+}
+
+/// This interface provides the operations that can be performed with a tuple. In relational
+/// database theory, a tuple is an ordered set of attribute-value pairs, but in this implementation
+/// the tuple's data and its schema are kept completely separate. This tuple interface simply
+/// provides an index-accessed collection of values; the schema would be represented separately
+/// using the {@link Schema} class.
+///
+/// Different implementations of this interface store their data in different places. Some tuple
+/// implementations (e.g. subclasses of {@link edu.caltech.nanodb.storage.PageTuple}) load and store
+/// values straight out of a tuple file, and thus their data is backed by a buffer page that can be
+/// written back to the filesystem. Other tuples may exist entirely in memory, with no corresponding
+/// back-end storage.
+pub trait Tuple: Pinnable {
+    /// Returns true if this tuple is backed by a disk page that must be kept in memory as long as the
+    /// tuple is in use. Some tuple implementations allocate memory to store their values, and are
+    /// therefore not affected if disk pages are evicted from the Buffer Manager. Others are backed by
+    /// disk pages, and the disk page cannot be evicted until the tuple is no longer being used. In
+    /// cases where a plan-node needs to hold onto a tuple for a long time (e.g. for sorting or
+    /// grouping), the plan node should probably make a copy of disk-backed tuples, or materialize the
+    /// results, etc.
+    fn is_disk_backed(&self) -> bool;
+
+    /// Determine if the column at index `col_index` is `NULL`.
+    ///
+    /// # Arguments
+    /// * col_index - The index of the column to check is `NULL`
+    fn is_null_value(&self, col_index: usize) -> Result<bool, TupleError>;
+
+    /// Returns a count of the number of columns in the tuple.
+    fn get_column_count(&self) -> usize;
+
+    /// Returns the value of a column.
+    ///
+    /// # Arguments
+    /// * col_index - The index of the column
+    fn get_column_value(&self, col_index: usize) -> Literal;
+}
