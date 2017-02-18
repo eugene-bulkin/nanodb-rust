@@ -5,6 +5,7 @@ pub mod select;
 pub mod utils;
 pub mod show;
 pub mod create;
+pub mod literal;
 
 use self::create::parse as create_parse;
 use self::select::parse as select_parse;

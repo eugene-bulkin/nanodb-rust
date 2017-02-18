@@ -38,6 +38,8 @@ pub use self::file_manager::FileManager;
 pub use self::header_page::HeaderPage;
 pub use self::table_manager::TableManager;
 
+use super::expressions::Literal;
+
 use std::io;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
