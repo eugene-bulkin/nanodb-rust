@@ -2,6 +2,9 @@
 
 use std::fmt;
 
+/// A shorthand type for storing a column name in (table_name, column_name) form.
+pub type ColumnName = (Option<String>, Option<String>);
+
 /// The type of a single column in a relation.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum ColumnType {
@@ -150,6 +153,11 @@ impl ColumnInfo {
             name: None,
             table_name: Some(table_name.into()),
         }
+    }
+
+    /// Returns the column name for a column-info object.
+    pub fn get_column_name(&self) -> ColumnName {
+        (self.name.clone(), self.table_name.clone())
     }
 }
 

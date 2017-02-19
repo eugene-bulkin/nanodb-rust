@@ -19,6 +19,6 @@ pub mod commands;
 pub mod server;
 pub mod expressions;
 
-pub use column::{ColumnInfo, ColumnType};
+pub use column::{ColumnInfo, ColumnType, ColumnName};
 pub use schema::Schema;
 pub use server::{Client, Server};

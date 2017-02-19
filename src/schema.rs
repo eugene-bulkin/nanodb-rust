@@ -8,7 +8,7 @@ use std::io::{Seek, SeekFrom};
 use std::iter::IntoIterator;
 use std::ops::Index;
 
-use super::column::{ColumnInfo, ColumnType};
+use super::column::{ColumnInfo, ColumnName, ColumnType};
 use super::storage::WriteNanoDBExt;
 use super::storage::header_page::OFFSET_SCHEMA_START;
 
@@ -42,6 +42,7 @@ pub enum Error {
 pub struct Schema {
     column_infos: Vec<ColumnInfo>,
     cols_hashed_by_table: HashMap<Option<String>, HashMap<Option<String>, usize>>,
+    cols_hashed_by_column: HashMap<Option<String>, Vec<usize>>,
 }
 
 impl Index<usize> for Schema {
@@ -67,6 +68,7 @@ impl Schema {
         Schema {
             column_infos: vec![],
             cols_hashed_by_table: Default::default(),
+            cols_hashed_by_column: Default::default(),
         }
     }
 
@@ -109,6 +111,11 @@ impl Schema {
             .or_insert(Default::default());
         table_map.insert(column.name.clone(), index);
 
+        let column_list = self.cols_hashed_by_column
+            .entry(column.name.clone())
+            .or_insert(Default::default());
+        column_list.push(index);
+
         self.column_infos.push(column);
         Ok(())
     }
@@ -123,6 +130,68 @@ impl Schema {
     pub fn add_columns<T: IntoIterator<Item = ColumnInfo>>(&mut self, schema: T) -> Result<(), Error> {
         let result: Result<Vec<()>, Error> = schema.into_iter().map(|column| self.add_column(column)).collect();
         result.map(|_| ())
+    }
+
+    ///
+    /// Given a (possibly wildcard) column-name, this method returns the collection of all columns
+    /// that match the specified column name. The collection is a mapping from integer indexes (the
+    /// keys) to `ColumnInfo` objects from the schema.
+
+    /// Any valid column-name object will work, so all of these options are available:
+    ///
+    ///   * **No table, only a column name** - to resolve an unqualified
+    ///     column name, e.g. in an expression or predicate
+    ///   * **A table and column name** - to check whether the schema contains
+    ///     such a column
+    ///   * **A wildcard without a table name** - to retrieve all columns in
+    ///     the schema
+    ///   * **A wildcard with a table name** - to retrieve all columns
+    ///     associated with a particular table name
+    pub fn find_columns(&self, col_name: &ColumnName) -> Vec<(usize, ColumnInfo)> {
+        let mut found: Vec<(usize, ColumnInfo)> = Vec::new();
+
+        match *col_name {
+            (Some(ref table_name), Some(ref column_name)) => {
+                // Column name with a table name:  tbl.col
+                // Find the table info and see if it has the specified column.
+                let table_key = Some(table_name.clone());
+                let column_key = Some(column_name.clone());
+                if let Some(table_cols) = self.cols_hashed_by_table.get(&table_key) {
+                    if let Some(index) = table_cols.get(&column_key) {
+                        found.push((*index, self.column_infos[*index].clone()));
+                    }
+                }
+
+            }
+            (Some(ref table_name), None) => {
+                // Wildcard with a table name:  tbl.*
+                // Find the table info and add its columns to the result.
+                let key = Some(table_name.clone());
+                if let Some(table_cols) = self.cols_hashed_by_table.get(&key) {
+                    found.extend(table_cols.values().map(|idx| (*idx, self.column_infos[*idx].clone())));
+                }
+            }
+            (None, Some(ref column_name)) => {
+                // Column name with no table name:  col
+                // Look up the list of column-info objects grouped by column name.
+                let key = Some(column_name.clone());
+                if let Some(columns) = self.cols_hashed_by_column.get(&key) {
+                    for index in columns {
+                        found.push((*index, self.column_infos[*index].clone()));
+                    }
+                }
+            }
+            (None, None) => {
+                // Wildcard with no table name:  *
+                // Add all columns in the schema to the result.
+
+                for (idx, val) in self.column_infos.iter().enumerate() {
+                    found.push((idx, val.clone()));
+                }
+            }
+        }
+
+        found
     }
 
     /// Write the schema to some output.
@@ -224,5 +293,73 @@ mod tests {
         let mut cursor = Cursor::new(buffer);
         schema.write(&mut cursor).unwrap();
         assert_eq!(cursor.into_inner(), expected);
+    }
+
+    #[test]
+    fn test_find_columns() {
+        let foo_a = ColumnInfo::with_table_name(ColumnType::Integer, "A", "FOO");
+        let foo_b = ColumnInfo::with_table_name(ColumnType::VarChar { length: 20 }, "B", "FOO");
+        let foo_c = ColumnInfo::with_table_name(ColumnType::Integer, "C", "FOO");
+        let bar_a = ColumnInfo::with_table_name(ColumnType::Integer, "A", "BAR");
+        let bar_b = ColumnInfo::with_table_name(ColumnType::VarChar { length: 20 }, "B", "BAR");
+        let bar_c = ColumnInfo::with_table_name(ColumnType::Integer, "C", "BAR");
+        let b = ColumnInfo::with_name(ColumnType::BigInt, "B");
+        let c = ColumnInfo::with_name(ColumnType::Integer, "C");
+
+        let schema = Schema::with_columns(vec![
+            foo_a.clone(),
+            foo_b.clone(),
+            foo_c.clone(),
+            bar_a.clone(),
+            bar_b.clone(),
+            bar_c.clone(),
+            b.clone(),
+            c.clone(),
+        ])
+            .unwrap();
+
+        assert_eq!(vec![
+            (0, foo_a.clone()),
+            (1, foo_b.clone()),
+            (2, foo_c.clone()),
+        ], {
+            let mut result = schema.find_columns(&(Some("FOO".into()), None));
+            result.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+            result
+        });
+
+        assert_eq!(vec![
+            (2, foo_c.clone()),
+        ], {
+            let mut result = schema.find_columns(&(Some("FOO".into()), Some("C".into())));
+            result.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+            result
+        });
+
+        assert_eq!(vec![
+            (2, foo_c.clone()),
+            (5, bar_c.clone()),
+            (7, c.clone()),
+        ], {
+            let mut result = schema.find_columns(&(None, Some("C".into())));
+            result.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+            result
+        });
+
+        assert_eq!(vec![
+            (0, foo_a.clone()),
+            (1, foo_b.clone()),
+            (2, foo_c.clone()),
+            (3, bar_a.clone()),
+            (4, bar_b.clone()),
+            (5, bar_c.clone()),
+            (6, b.clone()),
+            (7, c.clone()),
+        ], {
+            let mut result = schema.find_columns(&(None, None));
+            result.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+            result
+        });
+
     }
 }
