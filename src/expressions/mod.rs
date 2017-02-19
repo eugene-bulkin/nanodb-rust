@@ -1,10 +1,15 @@
 //! A module containing classes for representing and evaluating arithmetic and logical expressions.
 
 pub mod expression;
+pub mod environment;
 pub mod literal;
 
+pub use self::environment::Environment;
 pub use self::expression::Expression;
 pub use self::literal::Literal;
+pub use self::Error as ExpressionError;
+
+use super::ColumnName;
 
 /// Describes a comparison operation
 #[derive(Debug, Clone, PartialEq, Copy)]
@@ -61,4 +66,21 @@ impl<'a> From<&'a [u8]> for ArithmeticType {
             b"+" | _ => ArithmeticType::Plus,
         }
     }
+}
+
+/// An error that occurs while working with expressions.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Error {
+    /// The column name given is ambiguous.
+    AmbiguousColumnName(ColumnName),
+    /// Unable to resolve the column name.
+    CouldNotResolve(ColumnName),
+    /// An expression requiring numeric values was provided with a non-numeric value.
+    NotNumeric(Literal),
+    /// The expression provided needs more than one clause.
+    EmptyExpression,
+    /// An expression was expecting a boolean value and received a non-boolean value.
+    NotBoolean(Literal),
+    /// This expression's evaluation has not been implemented yet.
+    Unimplemented,
 }

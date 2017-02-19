@@ -32,6 +32,7 @@ pub mod tuple_files;
 pub mod storage_manager;
 
 use byteorder::WriteBytesExt;
+
 pub use self::dbfile::{DBFile, DBFileInfo, DBFileType};
 pub use self::dbpage::DBPage;
 pub use self::file_manager::FileManager;
@@ -122,12 +123,15 @@ impl From<io::Error> for TupleError {
 /// written back to the filesystem. Other tuples may exist entirely in memory, with no corresponding
 /// back-end storage.
 pub trait Tuple: Pinnable {
-    /// Returns true if this tuple is backed by a disk page that must be kept in memory as long as the
+    /// Returns true if this tuple is backed by a disk page that must be kept in memory as long as
+    /// the
     /// tuple is in use. Some tuple implementations allocate memory to store their values, and are
-    /// therefore not affected if disk pages are evicted from the Buffer Manager. Others are backed by
+    /// therefore not affected if disk pages are evicted from the Buffer Manager. Others are backed
+    /// by
     /// disk pages, and the disk page cannot be evicted until the tuple is no longer being used. In
     /// cases where a plan-node needs to hold onto a tuple for a long time (e.g. for sorting or
-    /// grouping), the plan node should probably make a copy of disk-backed tuples, or materialize the
+    /// grouping), the plan node should probably make a copy of disk-backed tuples, or materialize
+    /// the
     /// results, etc.
     fn is_disk_backed(&self) -> bool;
 
@@ -145,4 +149,7 @@ pub trait Tuple: Pinnable {
     /// # Arguments
     /// * col_index - The index of the column
     fn get_column_value(&self, col_index: usize) -> Literal;
+
+    /// Clones the tuple into a box.
+    fn clone_boxed(&self) -> Box<Tuple>;
 }
