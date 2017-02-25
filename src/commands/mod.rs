@@ -57,7 +57,7 @@ pub use self::show::ShowCommand;
 
 use super::expressions::{Expression, ExpressionError};
 use super::schema;
-use super::storage::{PinError, file_manager};
+use super::storage::{PinError, file_manager, table_manager};
 
 #[derive(Debug, Clone, PartialEq)]
 /// An error that occurred while attempting to execute a command.
@@ -66,6 +66,8 @@ pub enum ExecutionError {
     CouldNotCreateSchema(schema::Error),
     /// The command tried to open a given table and was unable to.
     CouldNotOpenTable(String),
+    /// The command was unable to create the table.
+    CouldNotCreateTable(table_manager::Error),
     /// The table requested does not exist.
     TableDoesNotExist(String),
     /// The column named does not exist.
