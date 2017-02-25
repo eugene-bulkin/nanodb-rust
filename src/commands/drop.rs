@@ -74,7 +74,8 @@ mod tests {
 
             let mut command = DropCommand::Table("BAR".into());
 
-            assert_eq!(Err(ExecutionError::TableDoesNotExist("BAR".into())), command.execute(&mut server));
+            assert_eq!(Err(ExecutionError::TableDoesNotExist("BAR".into())),
+                       command.execute(&mut server));
         }
     }
 }

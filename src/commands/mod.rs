@@ -46,15 +46,18 @@ use super::Server;
 mod select;
 mod show;
 mod create;
+mod insert;
 mod drop;
 
 pub use self::create::CreateCommand;
 pub use self::drop::DropCommand;
+pub use self::insert::InsertCommand;
 pub use self::select::SelectCommand;
 pub use self::show::ShowCommand;
 
+use super::expressions::{Expression, ExpressionError};
 use super::schema;
-use super::storage::file_manager;
+use super::storage::{PinError, file_manager};
 
 #[derive(Debug, Clone, PartialEq)]
 /// An error that occurred while attempting to execute a command.
@@ -65,8 +68,16 @@ pub enum ExecutionError {
     CouldNotOpenTable(String),
     /// The table requested does not exist.
     TableDoesNotExist(String),
+    /// The column named does not exist.
+    ColumnDoesNotExist(String),
+    /// The column type does not support the expression passed in.
+    CannotStoreExpression(String, Expression),
+    /// Parsing the expression resulted in an error.
+    ExpressionError(ExpressionError),
     /// The table could not be deleted.
     CouldNotDeleteTable(file_manager::Error),
+    /// A pinning error occurred.
+    PinError(PinError),
     /// The command has not been fully implemented.
     Unimplemented,
 }
@@ -74,6 +85,18 @@ pub enum ExecutionError {
 impl From<schema::Error> for ExecutionError {
     fn from(error: schema::Error) -> ExecutionError {
         ExecutionError::CouldNotCreateSchema(error)
+    }
+}
+
+impl From<PinError> for ExecutionError {
+    fn from(error: PinError) -> ExecutionError {
+        ExecutionError::PinError(error)
+    }
+}
+
+impl From<ExpressionError> for ExecutionError {
+    fn from(error: ExpressionError) -> ExecutionError {
+        ExecutionError::ExpressionError(error)
     }
 }
 

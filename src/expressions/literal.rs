@@ -23,11 +23,7 @@ pub enum Literal {
 
 impl From<bool> for Literal {
     fn from(value: bool) -> Literal {
-        if value {
-            Literal::True
-        } else {
-            Literal::False
-        }
+        if value { Literal::True } else { Literal::False }
     }
 }
 
@@ -35,7 +31,10 @@ impl Literal {
     /// A utility function for determining if the literal is numeric.
     pub fn is_numeric(&self) -> bool {
         match *self {
-            Literal::Double(_) | Literal::Int(_) | Literal::Float(_) | Literal::Long(_) => true,
+            Literal::Double(_) |
+            Literal::Int(_) |
+            Literal::Float(_) |
+            Literal::Long(_) => true,
             _ => false,
         }
     }
@@ -97,6 +96,13 @@ impl Literal {
             Literal::Float(f) => Some(Literal::Int(f as i32)),
             Literal::Int(i) => Some(Literal::Int(i)),
             Literal::Long(l) => Some(Literal::Int(l as i32)),
+            _ => None,
+        }
+    }
+    /// A utility function for converting to a String if possible. If not, returns None.
+    pub fn as_string(&self) -> Option<String> {
+        match *self {
+            Literal::String(ref s) => Some(s.clone()),
             _ => None,
         }
     }

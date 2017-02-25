@@ -27,41 +27,44 @@ pub mod dbfile;
 pub mod dbpage;
 pub mod header_page;
 pub mod file_manager;
+pub mod page_tuple;
 pub mod table_manager;
 pub mod tuple_files;
+pub mod tuple_literal;
 pub mod storage_manager;
 
-use byteorder::WriteBytesExt;
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 pub use self::dbfile::{DBFile, DBFileInfo, DBFileType};
 pub use self::dbpage::DBPage;
 pub use self::file_manager::FileManager;
 pub use self::header_page::HeaderPage;
 pub use self::table_manager::TableManager;
-
-use super::expressions::Literal;
+pub use self::tuple_literal::TupleLiteral;
 
 use std::io;
+
+use super::expressions::Literal;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 /// An error that may occur while pinning or unpinning a page in some file.
 pub enum PinError {
     /// A caller attempted to unpin a `Pinnable` object, but the pin count was not positive; i.e.
     /// the page had not been pinned in the first place.
-    PinCountNotPositive,
+    PinCountNotPositive(u32),
 }
 
 /// This interface provides the basic "pin" and "unpin" operations that pinnable
-/// objects need to provide.  An object's pin-count is simply a reference count,
+/// objects need to provide. An object's pin-count is simply a reference count,
 /// but with a shorter name so it's easier to type!
 ///
 /// Currently, tuples and data pages are pinnable.
 pub trait Pinnable {
-    /// Increase the pin-count on the object by one.  An object with a nonzero
+    /// Increase the pin-count on the object by one. An object with a nonzero
     /// pin-count cannot be released because it is in use.
     fn pin(&mut self);
 
-    /// Decrease the pin-count on the object by one.  When the pin-count
+    /// Decrease the pin-count on the object by one. When the pin-count
     /// reaches zero, the object can be released.
     fn unpin(&mut self) -> Result<(), PinError>;
 
@@ -69,7 +72,9 @@ pub trait Pinnable {
     fn get_pin_count(&self) -> u32;
 
     /// Returns true if the object is currently pinned, false otherwise.
-    fn is_pinned(&self) -> bool;
+    fn is_pinned(&self) -> bool {
+        self.get_pin_count() > 0
+    }
 }
 
 /// This interface provides additional writing operations for writing any given column type.
@@ -91,23 +96,120 @@ pub trait WriteNanoDBExt: WriteBytesExt {
         try!(self.write(&bytes));
         Ok(())
     }
+
+    /// Write a string to the output, assuming that it is a VARCHAR that fits in 65536 bytes (i.e.
+    /// the length can be represented in a short).
+    ///
+    /// # Arguments
+    /// * string - The string to write.
+    ///
+    /// # Errors
+    /// This will fail if writing the length or the bytes in the string themselves fail.
+    fn write_varchar65536<S>(&mut self, string: S) -> io::Result<()>
+        where S: Into<String>
+    {
+        let bytes = string.into().into_bytes();
+
+        try!(self.write_u16::<BigEndian>(bytes.len() as u16));
+        try!(self.write(&bytes));
+        Ok(())
+    }
+
+    /// This method stores a string whose length is fixed at a constant size. The string is expected
+    /// to be in US-ASCII encoding, so multibyte characters are not supported.
+    ///
+    /// The string's characters are stored starting with the specified position. If the string is
+    /// shorter than the fixed length then the data is padded with `\\u0000` (i.e. `NUL`) values. If
+    /// the string is exactly the given length then no string terminator is stored. **The
+    /// implication of this storage format is that embedded `NUL` characters are not allowed with
+    /// this storage format.**
+    ///
+    /// # Arguments
+    /// * string - The string to write.
+    /// * len - The number of bytes used to store the string field.
+    ///
+    /// # Errors
+    /// This will fail if writing the length or the bytes in the string themselves fail.
+    fn write_fixed_size_string<S>(&mut self, string: S, length: u16) -> io::Result<()>
+        where S: Into<String>
+    {
+        let string = string.into();
+        let str_len = string.len();
+        let bytes = string.into_bytes();
+        let remaining_bytes = length as usize - str_len;
+
+        try!(self.write_u16::<BigEndian>(bytes.len() as u16));
+        try!(self.write(&bytes));
+        if (str_len as u16) < length {
+            try!(self.write(&vec![0u8; remaining_bytes]));
+        }
+        Ok(())
+    }
 }
 
 impl<W: io::Write + ?Sized> WriteNanoDBExt for W {}
 
+/// This interface provides additional writing operations for writing any given column type.
+pub trait ReadNanoDBExt: ReadBytesExt {
+    /// Read a string to the output, assuming that it is a VARCHAR that fits in 255 bytes (i.e.
+    /// the length can be represented in one byte).
+    ///
+    /// # Arguments
+    /// * string - The string to write.
+    ///
+    /// # Errors
+    /// This will fail if writing the length or the bytes in the string themselves fail.
+    fn read_varchar255(&mut self) -> io::Result<String> {
+        let len = try!(self.read_u8()) as usize;
+        let mut buf = vec![0u8; len];
+        try!(self.read_exact(&mut buf));
+
+        String::from_utf8(buf).map_err(|_| io::ErrorKind::Other.into())
+    }
+}
+
+impl<R: io::Read + ?Sized> ReadNanoDBExt for R {}
+
 /// Errors that can occur while handling a tuple.
+#[derive(Clone, Debug, PartialEq)]
 pub enum TupleError {
     /// For when an IO error occurs.
     IOError,
+    /// For when an pinning error occurs.
+    PinError(PinError),
+    /// For when an file manager error occurs.
+    FileManagerError(file_manager::Error),
+    /// For when a DBPage error occurs.
+    DBPageError(dbpage::Error),
     /// For when a column type is not supported for storage.
     UnsupportedColumnType,
     /// For when the column index provided is out of range.
     InvalidColumnIndex,
+    /// The tuple size is too large for the page.
+    TupleTooBig(u16, u32),
 }
 
 impl From<io::Error> for TupleError {
     fn from(_: io::Error) -> Self {
         TupleError::IOError
+    }
+}
+
+impl From<file_manager::Error> for TupleError {
+    fn from(error: file_manager::Error) -> Self {
+        TupleError::FileManagerError(error)
+    }
+}
+
+impl From<dbpage::Error> for TupleError {
+    fn from(error: dbpage::Error) -> Self {
+        TupleError::DBPageError(error)
+    }
+}
+
+impl From<PinError> for TupleError {
+    fn from(error: PinError) -> Self {
+        TupleError::PinError(error)
     }
 }
 
@@ -124,15 +226,12 @@ impl From<io::Error> for TupleError {
 /// back-end storage.
 pub trait Tuple: Pinnable {
     /// Returns true if this tuple is backed by a disk page that must be kept in memory as long as
-    /// the
-    /// tuple is in use. Some tuple implementations allocate memory to store their values, and are
-    /// therefore not affected if disk pages are evicted from the Buffer Manager. Others are backed
-    /// by
-    /// disk pages, and the disk page cannot be evicted until the tuple is no longer being used. In
-    /// cases where a plan-node needs to hold onto a tuple for a long time (e.g. for sorting or
-    /// grouping), the plan node should probably make a copy of disk-backed tuples, or materialize
-    /// the
-    /// results, etc.
+    /// the tuple is in use. Some tuple implementations allocate memory to store their values, and
+    /// are therefore not affected if disk pages are evicted from the Buffer Manager. Others are
+    /// backed by disk pages, and the disk page cannot be evicted until the tuple is no longer
+    /// being used. In cases where a plan-node needs to hold onto a tuple for a long time (e.g. for
+    /// sorting or grouping), the plan node should probably make a copy of disk-backed tuples, or
+    /// materialize the results, etc.
     fn is_disk_backed(&self) -> bool;
 
     /// Determine if the column at index `col_index` is `NULL`.
@@ -149,7 +248,4 @@ pub trait Tuple: Pinnable {
     /// # Arguments
     /// * col_index - The index of the column
     fn get_column_value(&self, col_index: usize) -> Literal;
-
-    /// Clones the tuple into a box.
-    fn clone_boxed(&self) -> Box<Tuple>;
 }

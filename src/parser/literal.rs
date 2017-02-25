@@ -1,8 +1,9 @@
+
+
+use nom::digit;
 use std::str::{self, FromStr};
 
 use super::super::expressions::Literal;
-
-use nom::digit;
 
 named!(string_literal (&[u8]) -> Literal, do_parse!(
     tag!("'") >>

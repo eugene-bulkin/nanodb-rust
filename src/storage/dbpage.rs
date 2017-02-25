@@ -1,15 +1,57 @@
 //! This module contains utilities to handle pages within database files for NanoDB.
 
+
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::io::{self, ErrorKind, SeekFrom};
 use std::io::prelude::*;
 
-use super::{DBFileInfo, PinError, Pinnable};
+use super::{DBFileInfo, PinError, Pinnable, Tuple, TupleError, WriteNanoDBExt};
+use super::page_tuple::get_null_flags_size;
+use super::super::{ColumnType, Schema};
+use super::super::expressions::Literal;
 
-#[derive(Debug, Clone, PartialEq, Copy)]
+/// The offset in the data page where the number of slots in the slot table is stored.
+const OFFSET_NUM_SLOTS: u16 = 0;
+
+/// This offset-value is stored into a slot when it is empty. It is set to zero because this is
+/// where the page's slot-count is stored and therefore this is obviously an invalid offset for a
+/// tuple to be located at.
+const EMPTY_SLOT: u16 = 0;
+
+#[derive(Debug, Clone, PartialEq)]
 /// An error that can occur during the operations on a `DBPage`.
-///
-/// Currently there are no variants because there is nothing to error yet.
-pub enum Error {}
+pub enum Error {
+    /// Some I/O error occurred.
+    IOError,
+    /// For when a tuple error occurs.
+    TupleError(Box<TupleError>),
+    /// The slot asked for is at an invalid position.
+    InvalidSlot(u16),
+    /// The page does not have enough space for the tuple.
+    NotEnoughFreeSpace(u16, u16),
+    /// The provided offset is not in the tuple data portion of the page.
+    OffsetNotInTuplePortion(u16, u16),
+    /// The tuple provided does not have the same arity as the schema provided. In the form of
+    /// (tuple size, schema size).
+    WrongArity(usize, usize),
+}
+
+impl From<io::Error> for Error {
+    fn from(_: io::Error) -> Error {
+        Error::IOError
+    }
+}
+
+impl From<TupleError> for Error {
+    fn from(error: TupleError) -> Error {
+        Error::TupleError(Box::new(error))
+    }
+}
+
+#[inline]
+fn get_slot_offset(slot: u16) -> u16 {
+    (1 + slot) * 2
+}
 
 /// This class represents a single page in a database file. The page's (zero-based) index in the
 /// file, and whether the page has been changed in memory, are tracked by the object.
@@ -72,7 +114,7 @@ impl DBPage {
     ///
     /// # Arguments
     /// - *is_dirty* - the dirty flag; true if the page's data is dirty, or false otherwise
-    fn set_dirty(&mut self, is_dirty: bool) {
+    pub fn set_dirty(&mut self, is_dirty: bool) {
         if !self.dirty && is_dirty {
             self.old_page_data = Some(self.page_data.clone());
         } else if self.dirty && !is_dirty {
@@ -168,17 +210,379 @@ impl DBPage {
     pub fn invalidate(&mut self) {
         // TODO: Do stuff with buffer manager here.
     }
+
+    /// This helper function returns the amount of free space in a tuple data page. It simply uses
+    /// other methods in this class to perform the simple computation.
+    #[inline]
+    pub fn get_free_space(&mut self) -> Result<u16, Error> {
+        let data_start = try!(self.get_tuple_data_start());
+        let slot_end = try!(self.get_slots_end_index());
+        Ok(data_start - slot_end)
+    }
+
+    /// Initialize a newly allocated data page. Currently this involves setting the number of slots
+    /// to 0. There is no other internal structure in data pages at this point.
+    #[inline]
+    pub fn init_new_page(&mut self) -> Result<(), Error> {
+        self.set_num_slots(0)
+    }
+
+    fn set_num_slots(&mut self, num_slots: u16) -> Result<(), Error> {
+        try!(self.seek(SeekFrom::Start(OFFSET_NUM_SLOTS as u64)));
+        self.write_u16::<BigEndian>(num_slots).map_err(Into::into)
+    }
+
+    fn set_slot_value(&mut self, slot: u16, value: u16) -> Result<(), Error> {
+        let num_slots = try!(self.get_num_slots());
+
+        if slot >= num_slots {
+            return Err(Error::InvalidSlot(slot));
+        }
+
+        try!(self.seek(SeekFrom::Start(get_slot_offset(slot) as u64)));
+        self.write_u16::<BigEndian>(value).map_err(Into::into)
+    }
+
+    fn get_slots_end_index(&mut self) -> Result<u16, Error> {
+        self.get_num_slots().map(|num_slots| get_slot_offset(num_slots))
+    }
+
+    fn get_tuple_data_start(&mut self) -> Result<u16, Error> {
+        let num_slots = try!(self.get_num_slots());
+        // If there are no tuples in this page, "data start" is the top of the page data.
+        let mut data_start = self.page_data.len() as u16;
+
+        if num_slots > 0 {
+            let mut slot = num_slots - 1;
+            loop {
+                let slot_value = try!(self.get_slot_value(slot));
+                if slot_value != EMPTY_SLOT {
+                    data_start = slot_value;
+                    break;
+                }
+
+                if slot == 0 {
+                    break;
+                }
+
+                slot -= 1;
+            }
+        }
+
+        Ok(data_start)
+    }
+
+    /// This helper function returns the value stored in the specified slot. This will either be the
+    /// offset of the start of a tuple in the data page, or it will be `EMPTY_SLOT` if the slot is
+    /// empty.
+    ///
+    /// # Arguments
+    /// * slot - the slot to retrieve the value for.
+    ///
+    /// # Errors
+    /// Returns an `InvalidSlot` error if the slot provided is not within the range [0, num_slots).
+    pub fn get_slot_value(&mut self, slot: u16) -> Result<u16, Error> {
+        let num_slots = try!(self.get_num_slots());
+
+        if slot >= num_slots {
+            return Err(Error::InvalidSlot(slot));
+        }
+
+        try!(self.seek(SeekFrom::Start(get_slot_offset(slot) as u64)));
+        self.read_u16::<BigEndian>().map_err(Into::into)
+    }
+
+    fn get_num_slots(&mut self) -> Result<u16, Error> {
+        try!(self.seek(SeekFrom::Start(OFFSET_NUM_SLOTS as u64)));
+        self.read_u16::<BigEndian>().map_err(Into::into)
+    }
+
+    /// Update the data page so that it has space for a new tuple of the specified size. The new
+    /// tuple is assigned a slot (whose index is returned by this method), and the space for the
+    /// tuple is initialized to all zero values.
+    ///
+    /// Returns the slot-index for the new tuple. The offset to the start of the requested space is
+    /// available via that slot. (Use `get_slot_value` to retrieve that offset.)
+    ///
+    /// # Arguments
+    /// * len - The length of the new tuple's data.
+    pub fn alloc_new_tuple(&mut self, len: u16) -> Result<u16, Error> {
+        let mut space_needed = len;
+
+        // debug
+        println!("Allocating space for new {}-byte tuple.", len);
+
+        let mut num_slots = try!(self.get_num_slots());
+        // debug
+        println!("Current number of slots on page: {}", num_slots);
+
+        // This variable tracks where the new tuple should END. It starts
+        // as the page-size, and gets moved down past each valid tuple in
+        // the page, until we find an available slot in the page.
+        let mut new_tuple_end = self.page_data.len() as u16;
+
+        let mut slot = 0;
+        while slot < num_slots {
+            // cur_slot_value is either the start of that slot's tuple-data, or it is set to
+            // EMPTY_SLOT.
+            let cur_slot_value = try!(self.get_slot_value(slot));
+            if cur_slot_value == EMPTY_SLOT {
+                break;
+            } else {
+                new_tuple_end = cur_slot_value;
+            }
+            slot += 1;
+        }
+
+        // First make sure we actually have enough space for the new tuple.
+
+        if slot == num_slots {
+            // We'll need to add a new slot to the list. Make sure there's room.
+            space_needed += 2;
+        }
+
+        let free_space = try!(self.get_free_space());
+        if space_needed > free_space {
+            return Err(Error::NotEnoughFreeSpace(space_needed, free_space));
+        }
+
+        // Now we know we have space for the tuple. Update the slot list,
+        // and the update page's layout to make room for the new tuple.
+        if slot == num_slots {
+            // debug
+            println!("No empty slot available. Adding a new slot.");
+
+            // Add the new slot to the page, and update the total number of
+            // slots.
+            num_slots += 1;
+            try!(self.set_num_slots(num_slots));
+            try!(self.set_slot_value(slot, EMPTY_SLOT));
+        }
+
+        // debug
+        println!("Tuple will get slot {}. Final number of slots: {}", slot, num_slots);
+
+        let new_tuple_start = new_tuple_end - len;
+
+        // debug
+        println!("New tuple of {} bytes will reside at location [{}, {}).", len, new_tuple_start,
+                 new_tuple_end);
+
+        // Make room for the new tuple's data to be stored into. Since tuples are stored from the END of
+        // the page going backwards, we specify the new tuple's END index, and the tuple's length. (Note:
+        // This call also updates all affected slots whose offsets would be changed.)
+        try!(self.insert_tuple_data_range(new_tuple_end, len));
+
+        // Set the slot's value to be the starting offset of the tuple. We have to do this *after* we
+        // insert the new space for the new tuple, or else insertTupleDataRange() will clobber the
+        // slot-value of this tuple.
+        try!(self.set_slot_value(slot, new_tuple_start));
+
+        // Finally, return the slot-index of the new tuple.
+        Ok(slot)
+    }
+
+    fn move_data_range(&mut self, src_pos: usize, dest_pos: usize, length: usize) {
+        self.set_dirty(true);
+
+        let src_data = self.page_data[src_pos..(src_pos + length)].to_vec();
+        &self.page_data[dest_pos..(dest_pos + length)].copy_from_slice(&src_data);
+    }
+
+    fn set_data_range(&mut self, position: usize, length: usize, value: u8) {
+        self.set_dirty(true);
+        for i in 0..length {
+            self.page_data[position + i] = value;
+        }
+    }
+
+    fn insert_tuple_data_range(&mut self, offset: u16, len: u16) -> Result<(), Error> {
+        let tuple_data_start = try!(self.get_tuple_data_start());
+
+        if offset < tuple_data_start {
+            return Err(Error::OffsetNotInTuplePortion(offset, tuple_data_start));
+        }
+
+        let free_space = try!(self.get_free_space());
+        if len > free_space {
+            return Err(Error::NotEnoughFreeSpace(len, free_space));
+        }
+
+        // If off == tupDataStart then there's no need to move anything.
+        if offset > tuple_data_start {
+            // Move the data in the range [tupDataStart, off) to
+            // [tupDataStart - len, off - len). Thus there will be a gap in the
+            // range [off - len, off) after the operation is completed.
+            self.move_data_range(tuple_data_start as usize,
+                                 (tuple_data_start - len) as usize,
+                                 (offset - tuple_data_start) as usize);
+        }
+
+        // Zero out the gap that was just created.
+        let start_offset = offset - len;
+        self.set_data_range(start_offset as usize, len as usize, 0);
+
+        // Update affected slots; this includes all slots below the specified
+        // offset. The update is easy; slot values just move down by len bytes.
+        let num_slots = try!(self.get_num_slots());
+        for slot in 0..num_slots {
+            let slot_value = try!(self.get_slot_value(slot));
+            if slot_value != EMPTY_SLOT && slot_value < offset {
+                // Update this slot's offset.
+                try!(self.set_slot_value(slot, slot_value - len));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// This is a helper function to set or clear the value of a column's `NULL` flag.
+    ///
+    /// # Arguments
+    /// * tuple_start - the byte-offset in the page where the tuple starts
+    /// * col_index - the index of the column to set the null-flag for
+    /// * value - the new value for the null-flag
+    pub fn set_null_flag(&mut self, tuple_start: u16, col_index: usize, value: u8) -> Result<(), Error> {
+        // Skip to the byte that contains the NULL-flag for this specific column.
+        let null_flag_offset = tuple_start + (col_index as u16 / 8);
+
+        // Create a bit-mask for setting or clearing the specified NULL flag, then
+        // set/clear the flag in the mask byte.
+        let mask = 1 << (col_index % 8);
+
+        try!(self.seek(SeekFrom::Start(null_flag_offset as u64)));
+        let mut null_flag = try!(self.read_u8());
+
+        null_flag = if value == 1 {
+            null_flag | mask
+        } else {
+            null_flag & !mask
+        };
+
+
+        try!(self.seek(SeekFrom::Start(null_flag_offset as u64)));
+        self.write_u8(null_flag).map_err(Into::into)
+    }
+
+    fn write_non_null_value(&mut self, offset: u16, col_type: ColumnType, value: Literal) -> Result<u16, Error> {
+        let offset = offset as u64;
+        try!(self.seek(SeekFrom::Start(offset as u64)));
+
+        // We use unwraps here because we shouldn't be able to get to this point without the value
+        // being storeable with that column type.
+        match col_type {
+            ColumnType::TinyInt => {
+                let value = match value.as_int().unwrap() {
+                    Literal::Int(i) => i,
+                    _ => 0,
+                } as u8;
+                try!(self.write_u8(value));
+                Ok(1)
+            }
+            ColumnType::SmallInt => {
+                let value = match value.as_int().unwrap() {
+                    Literal::Int(i) => i,
+                    _ => 0,
+                } as u16;
+                try!(self.write_u16::<BigEndian>(value));
+                Ok(2)
+            }
+            ColumnType::Integer => {
+                let value = match value.as_int().unwrap() {
+                    Literal::Int(i) => i,
+                    _ => 0,
+                } as u32;
+                try!(self.write_u32::<BigEndian>(value));
+                Ok(4)
+            }
+            ColumnType::BigInt => {
+                let value = match value.as_long().unwrap() {
+                    Literal::Long(l) => l,
+                    _ => 0,
+                } as u64;
+                try!(self.write_u64::<BigEndian>(value));
+                Ok(8)
+            }
+            ColumnType::Float => {
+                let value = match value.as_float().unwrap() {
+                    Literal::Float(f) => f,
+                    _ => 0.0,
+                } as f32;
+                try!(self.write_f32::<BigEndian>(value));
+                Ok(4)
+            }
+            ColumnType::Double => {
+                let value = match value.as_double().unwrap() {
+                    Literal::Double(d) => d,
+                    _ => 0.0,
+                } as f64;
+                try!(self.write_f64::<BigEndian>(value));
+                Ok(8)
+            }
+            ColumnType::Char { length } => {
+                let value = value.as_string().unwrap();
+                try!(self.write_fixed_size_string(value, length));
+                Ok(length)
+
+            }
+            ColumnType::VarChar { length: _ } => {
+                let value = value.as_string().unwrap();
+                let str_len = value.len();
+                try!(self.write_varchar65536(value));
+                Ok(2 + str_len as u16)
+            }
+            _ => unimplemented!(),
+        }
+    }
+
+    /// Store a new tuple in the page.
+    ///
+    /// # Arguments
+    /// * offset - The offset at which to put the tuple.
+    /// * schema - A reference to the schema the tuple should follow.
+    /// * tuple - A reference to the tuple itself.
+    pub fn store_new_tuple<T: Tuple>(&mut self, offset: u16, schema: Schema, tuple: &T) -> Result<(), Error> {
+        if schema.num_columns() != tuple.get_column_count() {
+            return Err(Error::WrongArity(tuple.get_column_count(), schema.num_columns()));
+        }
+
+        let mut cur_offset = offset + get_null_flags_size(schema.num_columns());
+        let mut col_idx = 0usize;
+        for col_info in schema.clone() {
+            let col_type = col_info.column_type;
+            let value = tuple.get_column_value(col_idx);
+            let mut data_size = 0;
+
+            if value == Literal::Null {
+                try!(self.set_null_flag(offset, col_idx, 1));
+            } else {
+                try!(self.set_null_flag(offset, col_idx, 0));
+                data_size = try!(self.write_non_null_value(cur_offset, col_type, value));
+            }
+
+            cur_offset += data_size;
+            col_idx += 1;
+        }
+        Ok(())
+    }
 }
 
 impl Read for DBPage {
     #[inline]
     fn read(&mut self, mut buffer: &mut [u8]) -> io::Result<usize> {
-        self.read_at_position(self.cur_page_position as usize, buffer).map_err(|_| ErrorKind::Other.into())
+        match self.read_at_position(self.cur_page_position as usize, buffer) {
+            Ok(bytes) => {
+                self.cur_page_position += bytes as u64;
+                Ok(bytes)
+            }
+            Err(_) => Err(ErrorKind::Other.into()),
+        }
     }
 }
 
 impl Write for DBPage {
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        self.set_dirty(true);
         let position = self.cur_page_position as usize;
         match self.write_at_position(position, buffer) {
             Ok(bytes) => {
@@ -190,7 +594,10 @@ impl Write for DBPage {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        unimplemented!()
+        if self.dirty {
+            return Err(io::Error::from(ErrorKind::InvalidData));
+        }
+        Ok(())
     }
 }
 
@@ -226,7 +633,7 @@ impl Pinnable for DBPage {
 
     fn unpin(&mut self) -> Result<(), PinError> {
         if self.pin_count <= 0 {
-            return Err(PinError::PinCountNotPositive);
+            return Err(PinError::PinCountNotPositive(self.pin_count));
         }
 
         self.pin_count -= 1;
@@ -238,10 +645,6 @@ impl Pinnable for DBPage {
 
     fn get_pin_count(&self) -> u32 {
         self.pin_count
-    }
-
-    fn is_pinned(&self) -> bool {
-        self.pin_count > 0
     }
 }
 

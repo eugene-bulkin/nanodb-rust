@@ -2,13 +2,14 @@
 
 use nom::{IResult, be_u8};
 
-use std::fs::{self, File};
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 use super::PinError;
 use super::dbfile::{self, DBFile, DBFileType};
 use super::dbpage;
+use super::super::schema;
 
 named!(parse_header (&[u8]) -> (u8, Result<u32, dbfile::Error>), do_parse!(
     type_id: be_u8 >>
@@ -42,7 +43,7 @@ pub struct FileManager {
     base_dir: PathBuf,
 }
 
-#[derive(Debug, Clone, PartialEq, Copy)]
+#[derive(Debug, Clone, PartialEq)]
 /// An error that occurs while handling files.
 pub enum Error {
     /// The base directory provided to the file manager was invalid.
@@ -59,6 +60,8 @@ pub enum Error {
     DBPageError(dbpage::Error),
     /// An error occurred while attempting to pin a page.
     PinError(PinError),
+    /// An error occurred while attempting to handle a schema.
+    SchemaError(schema::Error),
     /// A `DBFile` was unable to be parsed properly.
     DBFileParseError,
     /// Some I/O error occurred.
@@ -86,6 +89,12 @@ pub enum Error {
 impl From<dbfile::Error> for Error {
     fn from(error: dbfile::Error) -> Error {
         Error::DBFileError(error)
+    }
+}
+
+impl From<schema::Error> for Error {
+    fn from(error: schema::Error) -> Error {
+        Error::SchemaError(error)
     }
 }
 
@@ -187,7 +196,7 @@ pub fn load_page(dbfile: &mut DBFile<File>, page_no: u32, mut buffer: &mut [u8],
 
     dbfile.seek(SeekFrom::Start(page_start))
         .and_then(|_| dbfile.read_exact(&mut buffer))
-        .or_else(|e| {
+        .or_else(|_| {
             if create {
                 // Caller wants to create the page if it doesn't already exist yet.
 
@@ -199,11 +208,13 @@ pub fn load_page(dbfile: &mut DBFile<File>, page_no: u32, mut buffer: &mut [u8],
                 let new_length = (page_no as u64 + 1) * (dbfile.get_page_size() as u64);
 
                 match dbfile.set_file_length(new_length).and_then(|_| dbfile.flush()) {
-                    Ok(_) => unimplemented!(),
-                    Err(_) => Err(Error::CantExtendDBFile),
+                    Ok(_) => Ok(()),
+                    Err(e) => {
+                        println!("{:?}", e);
+                        Err(Error::CantExtendDBFile)
+                    }
                 }
             } else {
-                println!("{:?}", e);
                 Err(Error::NotFullyRead)
             }
         })
@@ -297,7 +308,11 @@ impl FileManager {
             return Err(Error::DBFileExists);
         }
 
-        let file = File::create(full_path.as_path());
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(full_path.as_path());
         match file {
             Ok(f) => {
                 match DBFile::with_path(file_type, page_size, f, full_path.clone()) {
@@ -361,7 +376,10 @@ impl FileManager {
             return Err(Error::DBFileDoesNotExist);
         }
 
-        let file = File::open(full_path.as_path());
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(full_path.as_path());
         if file.is_err() {
             return Err(Error::CantOpenFile);
         }

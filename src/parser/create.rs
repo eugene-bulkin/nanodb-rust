@@ -2,9 +2,9 @@ use super::super::column::ColumnType;
 use super::super::commands::CreateCommand;
 use super::utils::*;
 
-named!(col_type_len (&[u8]) -> u32, do_parse!(
+named!(col_type_len (&[u8]) -> u16, do_parse!(
     ws!(tag!("(")) >>
-    length: digit_u32 >>
+    length: digit_u16 >>
     ws!(tag!(")")) >>
     (length)
 ));
@@ -22,9 +22,9 @@ named!(col_type (&[u8]) -> ColumnType, do_parse!(
         do_parse!(
             alt!(tag_no_case!("DECIMAL") | tag_no_case!("NUMERIC")) >>
             ws!(tag!("(")) >>
-            precision: digit_u32 >>
+            precision: digit_u16 >>
             ws!(tag!(",")) >>
-            scale: digit_u32 >>
+            scale: digit_u16 >>
             ws!(tag!(")")) >>
             (ColumnType::Numeric { scale: scale, precision: precision })
         ) |

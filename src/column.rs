@@ -5,6 +5,20 @@ use std::fmt;
 /// A shorthand type for storing a column name in (table_name, column_name) form.
 pub type ColumnName = (Option<String>, Option<String>);
 
+use super::expressions::Literal;
+
+/// An empty Char column type. Useful for comparing type IDs.
+pub static EMPTY_CHAR: ColumnType = ColumnType::Char { length: 0 };
+
+/// An empty VarChar column type. Useful for comparing type IDs.
+pub static EMPTY_VARCHAR: ColumnType = ColumnType::VarChar { length: 0 };
+
+/// An empty VarChar column type. Useful for comparing type IDs.
+pub static EMPTY_NUMERIC: ColumnType = ColumnType::Numeric {
+    scale: 0,
+    precision: 0,
+};
+
 /// The type of a single column in a relation.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum ColumnType {
@@ -25,19 +39,19 @@ pub enum ColumnType {
     /// A decimal value with a specified precision and scale.
     Numeric {
         /// The number of digits stored to the right of the decimal point.
-        scale: u32,
+        scale: u16,
         /// The total number of digits stored.
-        precision: u32,
+        precision: u16,
     },
     /// A fixed-length character-sequence, with a specified length.
     Char {
         /// The length of the string.
-        length: u32,
+        length: u16,
     },
     /// A variable-length character-sequence, with a specified maximum length.
     VarChar {
         /// The length of the string.
-        length: u32,
+        length: u16,
     },
     /// A large character-sequence, with a very large maximum length.
     Text,
@@ -83,6 +97,30 @@ impl From<ColumnType> for u8 {
     }
 }
 
+impl From<u8> for ColumnType {
+    fn from(byte: u8) -> ColumnType {
+        match byte {
+            1 => ColumnType::Integer,
+            2 => ColumnType::SmallInt,
+            3 => ColumnType::BigInt,
+            4 => ColumnType::TinyInt,
+            5 => ColumnType::Float,
+            6 => ColumnType::Double,
+            7 => EMPTY_NUMERIC,
+            21 => EMPTY_CHAR,
+            22 => EMPTY_VARCHAR,
+            23 => ColumnType::Text,
+            24 => ColumnType::Blob,
+            31 => ColumnType::Date,
+            32 => ColumnType::Time,
+            33 => ColumnType::DateTime,
+            34 => ColumnType::Timestamp,
+            41 => ColumnType::FilePointer,
+            0 | _ => ColumnType::Null,
+        }
+    }
+}
+
 impl fmt::Display for ColumnType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
@@ -90,6 +128,57 @@ impl fmt::Display for ColumnType {
             ColumnType::Char { length } => write!(f, "CHAR({})", length),
             ColumnType::VarChar { length } => write!(f, "VARCHAR({})", length),
             _ => write!(f, "{}", format!("{:?}", self).to_uppercase()),
+        }
+    }
+}
+
+impl ColumnType {
+    /// Determines whether the column type can handle the expression given.
+    ///
+    /// # Arguments
+    /// * expr - The expression to check.
+    pub fn can_store_literal(&self, value: Literal) -> bool {
+        match value {
+            Literal::Long(_) => {
+                match *self {
+                    ColumnType::BigInt => true,
+                    _ => false,
+                }
+            }
+            Literal::Int(_) => {
+                match *self {
+                    ColumnType::Integer | ColumnType::TinyInt | ColumnType::SmallInt | ColumnType::Date |
+                    ColumnType::Time | ColumnType::Timestamp => true,
+                    _ => false,
+                }
+            }
+            Literal::Double(_) => {
+                match *self {
+                    ColumnType::Double => true,
+                    _ => false,
+                }
+            }
+            Literal::Float(_) => {
+                match *self {
+                    ColumnType::Double | ColumnType::Float => true,
+                    _ => false,
+                }
+            }
+            Literal::String(s) => {
+                match *self {
+                    ColumnType::Char { length } |
+                    ColumnType::VarChar { length } => s.len() as u16 <= length,
+                    ColumnType::Blob | ColumnType::Text => true,
+                    _ => false,
+                }
+            }
+            Literal::True | Literal::False => {
+                match *self {
+                    ColumnType::TinyInt => true,
+                    _ => false,
+                }
+            }
+            Literal::Null => true,
         }
     }
 }

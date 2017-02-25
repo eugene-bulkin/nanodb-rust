@@ -1,6 +1,7 @@
 //! This module contains utilities and classes for handling table schemas.
 
-use byteorder::BigEndian;
+use byteorder::{BigEndian, ReadBytesExt};
+
 use std::collections::HashMap;
 use std::default::Default;
 use std::io;
@@ -8,8 +9,8 @@ use std::io::{Seek, SeekFrom};
 use std::iter::IntoIterator;
 use std::ops::Index;
 
-use super::column::{ColumnInfo, ColumnName, ColumnType};
-use super::storage::WriteNanoDBExt;
+use super::column::{ColumnInfo, ColumnName, ColumnType, EMPTY_CHAR, EMPTY_NUMERIC, EMPTY_VARCHAR};
+use super::storage::{DBPage, ReadNanoDBExt, WriteNanoDBExt};
 use super::storage::header_page::OFFSET_SCHEMA_START;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -28,8 +29,22 @@ pub enum NameError {
 #[derive(Debug, Clone, PartialEq)]
 /// An error that can occur while handling schemas.
 pub enum Error {
+    /// An error occurred while performing I/O.
+    IOError,
+    /// An error occurred that had to do with parsing a schema.
+    ParseError,
     /// An error occurred that had to do with the names of columns passed in.
     Name(NameError),
+    /// Tables must have at least one column.
+    NoColumns,
+    /// The column name at the given index was empty.
+    EmptyColumnName(usize),
+}
+
+impl From<io::Error> for Error {
+    fn from(_: io::Error) -> Error {
+        Error::IOError
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -70,6 +85,90 @@ impl Schema {
             cols_hashed_by_table: Default::default(),
             cols_hashed_by_column: Default::default(),
         }
+    }
+
+    /// Creates a new schema by reading a header page.
+    pub fn from_header_page(page: &mut DBPage) -> Result<Schema, Error> {
+        let mut result = Schema::new();
+
+        try!(page.seek(SeekFrom::Start(OFFSET_SCHEMA_START as u64)));
+
+        let num_tables = try!(page.read_u8());
+        let mut table_names: Vec<String> = Vec::new();
+
+        for _ in 0..num_tables {
+            let table_name = try!(page.read_varchar255());
+            table_names.push(table_name);
+        }
+
+        let num_cols = try!(page.read_u8());
+        println!("Table has {} columns.", num_cols);
+
+        if num_cols < 1 {
+            return Err(Error::NoColumns);
+        }
+
+        for i in 0..num_cols {
+            // Determine the column type here.
+            let type_id = try!(page.read_u8());
+            let col_type = if type_id == u8::from(EMPTY_CHAR) {
+                let length = try!(page.read_u16::<BigEndian>());
+                ColumnType::Char { length: length }
+            } else if type_id == u8::from(EMPTY_VARCHAR) {
+                let length: u16 = try!(page.read_u16::<BigEndian>());
+                ColumnType::VarChar { length: length }
+            } else if type_id == u8::from(EMPTY_NUMERIC) {
+                // TODO: When NUMERICs are written properly, read them properly here too.
+                EMPTY_NUMERIC.clone()
+            } else {
+                type_id.into()
+            };
+
+            let table_index = try!(page.read_u8());
+            let ref table_name = table_names[table_index as usize];
+
+            let col_name = try!(page.read_varchar255());
+
+            if col_name.len() == 0 {
+                return Err(Error::EmptyColumnName(i as usize));
+            }
+
+            try!(result.add_column(ColumnInfo::with_table_name(col_type, col_name.as_ref(), table_name.as_ref())));
+        }
+
+        Ok(result)
+    }
+
+    /// Returns the number of columns currently in the schema.
+    pub fn num_columns(&self) -> usize {
+        self.column_infos.len()
+    }
+
+    /// Checks if the schema has a column with the provided name.
+    ///
+    /// # Arguments
+    /// * name - The desired column name.
+    pub fn has_column<S: Into<String>>(&self, name: S) -> bool {
+        self.get_column(name).is_some()
+    }
+
+    /// If the schema has a column with the provided name, return that column.
+    ///
+    /// # Arguments
+    /// * name - The desired column name.
+    pub fn get_column<S: Into<String>>(&self, name: S) -> Option<&ColumnInfo> {
+        let name = name.into();
+        for col_info in &self.column_infos {
+            match col_info.name {
+                Some(ref col_name) => {
+                    if col_name == &name {
+                        return Some(&col_info);
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
     }
 
     /// Instantiates a schema with the given columns.

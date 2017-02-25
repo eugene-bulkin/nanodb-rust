@@ -1,9 +1,9 @@
 //! This module contains classes and utilities for storing environment information for NanoDB. These
 //! environments are used for evaluating expressions.
 
-use super::{Literal, ExpressionError};
-use super::super::{Schema, ColumnName};
-use super::super::storage::Tuple;
+use super::{ExpressionError, Literal};
+use super::super::{ColumnName, Schema};
+use super::super::storage::{Tuple, TupleLiteral};
 
 /// This class holds the environment for evaluating expressions that include symbols. For example,
 /// in the SQL command:
@@ -40,9 +40,10 @@ use super::super::storage::Tuple;
 /// Matching a symbol name goes from child to parent. If a child environment contains a value for a
 /// particular symbol, that value is returned. It is only if the child environment *doesn't*
 /// contain a value that the parent environment is utilized.
+#[derive(Clone, Debug, PartialEq)]
 pub struct Environment {
     current_schemas: Vec<Schema>,
-    current_tuples: Vec<Box<Tuple>>,
+    current_tuples: Vec<TupleLiteral>,
     parent_envs: Vec<Environment>,
 }
 
@@ -66,18 +67,14 @@ impl Environment {
     /// # Arguments
     /// * schema - the schema for the specified tuple
     /// * tuple - the tuple to be added
-    pub fn add_tuple(&mut self, schema: Schema, tuple: Box<Tuple>) {
+    pub fn add_tuple<T: Tuple>(&mut self, schema: Schema, tuple: T) {
         self.current_schemas.push(schema);
-        self.current_tuples.push(tuple);
+        self.current_tuples.push(TupleLiteral::from_tuple(tuple));
     }
 
     /// Returns the list of tuples being considered.
-    pub fn get_current_tuples(&self) -> Vec<Box<Tuple>> {
-        let mut result = Vec::new();
-        for boxed in self.current_tuples.iter() {
-            result.push(boxed.clone_boxed());
-        }
-        result
+    pub fn get_current_tuples(&self) -> Vec<TupleLiteral> {
+        self.current_tuples.clone()
     }
     /// Get the actual value at the specified column.
     ///
@@ -91,7 +88,7 @@ impl Environment {
 
         // First try to find it in the current environment.
         for i in 0..self.current_tuples.len() {
-            let ref tuple: Box<Tuple> = self.current_tuples[i];
+            let ref tuple: TupleLiteral = self.current_tuples[i];
             let ref schema: Schema = self.current_schemas[i];
 
             let columns = schema.find_columns(col_name);
@@ -100,7 +97,7 @@ impl Environment {
             }
 
             if found || columns.len() > 1 && !is_col_wildcard {
-                return Err(ExpressionError::AmbiguousColumnName(col_name.clone()))
+                return Err(ExpressionError::AmbiguousColumnName(col_name.clone()));
             }
 
             result = Some(tuple.get_column_value(columns[0].0));

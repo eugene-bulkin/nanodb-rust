@@ -1,6 +1,6 @@
 //! This module contains utilities for dealing with expressions, including the `Expression` struct.
 
-use super::{ArithmeticType, CompareType, Literal, Environment, ExpressionError};
+use super::{ArithmeticType, CompareType, Environment, ExpressionError, Literal};
 
 fn coerce_literals(left: Literal, right: Literal) -> (Literal, Literal) {
     // WE ASSUME THAT BOTH LITERALS ARE ARITHMETIC HERE.
@@ -81,7 +81,9 @@ impl Expression {
         }
     }
 
-    /// Evaluates this expression object in the context of the specified environment. The environment provides any external information necessary to evaluate the expression, such as the current tuples loaded from tables referenced within the expression.
+    /// Evaluates this expression object in the context of the specified environment. The
+    /// environment provides any external information necessary to evaluate the expression, such as
+    /// the current tuples loaded from tables referenced within the expression.
     ///
     /// # Arguments
     /// * env - the environment to look up symbol-values from, when evaluating the expression
@@ -96,10 +98,8 @@ impl Expression {
         match *self {
             Expression::Arithmetic(ref left, op, ref right) => {
                 self.evaluate_arithmetic(env, left.clone(), right.clone(), op)
-            },
-            Expression::Compare(ref left, op, ref right) => {
-                self.evaluate_compare(env, left.clone(), right.clone(), op)
-            },
+            }
+            Expression::Compare(ref left, op, ref right) => self.evaluate_compare(env, left.clone(), right.clone(), op),
             Expression::OR(ref exprs) => {
                 if exprs.is_empty() {
                     return Err(ExpressionError::EmptyExpression);
@@ -110,17 +110,17 @@ impl Expression {
                         Literal::True => {
                             // Can short-circuit here.
                             return Ok(Literal::True);
-                        },
+                        }
                         Literal::False => {
                             // Do nothing because we have to check the others.
-                        },
+                        }
                         _ => {
                             return Err(ExpressionError::NotBoolean(value));
                         }
                     }
                 }
                 Ok(Literal::False)
-            },
+            }
             Expression::AND(ref exprs) => {
                 if exprs.is_empty() {
                     return Err(ExpressionError::EmptyExpression);
@@ -130,18 +130,18 @@ impl Expression {
                     match value {
                         Literal::True => {
                             // Do nothing because we have to check the others.
-                        },
+                        }
                         Literal::False => {
                             // Can short-circuit here.
                             return Ok(Literal::False);
-                        },
+                        }
                         _ => {
                             return Err(ExpressionError::NotBoolean(value));
                         }
                     }
                 }
                 Ok(Literal::True)
-            },
+            }
             Expression::NOT(ref inner) => {
                 let value = try!(inner.evaluate(env));
                 match value {
@@ -149,7 +149,7 @@ impl Expression {
                     Literal::True => Ok(Literal::False),
                     _ => Err(ExpressionError::NotBoolean(value)),
                 }
-            },
+            }
             Expression::IsNull(ref inner) => {
                 let value = try!(inner.evaluate(env));
                 Ok(if value == Literal::Null {
@@ -157,12 +157,17 @@ impl Expression {
                 } else {
                     Literal::False
                 })
-            },
-            _ => Err(ExpressionError::Unimplemented)
+            }
+            _ => Err(ExpressionError::Unimplemented),
         }
     }
 
-    fn evaluate_arithmetic(&self, env: Option<&Environment>, left: Box<Expression>, right: Box<Expression>, op: ArithmeticType) -> Result<Literal, ExpressionError> {
+    fn evaluate_arithmetic(&self,
+                           env: Option<&Environment>,
+                           left: Box<Expression>,
+                           right: Box<Expression>,
+                           op: ArithmeticType)
+                           -> Result<Literal, ExpressionError> {
         let left_val = try!(left.evaluate(env));
         let right_val = try!(right.evaluate(env));
         if !left_val.is_numeric() {
@@ -172,97 +177,61 @@ impl Expression {
             return Err(ExpressionError::NotNumeric(right_val.clone()));
         }
         let (left_val, right_val) = coerce_literals(left_val, right_val);
-        println!("{:?} {:?} {:?}", left_val, op, right_val);
         match op {
             ArithmeticType::Plus => {
                 match (left_val, right_val) {
-                    (Literal::Int(l), Literal::Int(r)) => {
-                        Ok(Literal::Int(l + r))
-                    },
-                    (Literal::Double(l), Literal::Double(r)) => {
-                        Ok(Literal::Double(l + r))
-                    },
-                    (Literal::Float(l), Literal::Float(r)) => {
-                        Ok(Literal::Float(l + r))
-                    },
-                    (Literal::Long(l), Literal::Long(r)) => {
-                        Ok(Literal::Long(l + r))
-                    },
+                    (Literal::Int(l), Literal::Int(r)) => Ok(Literal::Int(l + r)),
+                    (Literal::Double(l), Literal::Double(r)) => Ok(Literal::Double(l + r)),
+                    (Literal::Float(l), Literal::Float(r)) => Ok(Literal::Float(l + r)),
+                    (Literal::Long(l), Literal::Long(r)) => Ok(Literal::Long(l + r)),
                     _ => Err(ExpressionError::Unimplemented),
                 }
-            },
+            }
             ArithmeticType::Minus => {
                 match (left_val, right_val) {
-                    (Literal::Int(l), Literal::Int(r)) => {
-                        Ok(Literal::Int(l - r))
-                    },
-                    (Literal::Double(l), Literal::Double(r)) => {
-                        Ok(Literal::Double(l - r))
-                    },
-                    (Literal::Float(l), Literal::Float(r)) => {
-                        Ok(Literal::Float(l - r))
-                    },
-                    (Literal::Long(l), Literal::Long(r)) => {
-                        Ok(Literal::Long(l - r))
-                    },
+                    (Literal::Int(l), Literal::Int(r)) => Ok(Literal::Int(l - r)),
+                    (Literal::Double(l), Literal::Double(r)) => Ok(Literal::Double(l - r)),
+                    (Literal::Float(l), Literal::Float(r)) => Ok(Literal::Float(l - r)),
+                    (Literal::Long(l), Literal::Long(r)) => Ok(Literal::Long(l - r)),
                     _ => Err(ExpressionError::Unimplemented),
                 }
-            },
+            }
             ArithmeticType::Multiply => {
                 match (left_val, right_val) {
-                    (Literal::Int(l), Literal::Int(r)) => {
-                        Ok(Literal::Int(l * r))
-                    },
-                    (Literal::Double(l), Literal::Double(r)) => {
-                        Ok(Literal::Double(l * r))
-                    },
-                    (Literal::Float(l), Literal::Float(r)) => {
-                        Ok(Literal::Float(l * r))
-                    },
-                    (Literal::Long(l), Literal::Long(r)) => {
-                        Ok(Literal::Long(l * r))
-                    },
+                    (Literal::Int(l), Literal::Int(r)) => Ok(Literal::Int(l * r)),
+                    (Literal::Double(l), Literal::Double(r)) => Ok(Literal::Double(l * r)),
+                    (Literal::Float(l), Literal::Float(r)) => Ok(Literal::Float(l * r)),
+                    (Literal::Long(l), Literal::Long(r)) => Ok(Literal::Long(l * r)),
                     _ => Err(ExpressionError::Unimplemented),
                 }
-            },
+            }
             ArithmeticType::Divide => {
                 match (left_val, right_val) {
-                    (Literal::Int(l), Literal::Int(r)) => {
-                        Ok(Literal::Int(l / r))
-                    },
-                    (Literal::Double(l), Literal::Double(r)) => {
-                        Ok(Literal::Double(l / r))
-                    },
-                    (Literal::Float(l), Literal::Float(r)) => {
-                        Ok(Literal::Float(l / r))
-                    },
-                    (Literal::Long(l), Literal::Long(r)) => {
-                        Ok(Literal::Long(l / r))
-                    },
+                    (Literal::Int(l), Literal::Int(r)) => Ok(Literal::Int(l / r)),
+                    (Literal::Double(l), Literal::Double(r)) => Ok(Literal::Double(l / r)),
+                    (Literal::Float(l), Literal::Float(r)) => Ok(Literal::Float(l / r)),
+                    (Literal::Long(l), Literal::Long(r)) => Ok(Literal::Long(l / r)),
                     _ => Err(ExpressionError::Unimplemented),
                 }
-            },
+            }
             ArithmeticType::Remainder => {
                 match (left_val, right_val) {
-                    (Literal::Int(l), Literal::Int(r)) => {
-                        Ok(Literal::Int(l % r))
-                    },
-                    (Literal::Double(l), Literal::Double(r)) => {
-                        Ok(Literal::Double(l % r))
-                    },
-                    (Literal::Float(l), Literal::Float(r)) => {
-                        Ok(Literal::Float(l % r))
-                    },
-                    (Literal::Long(l), Literal::Long(r)) => {
-                        Ok(Literal::Long(l % r))
-                    },
+                    (Literal::Int(l), Literal::Int(r)) => Ok(Literal::Int(l % r)),
+                    (Literal::Double(l), Literal::Double(r)) => Ok(Literal::Double(l % r)),
+                    (Literal::Float(l), Literal::Float(r)) => Ok(Literal::Float(l % r)),
+                    (Literal::Long(l), Literal::Long(r)) => Ok(Literal::Long(l % r)),
                     _ => Err(ExpressionError::Unimplemented),
                 }
-            },
+            }
         }
     }
 
-    fn evaluate_compare(&self, env: Option<&Environment>, left: Box<Expression>, right: Box<Expression>, op: CompareType) -> Result<Literal, ExpressionError> {
+    fn evaluate_compare(&self,
+                        env: Option<&Environment>,
+                        left: Box<Expression>,
+                        right: Box<Expression>,
+                        op: CompareType)
+                        -> Result<Literal, ExpressionError> {
         let left_val = try!(left.evaluate(env));
         let right_val = try!(right.evaluate(env));
         if !left_val.is_numeric() {
@@ -272,110 +241,61 @@ impl Expression {
             return Err(ExpressionError::NotNumeric(right_val.clone()));
         }
         let (left_val, right_val) = coerce_literals(left_val, right_val);
-        println!("{:?} {:?} {:?}", left_val, op, right_val);
         match op {
             CompareType::GreaterThan => {
                 match (left_val, right_val) {
-                    (Literal::Int(l), Literal::Int(r)) => {
-                        Ok((l > r).into())
-                    },
-                    (Literal::Double(l), Literal::Double(r)) => {
-                        Ok((l > r).into())
-                    },
-                    (Literal::Float(l), Literal::Float(r)) => {
-                        Ok((l > r).into())
-                    },
-                    (Literal::Long(l), Literal::Long(r)) => {
-                        Ok((l > r).into())
-                    },
+                    (Literal::Int(l), Literal::Int(r)) => Ok((l > r).into()),
+                    (Literal::Double(l), Literal::Double(r)) => Ok((l > r).into()),
+                    (Literal::Float(l), Literal::Float(r)) => Ok((l > r).into()),
+                    (Literal::Long(l), Literal::Long(r)) => Ok((l > r).into()),
                     _ => Err(ExpressionError::Unimplemented),
                 }
-            },
+            }
             CompareType::GreaterThanEqual => {
                 match (left_val, right_val) {
-                    (Literal::Int(l), Literal::Int(r)) => {
-                        Ok((l >= r).into())
-                    },
-                    (Literal::Double(l), Literal::Double(r)) => {
-                        Ok((l >= r).into())
-                    },
-                    (Literal::Float(l), Literal::Float(r)) => {
-                        Ok((l >= r).into())
-                    },
-                    (Literal::Long(l), Literal::Long(r)) => {
-                        Ok((l >= r).into())
-                    },
+                    (Literal::Int(l), Literal::Int(r)) => Ok((l >= r).into()),
+                    (Literal::Double(l), Literal::Double(r)) => Ok((l >= r).into()),
+                    (Literal::Float(l), Literal::Float(r)) => Ok((l >= r).into()),
+                    (Literal::Long(l), Literal::Long(r)) => Ok((l >= r).into()),
                     _ => Err(ExpressionError::Unimplemented),
                 }
-            },
+            }
             CompareType::LessThan => {
                 match (left_val, right_val) {
-                    (Literal::Int(l), Literal::Int(r)) => {
-                        Ok((l < r).into())
-                    },
-                    (Literal::Double(l), Literal::Double(r)) => {
-                        Ok((l < r).into())
-                    },
-                    (Literal::Float(l), Literal::Float(r)) => {
-                        Ok((l < r).into())
-                    },
-                    (Literal::Long(l), Literal::Long(r)) => {
-                        Ok((l < r).into())
-                    },
+                    (Literal::Int(l), Literal::Int(r)) => Ok((l < r).into()),
+                    (Literal::Double(l), Literal::Double(r)) => Ok((l < r).into()),
+                    (Literal::Float(l), Literal::Float(r)) => Ok((l < r).into()),
+                    (Literal::Long(l), Literal::Long(r)) => Ok((l < r).into()),
                     _ => Err(ExpressionError::Unimplemented),
                 }
-            },
+            }
             CompareType::LessThanEqual => {
                 match (left_val, right_val) {
-                    (Literal::Int(l), Literal::Int(r)) => {
-                        Ok((l <= r).into())
-                    },
-                    (Literal::Double(l), Literal::Double(r)) => {
-                        Ok((l <= r).into())
-                    },
-                    (Literal::Float(l), Literal::Float(r)) => {
-                        Ok((l <= r).into())
-                    },
-                    (Literal::Long(l), Literal::Long(r)) => {
-                        Ok((l <= r).into())
-                    },
+                    (Literal::Int(l), Literal::Int(r)) => Ok((l <= r).into()),
+                    (Literal::Double(l), Literal::Double(r)) => Ok((l <= r).into()),
+                    (Literal::Float(l), Literal::Float(r)) => Ok((l <= r).into()),
+                    (Literal::Long(l), Literal::Long(r)) => Ok((l <= r).into()),
                     _ => Err(ExpressionError::Unimplemented),
                 }
-            },
+            }
             CompareType::Equals => {
                 match (left_val, right_val) {
-                    (Literal::Int(l), Literal::Int(r)) => {
-                        Ok((l == r).into())
-                    },
-                    (Literal::Double(l), Literal::Double(r)) => {
-                        Ok((l == r).into())
-                    },
-                    (Literal::Float(l), Literal::Float(r)) => {
-                        Ok((l == r).into())
-                    },
-                    (Literal::Long(l), Literal::Long(r)) => {
-                        Ok((l == r).into())
-                    },
+                    (Literal::Int(l), Literal::Int(r)) => Ok((l == r).into()),
+                    (Literal::Double(l), Literal::Double(r)) => Ok((l == r).into()),
+                    (Literal::Float(l), Literal::Float(r)) => Ok((l == r).into()),
+                    (Literal::Long(l), Literal::Long(r)) => Ok((l == r).into()),
                     _ => Err(ExpressionError::Unimplemented),
                 }
-            },
+            }
             CompareType::NotEquals => {
                 match (left_val, right_val) {
-                    (Literal::Int(l), Literal::Int(r)) => {
-                        Ok((l != r).into())
-                    },
-                    (Literal::Double(l), Literal::Double(r)) => {
-                        Ok((l != r).into())
-                    },
-                    (Literal::Float(l), Literal::Float(r)) => {
-                        Ok((l != r).into())
-                    },
-                    (Literal::Long(l), Literal::Long(r)) => {
-                        Ok((l != r).into())
-                    },
+                    (Literal::Int(l), Literal::Int(r)) => Ok((l != r).into()),
+                    (Literal::Double(l), Literal::Double(r)) => Ok((l != r).into()),
+                    (Literal::Float(l), Literal::Float(r)) => Ok((l != r).into()),
+                    (Literal::Long(l), Literal::Long(r)) => Ok((l != r).into()),
                     _ => Err(ExpressionError::Unimplemented),
                 }
-            },
+            }
         }
     }
 }
@@ -383,21 +303,41 @@ impl Expression {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::{ArithmeticType, CompareType, Literal, ExpressionError};
+    use super::super::{ArithmeticType, CompareType, ExpressionError, Literal};
 
     #[test]
     fn test_arithmetic() {
         let expr1 = Expression::Int(123);
-        let expr2 = Expression::Arithmetic(Box::new(Expression::Int(123)), ArithmeticType::Plus, Box::new(Expression::Int(432)));
-        let expr3 = Expression::Arithmetic(Box::new(Expression::Int(123)), ArithmeticType::Minus, Box::new(Expression::Int(432)));
-        let expr4 = Expression::Arithmetic(Box::new(Expression::Int(123)), ArithmeticType::Plus, Box::new(Expression::Long(432)));
-        let expr5 = Expression::Arithmetic(Box::new(Expression::Long(123)), ArithmeticType::Plus, Box::new(Expression::Int(432)));
-        let expr6 = Expression::Arithmetic(Box::new(Expression::Long(123)), ArithmeticType::Plus, Box::new(Expression::True));
-        let expr7 = Expression::Arithmetic(Box::new(Expression::Int(3)), ArithmeticType::Multiply, Box::new(Expression::Int(7)));
-        let expr8 = Expression::Arithmetic(Box::new(Expression::Int(11)), ArithmeticType::Divide, Box::new(Expression::Int(4)));
-        let expr9 = Expression::Arithmetic(Box::new(Expression::Int(11)), ArithmeticType::Remainder, Box::new(Expression::Int(4)));
-        let expr10 = Expression::Arithmetic(Box::new(Expression::Int(11)), ArithmeticType::Divide, Box::new(Expression::Float(4f32)));
-        let expr11 = Expression::Arithmetic(Box::new(Expression::Int(11)), ArithmeticType::Divide, Box::new(Expression::Double(4f64)));
+        let expr2 = Expression::Arithmetic(Box::new(Expression::Int(123)),
+                                           ArithmeticType::Plus,
+                                           Box::new(Expression::Int(432)));
+        let expr3 = Expression::Arithmetic(Box::new(Expression::Int(123)),
+                                           ArithmeticType::Minus,
+                                           Box::new(Expression::Int(432)));
+        let expr4 = Expression::Arithmetic(Box::new(Expression::Int(123)),
+                                           ArithmeticType::Plus,
+                                           Box::new(Expression::Long(432)));
+        let expr5 = Expression::Arithmetic(Box::new(Expression::Long(123)),
+                                           ArithmeticType::Plus,
+                                           Box::new(Expression::Int(432)));
+        let expr6 = Expression::Arithmetic(Box::new(Expression::Long(123)),
+                                           ArithmeticType::Plus,
+                                           Box::new(Expression::True));
+        let expr7 = Expression::Arithmetic(Box::new(Expression::Int(3)),
+                                           ArithmeticType::Multiply,
+                                           Box::new(Expression::Int(7)));
+        let expr8 = Expression::Arithmetic(Box::new(Expression::Int(11)),
+                                           ArithmeticType::Divide,
+                                           Box::new(Expression::Int(4)));
+        let expr9 = Expression::Arithmetic(Box::new(Expression::Int(11)),
+                                           ArithmeticType::Remainder,
+                                           Box::new(Expression::Int(4)));
+        let expr10 = Expression::Arithmetic(Box::new(Expression::Int(11)),
+                                            ArithmeticType::Divide,
+                                            Box::new(Expression::Float(4f32)));
+        let expr11 = Expression::Arithmetic(Box::new(Expression::Int(11)),
+                                            ArithmeticType::Divide,
+                                            Box::new(Expression::Double(4f64)));
         assert_eq!(Err(ExpressionError::NotNumeric(Literal::True)), expr6.evaluate(None));
         assert_eq!(Ok(Literal::Int(123)), expr1.evaluate(None));
         assert_eq!(Ok(Literal::Int(555)), expr2.evaluate(None));

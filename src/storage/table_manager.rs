@@ -8,10 +8,24 @@ use super::tuple_files::HeapTupleFile;
 
 /// This class represents a single table in the database, including the table's name, and the tuple
 /// file that holds the table's data.
+#[derive(Debug, PartialEq)]
 pub struct Table {
     /// The name of the table.
     pub name: Option<String>,
     tuple_file: HeapTupleFile,
+}
+
+impl ::std::ops::Deref for Table {
+    type Target = HeapTupleFile;
+    fn deref(&self) -> &Self::Target {
+        &self.tuple_file
+    }
+}
+
+impl ::std::ops::DerefMut for Table {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.tuple_file
+    }
 }
 
 /// Given the name of a table, return the file name which will correspond to the table in the data
@@ -24,7 +38,7 @@ pub fn get_table_file_name<S: Into<String>>(table_name: S) -> String {
     table_name.into() + ".tbl"
 }
 
-#[derive(Debug, Clone, PartialEq, Copy)]
+#[derive(Debug, Clone, PartialEq)]
 /// An error that can occur while handling tables.
 pub enum Error {
     /// A file manager error occurred while using a table utility method.
@@ -52,12 +66,31 @@ impl TableManager {
     ///
     /// # Arguments
     /// * name - The name of the table.
-    pub fn get_table<S: Into<String>>(&self, name: S) -> Option<&Table> {
+    pub fn get_table<S: Into<String>>(&mut self, file_manager: &FileManager, name: S) -> Result<&mut Table, Error> {
         let name = name.into();
-        let result = self.open_tables.get(&name);
-        match result {
-            Some(table) => Some(table),
-            None => None,
+
+        if !self.open_tables.contains_key(&name) {
+            match file_manager.open_dbfile(get_table_file_name(name.as_ref())) {
+                Ok(db_file) => {
+                    match HeapTupleFile::open(db_file) {
+                        Ok(tuple_file) => {
+                            let table = Table {
+                                name: name.clone().into(),
+                                tuple_file: tuple_file,
+                            };
+
+                            self.open_tables.insert(name.clone(), table);
+                            Ok(self.open_tables.get_mut(&name).unwrap())
+                        }
+                        Err(e) => Err(Error::FileManagerError(e.into())),
+                    }
+                }
+                Err(e) => {
+                    return Err(e.into());
+                }
+            }
+        } else {
+            Ok(self.open_tables.get_mut(&name).unwrap())
         }
     }
 
