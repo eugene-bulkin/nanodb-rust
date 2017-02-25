@@ -17,6 +17,8 @@ rustyline = "1.0.0"
 tempdir = "0.3"
 byteorder = "1.0.0"
 lazy_static = "0.2.2"
+fern = "0.3.5"
+log = "0.3.6"
 
 [dependencies.nom]
 version = "^2.0.1"

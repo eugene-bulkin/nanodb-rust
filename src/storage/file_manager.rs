@@ -210,7 +210,7 @@ pub fn load_page(dbfile: &mut DBFile<File>, page_no: u32, mut buffer: &mut [u8],
                 match dbfile.set_file_length(new_length).and_then(|_| dbfile.flush()) {
                     Ok(_) => Ok(()),
                     Err(e) => {
-                        println!("{:?}", e);
+                        error!("{:?}", e);
                         Err(Error::CantExtendDBFile)
                     }
                 }

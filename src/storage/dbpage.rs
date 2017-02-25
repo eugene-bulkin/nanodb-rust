@@ -309,12 +309,10 @@ impl DBPage {
     pub fn alloc_new_tuple(&mut self, len: u16) -> Result<u16, Error> {
         let mut space_needed = len;
 
-        // debug
-        println!("Allocating space for new {}-byte tuple.", len);
+        debug!("Allocating space for new {}-byte tuple.", len);
 
         let mut num_slots = try!(self.get_num_slots());
-        // debug
-        println!("Current number of slots on page: {}", num_slots);
+        debug!("Current number of slots on page: {}", num_slots);
 
         // This variable tracks where the new tuple should END. It starts
         // as the page-size, and gets moved down past each valid tuple in
@@ -349,8 +347,7 @@ impl DBPage {
         // Now we know we have space for the tuple. Update the slot list,
         // and the update page's layout to make room for the new tuple.
         if slot == num_slots {
-            // debug
-            println!("No empty slot available. Adding a new slot.");
+            debug!("No empty slot available. Adding a new slot.");
 
             // Add the new slot to the page, and update the total number of
             // slots.
@@ -359,13 +356,11 @@ impl DBPage {
             try!(self.set_slot_value(slot, EMPTY_SLOT));
         }
 
-        // debug
-        println!("Tuple will get slot {}. Final number of slots: {}", slot, num_slots);
+        debug!("Tuple will get slot {}. Final number of slots: {}", slot, num_slots);
 
         let new_tuple_start = new_tuple_end - len;
 
-        // debug
-        println!("New tuple of {} bytes will reside at location [{}, {}).", len, new_tuple_start,
+        debug!("New tuple of {} bytes will reside at location [{}, {}).", len, new_tuple_start,
                  new_tuple_end);
 
         // Make room for the new tuple's data to be stored into. Since tuples are stored from the END of

@@ -102,7 +102,7 @@ impl Schema {
         }
 
         let num_cols = try!(page.read_u8());
-        println!("Table has {} columns.", num_cols);
+        debug!("Table has {} columns.", num_cols);
 
         if num_cols < 1 {
             return Err(Error::NoColumns);
@@ -301,12 +301,14 @@ impl Schema {
     /// # Errors
     /// This function can fail if anything goes wrong trying to write to the given output.
     pub fn write<W: WriteNanoDBExt + Seek>(&self, mut output: &mut W) -> Result<(), io::Error> {
+        info!("Writing table schema: {:?}", self);
+
         try!(output.seek(SeekFrom::Start(OFFSET_SCHEMA_START as u64)));
 
         let mut table_mapping: HashMap<Option<String>, usize> = Default::default();
         let mut cur_table: usize = 0;
         let num_tables: u8 = self.cols_hashed_by_table.keys().len() as u8;
-        println!("Recording {} table names.", num_tables);
+        debug!("Recording {} table names.", num_tables);
         try!(output.write_u8(num_tables));
         for table_name in self.cols_hashed_by_table.keys() {
             // Ignore None table names (which shouldn't happen here).
@@ -320,7 +322,7 @@ impl Schema {
             cur_table += 1;
         }
         let num_columns: u8 = self.column_infos.len() as u8;
-        println!("Recording {} columns.", num_columns);
+        debug!("Recording {} columns.", num_columns);
         try!(output.write_u8(num_columns));
         for ref column_info in &self.column_infos {
             let column_type_byte: u8 = column_info.column_type.into();
