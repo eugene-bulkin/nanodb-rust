@@ -63,13 +63,13 @@ impl Command for InsertCommand {
                         Ok(())
                     }
                     Err(e) => {
-                        println!("{:?}", e);
+                        error!("{:?}", e);
                         Err(ExecutionError::Unimplemented)
                     }
                 }
             }
             Err(e) => {
-                println!("{:?}", e);
+                error!("{:?}", e);
                 Err(ExecutionError::CouldNotOpenTable(self.table_name.clone()))
             }
         }

@@ -72,7 +72,7 @@ impl HeapTupleFile {
     /// * tuple - a tuple object containing the values to add to the table
     pub fn add_tuple<'a, T: Tuple + 'a>(&mut self, tuple: T) -> Result<Box<Tuple + 'a>, TupleError> {
         let tuple_size = try!(get_tuple_storage_size(self.schema.clone(), &tuple));
-        println!("Adding new tuple of size {} bytes.", tuple_size);
+        debug!("Adding new tuple of size {} bytes.", tuple_size);
 
         if (tuple_size + 2) as u32 > self.db_file.get_page_size() {
             return Err(TupleError::TupleTooBig(tuple_size, self.db_file.get_page_size()));
@@ -85,7 +85,7 @@ impl HeapTupleFile {
             if cur_page.is_err() {
                 // Couldn't load the current page, because it doesn't exist.
                 // Break out of the loop.
-                println!("Reached end of data file without finding space for new tuple.");
+                debug!("Reached end of data file without finding space for new tuple.");
                 break;
             }
 
@@ -93,12 +93,10 @@ impl HeapTupleFile {
             let mut cur_page = cur_page.unwrap();
 
             let free_space = try!(cur_page.get_free_space());
-            // trace
-            println!("Page {} has {} bytes of free space.", page_no, free_space);
+            trace!("Page {} has {} bytes of free space.", page_no, free_space);
 
             if free_space >= tuple_size + 2 {
-                // debug
-                println!("Found space for new tuple in page {}.", page_no);
+                debug!("Found space for new tuple in page {}.", page_no);
                 db_page = Some(cur_page);
                 break;
             }
@@ -112,8 +110,7 @@ impl HeapTupleFile {
         if db_page.is_none() {
             // Try to create a new page at the end of the file. In this circumstance, page_no is
             // *just past* the last page in the data file.
-            // debug
-            println!("Creating new page {} to store new tuple.", page_no);
+            debug!("Creating new page {} to store new tuple.", page_no);
             let mut cur_page = try!(load_dbpage(&mut self.db_file, page_no, true));
             try!(cur_page.init_new_page());
             db_page = Some(cur_page);
@@ -125,8 +122,7 @@ impl HeapTupleFile {
         let slot = try!(db_page.alloc_new_tuple(tuple_size));
         let tuple_offset = try!(db_page.get_slot_value(slot));
 
-        // debug
-        println!("New tuple will reside on page {}, slot {}.", page_no, slot);
+        debug!("New tuple will reside on page {}, slot {}.", page_no, slot);
 
         try!(db_page.store_new_tuple(tuple_offset, self.schema.clone(), &tuple));
         try!(file_manager::save_page(&mut self.db_file, page_no, &db_page.page_data));

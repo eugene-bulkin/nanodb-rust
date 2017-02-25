@@ -28,14 +28,16 @@ impl Command for CreateCommand {
                     .map(|decl| ColumnInfo::with_table_name(decl.1, decl.0.as_ref(), name.as_ref()))
                     .collect();
                 let schema = try!(Schema::with_columns(column_infos));
+                debug!("Creating the new table {} on disk.", &name);
                 match server.table_manager
                     .create_table(&server.file_manager, name.as_ref(), schema) {
                     Ok(_) => {
-                        println!("Created table {}.", name);
+                        debug!("New table {} was created.", &name);
+                        println!("Created table {}.", &name);
                         Ok(())
                     }
                     Err(e) => {
-                        println!("ERROR: {:?}", e);
+                        error!("ERROR: {:?}", e);
                         Err(ExecutionError::Unimplemented)
                     }
                 }
