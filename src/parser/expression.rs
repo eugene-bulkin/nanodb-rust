@@ -2,7 +2,7 @@ use super::literal::literal;
 use super::super::expressions::{ArithmeticType, Expression};
 
 named!(base_expr (&[u8]) -> Expression, alt_complete!(
-    dbg!(literal_expr) |
+    literal_expr |
     do_parse!(
         ws!(tag!("(")) >>
         e: logical_or_expr >>
@@ -28,7 +28,7 @@ named!(unary_op_expr (&[u8]) -> Expression, alt_complete!(
 ));
 
 named!(mult_expr (&[u8]) -> Expression, do_parse!(
-    first: dbg!(unary_op_expr) >>
+    first: unary_op_expr >>
     result: fold_many0!(do_parse!(
         arith_type: map!(ws!(alt!(tag!("*") | tag!("/") | tag!("%"))), ArithmeticType::from) >>
         expr: ws!(unary_op_expr) >>
@@ -52,7 +52,7 @@ named!(additive_expr (&[u8]) -> Expression, do_parse!(
 ));
 
 named!(relational_expr (&[u8]) -> Expression, do_parse!(
-    e: dbg!(additive_expr) >>
+    e: additive_expr >>
     result: opt!(alt_complete!(
         do_parse!(
             compare_type: ws!(alt_complete!(

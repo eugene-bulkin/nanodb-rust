@@ -43,6 +43,19 @@ impl<'a> From<&'a [u8]> for CompareType {
     }
 }
 
+impl ::std::fmt::Display for CompareType {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            CompareType::NotEquals => write!(f, "!="),
+            CompareType::LessThan => write!(f, "<"),
+            CompareType::LessThanEqual => write!(f, "<="),
+            CompareType::GreaterThan => write!(f, ">"),
+            CompareType::GreaterThanEqual => write!(f, ">="),
+            CompareType::Equals => write!(f, "="),
+        }
+    }
+}
+
 /// Describes an arithmetic operation.
 #[derive(Debug, Clone, PartialEq, Copy)]
 pub enum ArithmeticType {
@@ -66,6 +79,18 @@ impl<'a> From<&'a [u8]> for ArithmeticType {
             b"/" => ArithmeticType::Divide,
             b"%" => ArithmeticType::Remainder,
             b"+" | _ => ArithmeticType::Plus,
+        }
+    }
+}
+
+impl ::std::fmt::Display for ArithmeticType {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            ArithmeticType::Minus => write!(f, "-"),
+            ArithmeticType::Multiply => write!(f, "*"),
+            ArithmeticType::Divide => write!(f, "/"),
+            ArithmeticType::Remainder => write!(f, "%"),
+            ArithmeticType::Plus => write!(f, "+"),
         }
     }
 }
