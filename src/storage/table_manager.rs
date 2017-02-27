@@ -45,6 +45,16 @@ pub enum Error {
     FileManagerError(file_manager::Error),
 }
 
+impl ::std::fmt::Display for Error {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            Error::FileManagerError(ref e) => {
+                write!(f, "{}", e)
+            }
+        }
+    }
+}
+
 impl From<file_manager::Error> for Error {
     fn from(error: file_manager::Error) -> Error {
         Error::FileManagerError(error)
@@ -159,7 +169,7 @@ mod tests {
 
         table_manager.create_table(&file_manager, TABLE_NAME, schema.clone()).unwrap();
 
-        let table = table_manager.get_table(TABLE_NAME).unwrap();
+        let table = table_manager.get_table(&file_manager, TABLE_NAME).unwrap();
 
         assert_eq!(table.tuple_file.schema, schema);
     }
