@@ -28,7 +28,7 @@ const DEFAULT_PAGESIZE: u32 = 8192;
 /// An error in creating or using a `DBFile`.
 pub enum Error {
     /// The page size provided to the file is invalid.
-    InvalidPageSize,
+    InvalidPageSize(u32),
     /// The `DBFileType` provided was unknown, making it invalid.
     InvalidFileType,
 }
@@ -52,7 +52,7 @@ pub fn is_valid_pagesize(page_size: u32) -> bool {
 /// ```
 pub fn encode_pagesize(page_size: u32) -> Result<u32, Error> {
     if !is_valid_pagesize(page_size) {
-        Err(Error::InvalidPageSize)
+        Err(Error::InvalidPageSize(page_size))
     } else {
         let mut encoded = 0;
         let mut cur_size = page_size;
@@ -80,7 +80,7 @@ pub fn decode_pagesize(encoded: u32) -> Result<u32, Error> {
     if is_valid_pagesize(page_size) {
         Ok(page_size)
     } else {
-        Err(Error::InvalidPageSize)
+        Err(Error::InvalidPageSize(page_size))
     }
 }
 
@@ -186,7 +186,7 @@ impl<F: Read + Seek + Write> DBFile<F> {
     /// [`InvalidPageSize`](enum.Error.html#variant.InvalidPageSize) error.
     pub fn new(file_type: DBFileType, page_size: u32, contents: F) -> Result<DBFile<F>, Error> {
         if !is_valid_pagesize(page_size) {
-            Err(Error::InvalidPageSize)
+            Err(Error::InvalidPageSize(page_size))
         } else {
             Ok(DBFile {
                 file_info: DBFileInfo {
@@ -212,7 +212,7 @@ impl<F: Read + Seek + Write> DBFile<F> {
                                      path: P)
                                      -> Result<DBFile<F>, Error> {
         if !is_valid_pagesize(page_size) {
-            Err(Error::InvalidPageSize)
+            Err(Error::InvalidPageSize(page_size))
         } else {
             Ok(DBFile {
                 file_info: DBFileInfo {
