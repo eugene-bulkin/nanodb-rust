@@ -359,14 +359,6 @@ mod tests {
     use super::super::{ArithmeticType, CompareType, ExpressionError, Literal};
 
     #[test]
-    fn test_display() {
-        let expr1 = Expression::Arithmetic(Box::new(Expression::Int(123)),
-                                           ArithmeticType::Plus,
-                                           Box::new(Expression::Int(432)));
-        assert_eq!()
-    }
-
-    #[test]
     fn test_arithmetic() {
         let expr1 = Expression::Int(123);
         let expr2 = Expression::Arithmetic(Box::new(Expression::Int(123)),
