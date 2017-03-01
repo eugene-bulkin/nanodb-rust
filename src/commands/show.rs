@@ -1,5 +1,6 @@
 use super::{Command, ExecutionError};
 use super::super::Server;
+use super::utils::print_table;
 
 #[derive(Debug, Clone, PartialEq)]
 /// A command for showing database information.
@@ -12,8 +13,26 @@ pub enum ShowCommand {
 
 impl Command for ShowCommand {
     fn execute(&mut self, server: &mut Server) -> Result<(), ExecutionError> {
-        println!("{:?}", self);
-        Err(ExecutionError::Unimplemented)
+        match *self {
+            ShowCommand::Tables => {
+                match server.file_manager.get_file_paths() {
+                    Ok(paths) => {
+                        let header = vec!["TABLE NAME"];
+                        let table_names: Vec<Vec<String>> = paths.iter()
+                            .map(|p| vec![p.as_path().file_stem().unwrap().to_str().unwrap().into()])
+                            .collect();
+                        if let Err(_) = print_table(&mut ::std::io::stdout(), header, table_names) {
+                            // TODO
+                            Err(ExecutionError::Unimplemented)
+                        } else {
+                            Ok(())
+                        }
+                    },
+                    Err(e) => Err(ExecutionError::CouldNotListTables(e))
+                }
+            }
+            ShowCommand::Variables => Err(ExecutionError::Unimplemented)
+        }
     }
 
     fn as_any(&self) -> &::std::any::Any {
