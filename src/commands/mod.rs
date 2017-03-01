@@ -48,6 +48,7 @@ mod show;
 mod create;
 mod insert;
 mod drop;
+mod utils;
 
 pub use self::create::CreateCommand;
 pub use self::drop::DropCommand;
@@ -66,6 +67,8 @@ pub enum ExecutionError {
     CouldNotCreateSchema(schema::Error),
     /// The command tried to open a given table and was unable to.
     CouldNotOpenTable(String),
+    /// The command could not list tables successfully.
+    CouldNotListTables(file_manager::Error),
     /// The table requested does not exist.
     TableDoesNotExist(String),
     /// The column named does not exist.
