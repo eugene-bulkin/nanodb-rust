@@ -73,11 +73,12 @@ pub enum Error {
     /// The file manager was unable to open a desired file.
     CantOpenFile,
     /// The page size provided by or for a `DBFile` was invalid.
-    InvalidDBFilePageSize,
+    InvalidDBFilePageSize(u32),
     /// The file type provided by or for a `DBFile` was invalid.
-    InvalidDBFileType,
-    /// The buffer size provided for reading or writing a page did not match the page size.
-    IncorrectBufferSize,
+    InvalidDBFileType(u8),
+    /// The buffer size provided for reading or writing a page did not match the page size. The
+    /// order is (expected, actual).
+    IncorrectBufferSize(u32, u32),
     /// A buffer was not fully written to a file.
     NotFullyWritten,
     /// A byte sequence was not fully read from a file.
@@ -88,7 +89,10 @@ pub enum Error {
 
 impl From<dbfile::Error> for Error {
     fn from(error: dbfile::Error) -> Error {
-        Error::DBFileError(error)
+        match error {
+            dbfile::Error::InvalidPageSize(page_size) => Error::InvalidDBFilePageSize(page_size),
+            _ => Error::DBFileError(error)
+        }
     }
 }
 
@@ -138,8 +142,9 @@ fn get_page_start<F: Read + Seek + Write>(dbfile: &DBFile<F>, page_no: u32) -> u
 /// * If the buffer length is not the same as the page size.
 /// * If an I/O error occurs while writing.
 pub fn save_page<F: Read + Seek + Write>(dbfile: &mut DBFile<F>, page_no: u32, buffer: &[u8]) -> Result<(), Error> {
-    if buffer.len() as u32 != dbfile.get_page_size() {
-        return Err(Error::IncorrectBufferSize);
+    let buf_size = buffer.len() as u32;
+    if buf_size != dbfile.get_page_size() {
+        return Err(Error::IncorrectBufferSize(dbfile.get_page_size(), buf_size));
     }
 
     // updateFileIOPerfStats(dbFile, pageNo, /* read */ false, buffer.length);
@@ -185,8 +190,9 @@ pub fn save_page<F: Read + Seek + Write>(dbfile: &mut DBFile<F>, page_no: u32, b
 ///
 /// * TODO
 pub fn load_page(dbfile: &mut DBFile<File>, page_no: u32, mut buffer: &mut [u8], create: bool) -> Result<(), Error> {
-    if buffer.len() as u32 != dbfile.get_page_size() {
-        return Err(Error::IncorrectBufferSize);
+    let buf_size = buffer.len() as u32;
+    if buf_size != dbfile.get_page_size() {
+        return Err(Error::IncorrectBufferSize(dbfile.get_page_size(), buf_size));
     }
 
     // Update our file-IO performance counters
@@ -399,7 +405,7 @@ impl FileManager {
                     3 => DBFileType::TxnStateFile,
                     4 => DBFileType::WriteAheadLogFile,
                     _ => {
-                        return Err(Error::InvalidDBFileType);
+                        return Err(Error::InvalidDBFileType(type_id));
                     }
                 };
                 match page_size {
@@ -409,7 +415,7 @@ impl FileManager {
 
                         DBFile::with_path(file_type, size, file, full_path.clone()).map_err(Into::into)
                     }
-                    Err(_) => Err(Error::InvalidDBFilePageSize),
+                    Err(e) => Err(e.into()),
                 }
             }
             _ => Err(Error::DBFileParseError),
@@ -522,7 +528,7 @@ mod tests {
         let first_page = [0xac; 512];
         let second_page = [0xfd; 512];
 
-        assert_eq!(Err(Error::IncorrectBufferSize),
+        assert_eq!(Err(Error::IncorrectBufferSize(512, 5)),
                    save_page(&mut dbfile, 0, &[0; 5]));
         assert_eq!(Ok(()), save_page(&mut dbfile, 0, &first_page));
 
