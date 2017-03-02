@@ -55,6 +55,5 @@ mod tests {
         assert_eq!(Done(&[][..], Box::new(InsertCommand::new("FOO".into(), vec!["A".into(), "B".into()], vec![Expression::Int(2), Expression::Int(3)]))), parse(b"INSERT INTO foo (A, B) VALUES (2, 3)"));
         assert_eq!(Incomplete(Needed::Size(24)), parse(b"INSERT    INTO foo"));
         assert_eq!(Incomplete(Needed::Size(31)), parse(b"INSERT    INTO foo (A, B)"));
-
     }
 }

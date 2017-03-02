@@ -57,7 +57,7 @@ pub use self::show::ShowCommand;
 
 use super::expressions::{Expression, ExpressionError};
 use super::schema;
-use super::storage::{PinError, file_manager};
+use super::storage::{PinError, file_manager, table_manager};
 
 #[derive(Debug, Clone, PartialEq)]
 /// An error that occurred while attempting to execute a command.
@@ -65,7 +65,9 @@ pub enum ExecutionError {
     /// Unable to construct a schema given the column information provided.
     CouldNotCreateSchema(schema::Error),
     /// The command tried to open a given table and was unable to.
-    CouldNotOpenTable(String),
+    CouldNotOpenTable(String, table_manager::Error),
+    /// The command was unable to create the table.
+    CouldNotCreateTable(table_manager::Error),
     /// The table requested does not exist.
     TableDoesNotExist(String),
     /// The column named does not exist.
@@ -97,6 +99,43 @@ impl From<PinError> for ExecutionError {
 impl From<ExpressionError> for ExecutionError {
     fn from(error: ExpressionError) -> ExecutionError {
         ExecutionError::ExpressionError(error)
+    }
+}
+
+impl ::std::fmt::Display for ExecutionError {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            ExecutionError::CannotStoreExpression(ref column, ref expr) => {
+                write!(f, "The expression {} cannot be stored in column {}.", expr, column)
+            }
+            ExecutionError::ColumnDoesNotExist(ref column) => {
+                write!(f, "The column {} does not exist in the schema of the table.", column)
+            },
+            ExecutionError::CouldNotCreateSchema(ref e) => {
+                write!(f, "Unable to create schema. {}", e)
+            },
+            ExecutionError::CouldNotCreateTable(ref e) => {
+                write!(f, "Unable to create table. {}", e)
+            },
+            ExecutionError::CouldNotDeleteTable(ref e) => {
+                write!(f, "Unable to create table. {}", e)
+            },
+            ExecutionError::CouldNotOpenTable(ref name, ref e) => {
+                write!(f, "Unable to open table {}. {}", name, e)
+            },
+            ExecutionError::Unimplemented => {
+                write!(f, "The requested command is not yet implemented.")
+            },
+            ExecutionError::TableDoesNotExist(ref name) => {
+                write!(f, "The table {} does not exist.", name)
+            },
+            ExecutionError::ExpressionError(ref e) => {
+                write!(f, "{}", e)
+            }
+            ExecutionError::PinError(ref e) => {
+                write!(f, "{}", e)
+            }
+        }
     }
 }
 

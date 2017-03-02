@@ -40,11 +40,8 @@ impl Server {
     ///
     /// If an error occurs in the command, it is printed to the console.
     pub fn handle_command(&mut self, mut command: Box<Command>) {
-        match command.execute(self) {
-            Err(e) => {
-                println!("Command error: {:?}", e);
-            }
-            Ok(_) => {}
+        if let Err(e) = command.execute(self) {
+            println!("{}", e);
         }
     }
 }

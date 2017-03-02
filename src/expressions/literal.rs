@@ -21,6 +21,21 @@ pub enum Literal {
     False,
 }
 
+impl ::std::fmt::Display for Literal {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            Literal::True => { write!(f, "TRUE") },
+            Literal::False => { write!(f, "FALSE") },
+            Literal::Null => { write!(f, "NULL") },
+            Literal::Int(num) => { write!(f, "{}", num) },
+            Literal::Long(num) => { write!(f, "{}", num) },
+            Literal::Float(num) => { write!(f, "{}", num) },
+            Literal::Double(num) => { write!(f, "{}", num) },
+            Literal::String(ref s) => { write!(f, "\'{}\'", s) },
+        }
+    }
+}
+
 impl From<bool> for Literal {
     fn from(value: bool) -> Literal {
         if value { Literal::True } else { Literal::False }

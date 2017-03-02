@@ -45,6 +45,16 @@ pub enum Error {
     FileManagerError(file_manager::Error),
 }
 
+impl ::std::fmt::Display for Error {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            Error::FileManagerError(ref e) => {
+                write!(f, "{}", e)
+            }
+        }
+    }
+}
+
 impl From<file_manager::Error> for Error {
     fn from(error: file_manager::Error) -> Error {
         Error::FileManagerError(error)
