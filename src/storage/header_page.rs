@@ -112,7 +112,7 @@ mod tests {
     use std::io::Write;
     use std::path::PathBuf;
     use super::*;
-    use super::super::{DBFile, DBFileType, storage_manager};
+    use super::super::{DBFile, storage_manager};
 
     use tempdir::TempDir;
 

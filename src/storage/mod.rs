@@ -54,6 +54,16 @@ pub enum PinError {
     PinCountNotPositive(u32),
 }
 
+impl ::std::fmt::Display for PinError {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            PinError::PinCountNotPositive(count) => {
+                write!(f, "pinCount is not positive (value is {})", count)
+            }
+        }
+    }
+}
+
 /// This interface provides the basic "pin" and "unpin" operations that pinnable
 /// objects need to provide. An object's pin-count is simply a reference count,
 /// but with a shorter name so it's easier to type!

@@ -2,7 +2,7 @@ use super::literal::literal;
 use super::super::expressions::{ArithmeticType, Expression};
 
 named!(base_expr (&[u8]) -> Expression, alt_complete!(
-    dbg!(literal_expr) |
+    literal_expr |
     do_parse!(
         ws!(tag!("(")) >>
         e: logical_or_expr >>
@@ -24,11 +24,11 @@ named!(unary_op_expr (&[u8]) -> Expression, alt_complete!(
         e: unary_op_expr >>
         (e)
     ) |
-    dbg!(base_expr)
+    base_expr
 ));
 
 named!(mult_expr (&[u8]) -> Expression, do_parse!(
-    first: dbg!(unary_op_expr) >>
+    first: unary_op_expr >>
     result: fold_many0!(do_parse!(
         arith_type: map!(ws!(alt!(tag!("*") | tag!("/") | tag!("%"))), ArithmeticType::from) >>
         expr: ws!(unary_op_expr) >>
@@ -51,39 +51,36 @@ named!(additive_expr (&[u8]) -> Expression, do_parse!(
     (result)
 ));
 
-named!(relational_expr (&[u8]) -> Expression, do_parse!(
-    e: dbg!(additive_expr) >>
-    result: opt!(alt_complete!(
-        do_parse!(
-            compare_type: ws!(alt_complete!(
-                alt_complete!(tag!("==") | tag!("=")) |
-                alt!(tag!("<>") | tag!("!=")) |
-                tag!(">=") |
-                tag!("<=") |
-                tag!(">") |
-                tag!("<")
-            )) >>
-            right: additive_expr >>
-            (Expression::Compare(Box::new(e.clone()), compare_type.into(), Box::new(right)))
-        ) |
-        do_parse!(
-            ws!(tag_no_case!("IS")) >>
-            invert: opt!(ws!(tag_no_case!("NOT"))) >>
-            ws!(tag_no_case!("NULL")) >>
-            ({
-                let null_res = Expression::IsNull(Box::new(e.clone()));
-                if invert.is_some() {
-                    Expression::NOT(Box::new(null_res))
-                } else {
-                    null_res
-                }
-            })
-        )
-// TODO: LIKE, etc.
-    )) >>
-    ({
-        result.unwrap_or(e)
-    })
+named!(relational_expr (&[u8]) -> Expression, alt_complete!(
+    do_parse!(
+        left: additive_expr >>
+        compare_type: ws!(alt_complete!(
+            alt_complete!(tag!("==") | tag!("=")) |
+            alt!(tag!("<>") | tag!("!=")) |
+            tag!(">=") |
+            tag!("<=") |
+            tag!(">") |
+            tag!("<")
+        )) >>
+        right: additive_expr >>
+        (Expression::Compare(Box::new(left), compare_type.into(), Box::new(right)))
+    ) |
+     do_parse!(
+        e: additive_expr >>
+        ws!(tag_no_case!("IS")) >>
+        invert: opt!(ws!(tag_no_case!("NOT"))) >>
+        ws!(tag_no_case!("NULL")) >>
+        ({
+            let null_res = Expression::IsNull(Box::new(e));
+            if invert.is_some() {
+                Expression::NOT(Box::new(null_res))
+            } else {
+                null_res
+            }
+        })
+    ) |
+    // TODO: LIKE, etc.
+    additive_expr
 ));
 
 named!(logical_not_expr (&[u8]) -> Expression, do_parse!(
@@ -99,7 +96,7 @@ named!(logical_not_expr (&[u8]) -> Expression, do_parse!(
 ));
 
 named!(logical_and_expr (&[u8]) -> Expression, do_parse!(
-    clauses: complete!(separated_nonempty_list!(tag_no_case!("AND"), logical_not_expr)) >>
+    clauses: separated_nonempty_list!(ws!(tag_no_case!("AND")), logical_not_expr) >>
     ({
         let has_plural = clauses.len() > 1;
         if has_plural {
@@ -111,7 +108,7 @@ named!(logical_and_expr (&[u8]) -> Expression, do_parse!(
 ));
 
 named!(logical_or_expr (&[u8]) -> Expression, do_parse!(
-    clauses: separated_nonempty_list!(tag_no_case!("OR"), ws!(logical_and_expr)) >>
+    clauses: separated_nonempty_list!(ws!(tag_no_case!("OR")), logical_and_expr) >>
     ({
         let has_plural = clauses.len() > 1;
         if has_plural {
@@ -138,7 +135,9 @@ mod tests {
     #[test]
     fn test_logical_exprs() {
         assert_eq!(Done(&[][..], Expression::AND(vec![Expression::Int(3), Expression::Int(4)])), logical_and_expr(b"3 AND 4"));
+        assert_eq!(Done(&[][..], Expression::AND(vec![Expression::Int(3), Expression::Int(4)])), logical_or_expr(b"3 AND 4"));
         assert_eq!(Done(&[][..], Expression::OR(vec![Expression::Int(3), Expression::Int(4)])), logical_or_expr(b"3 OR 4"));
+        assert_eq!(Done(&[][..], Expression::OR(vec![Expression::Int(3), Expression::AND(vec![Expression::Int(4), Expression::Int(5)])])), logical_or_expr(b"3 OR 4 AND 5"));
     }
 
     #[test]

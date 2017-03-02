@@ -28,9 +28,17 @@ const DEFAULT_PAGESIZE: u32 = 8192;
 /// An error in creating or using a `DBFile`.
 pub enum Error {
     /// The page size provided to the file is invalid.
-    InvalidPageSize,
-    /// The `DBFileType` provided was unknown, making it invalid.
-    InvalidFileType,
+    InvalidPageSize(u32),
+}
+
+impl ::std::fmt::Display for Error {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            Error::InvalidPageSize(size) => {
+                write!(f, "The page size {} is not valid for a DB file.", size)
+            },
+        }
+    }
 }
 
 /// This static helper method returns true if the specified page size is valid; i.e. it must be
@@ -48,11 +56,11 @@ pub fn is_valid_pagesize(page_size: u32) -> bool {
 /// ```
 /// # use self::nanodb::storage::dbfile::{encode_pagesize, Error};
 /// assert_eq!(encode_pagesize(512), Ok(9));
-/// assert_eq!(encode_pagesize(513), Err(Error::InvalidPageSize));
+/// assert_eq!(encode_pagesize(513), Err(Error::InvalidPageSize(513)));
 /// ```
 pub fn encode_pagesize(page_size: u32) -> Result<u32, Error> {
     if !is_valid_pagesize(page_size) {
-        Err(Error::InvalidPageSize)
+        Err(Error::InvalidPageSize(page_size))
     } else {
         let mut encoded = 0;
         let mut cur_size = page_size;
@@ -72,15 +80,15 @@ pub fn encode_pagesize(page_size: u32) -> Result<u32, Error> {
 /// ```
 /// # use self::nanodb::storage::dbfile::{decode_pagesize, Error};
 /// assert_eq!(decode_pagesize(9), Ok(512));
-/// assert_eq!(decode_pagesize(3), Err(Error::InvalidPageSize));
-/// assert_eq!(decode_pagesize(30), Err(Error::InvalidPageSize));
+/// assert_eq!(decode_pagesize(3), Err(Error::InvalidPageSize(8)));
+/// assert_eq!(decode_pagesize(30), Err(Error::InvalidPageSize(1073741824)));
 /// ```
 pub fn decode_pagesize(encoded: u32) -> Result<u32, Error> {
     let page_size = 1 << encoded;
     if is_valid_pagesize(page_size) {
         Ok(page_size)
     } else {
-        Err(Error::InvalidPageSize)
+        Err(Error::InvalidPageSize(page_size))
     }
 }
 
@@ -186,7 +194,7 @@ impl<F: Read + Seek + Write> DBFile<F> {
     /// [`InvalidPageSize`](enum.Error.html#variant.InvalidPageSize) error.
     pub fn new(file_type: DBFileType, page_size: u32, contents: F) -> Result<DBFile<F>, Error> {
         if !is_valid_pagesize(page_size) {
-            Err(Error::InvalidPageSize)
+            Err(Error::InvalidPageSize(page_size))
         } else {
             Ok(DBFile {
                 file_info: DBFileInfo {
@@ -212,7 +220,7 @@ impl<F: Read + Seek + Write> DBFile<F> {
                                      path: P)
                                      -> Result<DBFile<F>, Error> {
         if !is_valid_pagesize(page_size) {
-            Err(Error::InvalidPageSize)
+            Err(Error::InvalidPageSize(page_size))
         } else {
             Ok(DBFile {
                 file_info: DBFileInfo {
@@ -330,9 +338,9 @@ mod tests {
         assert_eq!(encode_pagesize(65536), Ok(16));
 
         // Errors
-        assert_eq!(encode_pagesize(32), Err(Error::InvalidPageSize));
-        assert_eq!(encode_pagesize(33), Err(Error::InvalidPageSize));
-        assert_eq!(encode_pagesize(131072), Err(Error::InvalidPageSize));
+        assert_eq!(encode_pagesize(32), Err(Error::InvalidPageSize(32)));
+        assert_eq!(encode_pagesize(33), Err(Error::InvalidPageSize(33)));
+        assert_eq!(encode_pagesize(131072), Err(Error::InvalidPageSize(131072)));
     }
 
     #[test]
@@ -347,7 +355,7 @@ mod tests {
         assert_eq!(decode_pagesize(16), Ok(65536));
 
         // Errors
-        assert_eq!(decode_pagesize(5), Err(Error::InvalidPageSize));
-        assert_eq!(decode_pagesize(17), Err(Error::InvalidPageSize));
+        assert_eq!(decode_pagesize(5), Err(Error::InvalidPageSize(32)));
+        assert_eq!(decode_pagesize(17), Err(Error::InvalidPageSize(131072)));
     }
 }

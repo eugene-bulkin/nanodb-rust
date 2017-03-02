@@ -37,8 +37,7 @@ impl Command for CreateCommand {
                         Ok(())
                     }
                     Err(e) => {
-                        error!("ERROR: {:?}", e);
-                        Err(ExecutionError::Unimplemented)
+                        Err(ExecutionError::CouldNotCreateTable(e))
                     }
                 }
             }

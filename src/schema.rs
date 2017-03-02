@@ -26,6 +26,24 @@ pub enum NameError {
     Ambiguous(ColumnInfo),
 }
 
+impl ::std::fmt::Display for NameError {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            NameError::Ambiguous(ref ci) => {
+                write!(f, "The column info {} is ambiguous.", ci)
+            },
+            NameError::NoName(ref ci) => {
+                write!(f, "No columns with a name matching {} exist.", ci)
+            },
+            NameError::Duplicate(ref ci) =>
+                write!(f, "The column info {} is a duplicate of an existing one.", ci),
+            NameError::MultipleNames(ref ci) => {
+                write!(f, "Multiple columns with the same name as {} exist.", ci)
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 /// An error that can occur while handling schemas.
 pub enum Error {
@@ -39,6 +57,30 @@ pub enum Error {
     NoColumns,
     /// The column name at the given index was empty.
     EmptyColumnName(usize),
+}
+
+impl ::std::fmt::Display for Error {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            Error::IOError => {
+                // TODO: What was the IO error?
+                write!(f, "An IO error occurred.")
+            },
+            Error::ParseError => {
+                // TODO: What was the parsing error?
+                write!(f, "A parsing error occurred.")
+            },
+            Error::Name(ref e) => {
+                write!(f, "{}", e)
+            },
+            Error::NoColumns => {
+                write!(f, "All schemas must have at least one column.")
+            },
+            Error::EmptyColumnName(idx) => {
+                write!(f, "The column name at index {} does not have a name.", idx)
+            }
+        }
+    }
 }
 
 impl From<io::Error> for Error {
@@ -102,7 +144,7 @@ impl Schema {
         }
 
         let num_cols = try!(page.read_u8());
-        debug!("Table has {} columns.", num_cols);
+        debug! ("Table has {} columns.", num_cols);
 
         if num_cols < 1 {
             return Err(Error::NoColumns);
@@ -178,7 +220,7 @@ impl Schema {
     ///
     /// # Errors
     /// This constructor will fail if adding a column would fail at any point.
-    pub fn with_columns<I: IntoIterator<Item = ColumnInfo>>(column_infos: I) -> Result<Schema, Error> {
+    pub fn with_columns<I: IntoIterator<Item=ColumnInfo>>(column_infos: I) -> Result<Schema, Error> {
         let mut result = Schema::new();
         result.add_columns(column_infos).map(|_| result)
     }
@@ -226,7 +268,7 @@ impl Schema {
     ///
     /// # Errors
     /// This method will fail if adding a column would fail at any point.
-    pub fn add_columns<T: IntoIterator<Item = ColumnInfo>>(&mut self, schema: T) -> Result<(), Error> {
+    pub fn add_columns<T: IntoIterator<Item=ColumnInfo>>(&mut self, schema: T) -> Result<(), Error> {
         let result: Result<Vec<()>, Error> = schema.into_iter().map(|column| self.add_column(column)).collect();
         result.map(|_| ())
     }
@@ -260,7 +302,6 @@ impl Schema {
                         found.push((*index, self.column_infos[*index].clone()));
                     }
                 }
-
             }
             (Some(ref table_name), None) => {
                 // Wildcard with a table name:  tbl.*
@@ -301,14 +342,14 @@ impl Schema {
     /// # Errors
     /// This function can fail if anything goes wrong trying to write to the given output.
     pub fn write<W: WriteNanoDBExt + Seek>(&self, mut output: &mut W) -> Result<(), io::Error> {
-        info!("Writing table schema: {:?}", self);
+        info! ("Writing table schema: {:?}", self );
 
         try!(output.seek(SeekFrom::Start(OFFSET_SCHEMA_START as u64)));
 
         let mut table_mapping: HashMap<Option<String>, usize> = Default::default();
         let mut cur_table: usize = 0;
         let num_tables: u8 = self.cols_hashed_by_table.keys().len() as u8;
-        debug!("Recording {} table names.", num_tables);
+        debug! ("Recording {} table names.", num_tables);
         try!(output.write_u8(num_tables));
         for table_name in self.cols_hashed_by_table.keys() {
             // Ignore None table names (which shouldn't happen here).
@@ -322,7 +363,7 @@ impl Schema {
             cur_table += 1;
         }
         let num_columns: u8 = self.column_infos.len() as u8;
-        debug!("Recording {} columns.", num_columns);
+        debug! ("Recording {} columns.", num_columns);
         try!(output.write_u8(num_columns));
         for ref column_info in &self.column_infos {
             let column_type_byte: u8 = column_info.column_type.into();
@@ -363,8 +404,8 @@ mod tests {
         let info2 = ColumnInfo::with_name(ColumnType::Float, "bar");
         let schema = Schema::with_columns(vec![info1.clone(), info2.clone()]).unwrap();
 
-        assert_eq!(schema[0], info1);
-        assert_eq!(schema[1], info2);
+        assert_eq! (schema[0], info1);
+        assert_eq! (schema[1], info2);
     }
 
     #[test]
@@ -373,8 +414,8 @@ mod tests {
         let info2 = ColumnInfo::with_name(ColumnType::Float, "bar");
         let schema = Schema::with_columns(vec![info1.clone(), info2.clone()]).unwrap();
 
-        assert_eq!(schema.into_iter().collect::<Vec<ColumnInfo>>(),
-                   vec![info1.clone(), info2.clone()]);
+        assert_eq! (schema.into_iter().collect::<Vec<ColumnInfo>>(),
+        vec![info1.clone(), info2.clone()]);
     }
 
     #[test]
@@ -388,12 +429,12 @@ mod tests {
         let buffer = vec![0x00; 512];
         let mut expected = vec![0x00; 6];
         expected.extend_from_slice(&[0x01, 0x03, 0x46, 0x4F, 0x4F, 0x03, 0x01, 0x00, 0x01, 0x41, 0x16, 0x00, 0x14, 0x00,
-                                 0x01, 0x42, 0x01, 0x00, 0x01, 0x43]);
+            0x01, 0x42, 0x01, 0x00, 0x01, 0x43]);
         expected.extend_from_slice(&[0x00; 486]);
 
         let mut cursor = Cursor::new(buffer);
         schema.write(&mut cursor).unwrap();
-        assert_eq!(cursor.into_inner(), expected);
+        assert_eq! (cursor.into_inner(), expected);
     }
 
     #[test]
@@ -419,7 +460,7 @@ mod tests {
         ])
             .unwrap();
 
-        assert_eq!(vec![
+        assert_eq! (vec![
             (0, foo_a.clone()),
             (1, foo_b.clone()),
             (2, foo_c.clone()),
@@ -429,7 +470,7 @@ mod tests {
             result
         });
 
-        assert_eq!(vec![
+        assert_eq! (vec![
             (2, foo_c.clone()),
         ], {
             let mut result = schema.find_columns(&(Some("FOO".into()), Some("C".into())));
@@ -437,7 +478,7 @@ mod tests {
             result
         });
 
-        assert_eq!(vec![
+        assert_eq! (vec![
             (2, foo_c.clone()),
             (5, bar_c.clone()),
             (7, c.clone()),
@@ -447,7 +488,7 @@ mod tests {
             result
         });
 
-        assert_eq!(vec![
+        assert_eq! (vec![
             (0, foo_a.clone()),
             (1, foo_b.clone()),
             (2, foo_c.clone()),
@@ -461,6 +502,5 @@ mod tests {
             result.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
             result
         });
-
     }
 }

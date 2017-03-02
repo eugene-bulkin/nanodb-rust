@@ -300,6 +300,59 @@ impl Expression {
     }
 }
 
+fn write_expr_parens(f: &mut ::std::fmt::Formatter, expr: &Expression) -> ::std::fmt::Result {
+    write!(f, "{}", expr)
+}
+
+fn wrap_expr_parens(expr: &Expression) -> String {
+    if let Some(_) = expr.try_literal() {
+        format!("{}", expr)
+    } else {
+        format!("({})", expr)
+    }
+}
+
+impl ::std::fmt::Display for Expression {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            Expression::True => { write!(f, "TRUE") },
+            Expression::False => { write!(f, "FALSE") },
+            Expression::Null => { write!(f, "NULL") },
+            Expression::Int(num) => { write!(f, "{}", num) },
+            Expression::Long(num) => { write!(f, "{}", num) },
+            Expression::Float(num) => { write!(f, "{}", num) },
+            Expression::Double(num) => { write!(f, "{}", num) },
+            Expression::String(ref s) => { write!(f, "\'{}\'", s) },
+            Expression::OR(ref exprs) => {
+                let r: Vec<_> = exprs.iter().map(|e| wrap_expr_parens(e)).collect();
+                write!(f, "{}", r.join(" OR "))
+            },
+            Expression::AND(ref exprs) => {
+                let r: Vec<_> = exprs.iter().map(|e| wrap_expr_parens(e)).collect();
+                write!(f, "{}", r.join(" AND "))
+            },
+            Expression::NOT(ref e) => {
+                try!(write!(f, "!"));
+                write_expr_parens(f, e)
+            },
+            Expression::IsNull(ref e) => {
+                try!(write_expr_parens(f, e));
+                write!(f, " IS NULL")
+            },
+            Expression::Compare(ref l, op, ref r) => {
+                try!(write_expr_parens(f, l));
+                try!(write!(f, " {} ", op));
+                write_expr_parens(f, r)
+            },
+            Expression::Arithmetic(ref l, op, ref r) => {
+                try!(write_expr_parens(f, l));
+                try!(write!(f, " {} ", op));
+                write_expr_parens(f, r)
+            },
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
