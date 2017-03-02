@@ -29,8 +29,16 @@ const DEFAULT_PAGESIZE: u32 = 8192;
 pub enum Error {
     /// The page size provided to the file is invalid.
     InvalidPageSize(u32),
-    /// The `DBFileType` provided was unknown, making it invalid.
-    InvalidFileType,
+}
+
+impl ::std::fmt::Display for Error {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            Error::InvalidPageSize(size) => {
+                write!(f, "The page size {} is not valid for a DB file.", size)
+            },
+        }
+    }
 }
 
 /// This static helper method returns true if the specified page size is valid; i.e. it must be

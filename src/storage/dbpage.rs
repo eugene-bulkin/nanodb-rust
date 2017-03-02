@@ -25,15 +25,46 @@ pub enum Error {
     IOError,
     /// For when a tuple error occurs.
     TupleError(Box<TupleError>),
-    /// The slot asked for is at an invalid position.
-    InvalidSlot(u16),
-    /// The page does not have enough space for the tuple.
+    /// The slot asked for is at an invalid position. In the form of (num slots, slot desired).
+    InvalidSlot(u16, u16),
+    /// The page does not have enough space for the tuple. In the form of (needed, free space).
     NotEnoughFreeSpace(u16, u16),
-    /// The provided offset is not in the tuple data portion of the page.
+    /// The provided offset is not in the tuple data portion of the page. In the form of (offset,
+    /// tuple data start).
     OffsetNotInTuplePortion(u16, u16),
     /// The tuple provided does not have the same arity as the schema provided. In the form of
     /// (tuple size, schema size).
     WrongArity(usize, usize),
+}
+
+impl ::std::fmt::Display for Error {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            Error::IOError => {
+                // TODO: What's the error?
+                write!(f, "An IO error occurred.")
+            },
+            Error::TupleError(ref e) => {
+                // TODO: Make this use Display trait
+                write!(f, "{:?}", e)
+            },
+            Error::InvalidSlot(num_slots, slot) => {
+                write!(f, "Valid slots are in range [0, {}). Got {}.", num_slots, slot)
+            },
+            Error::NotEnoughFreeSpace(needed, free) => {
+                write!(f, "Requested {} bytes, but not enough free space in the page ({} bytes).",
+                       needed, free)
+            },
+            Error::OffsetNotInTuplePortion(offset, tuple_data_start) => {
+                write!(f, "Specified offset {} is not actually in the tuple data portion of this \
+                page (data starts at offset {}).", offset, tuple_data_start)
+            },
+            Error::WrongArity(tup_size, schema_size) => {
+                write!(f, "Tuple has different arity ({} columns) than target schema ({} columns).",
+                       tup_size, schema_size)
+            }
+        }
+    }
 }
 
 impl From<io::Error> for Error {
@@ -236,7 +267,7 @@ impl DBPage {
         let num_slots = try!(self.get_num_slots());
 
         if slot >= num_slots {
-            return Err(Error::InvalidSlot(slot));
+            return Err(Error::InvalidSlot(num_slots, slot));
         }
 
         try!(self.seek(SeekFrom::Start(get_slot_offset(slot) as u64)));
@@ -285,7 +316,7 @@ impl DBPage {
         let num_slots = try!(self.get_num_slots());
 
         if slot >= num_slots {
-            return Err(Error::InvalidSlot(slot));
+            return Err(Error::InvalidSlot(num_slots, slot));
         }
 
         try!(self.seek(SeekFrom::Start(get_slot_offset(slot) as u64)));

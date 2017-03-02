@@ -102,6 +102,43 @@ impl From<ExpressionError> for ExecutionError {
     }
 }
 
+impl ::std::fmt::Display for ExecutionError {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            ExecutionError::CannotStoreExpression(ref column, ref expr) => {
+                write!(f, "The expression {} cannot be stored in column {}.", expr, column)
+            }
+            ExecutionError::ColumnDoesNotExist(ref column) => {
+                write!(f, "The column {} does not exist in the schema of the table.", column)
+            },
+            ExecutionError::CouldNotCreateSchema(ref e) => {
+                write!(f, "Unable to create schema. {}", e)
+            },
+            ExecutionError::CouldNotCreateTable(ref e) => {
+                write!(f, "Unable to create table. {}", e)
+            },
+            ExecutionError::CouldNotDeleteTable(ref e) => {
+                write!(f, "Unable to create table. {}", e)
+            },
+            ExecutionError::CouldNotOpenTable(ref name, ref e) => {
+                write!(f, "Unable to open table {}. {}", name, e)
+            },
+            ExecutionError::Unimplemented => {
+                write!(f, "The requested command is not yet implemented.")
+            },
+            ExecutionError::TableDoesNotExist(ref name) => {
+                write!(f, "The table {} does not exist.", name)
+            },
+            ExecutionError::ExpressionError(ref e) => {
+                write!(f, "{}", e)
+            }
+            ExecutionError::PinError(ref e) => {
+                write!(f, "{}", e)
+            }
+        }
+    }
+}
+
 /// Trait for all commands that NanoDB supports. Command classes contain both the arguments and
 /// configuration details for the command being executed, as well as the code for actually
 /// performing the command. Databases tend to have large `switch` statements controlling how
