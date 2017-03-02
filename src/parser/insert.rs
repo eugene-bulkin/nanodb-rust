@@ -16,7 +16,7 @@ named!(insert_cols (&[u8]) -> Vec<String>, do_parse!(
 named!(insert_vals (&[u8]) -> Vec<Expression>, do_parse!(
     ws!(tag_no_case!("VALUES")) >>
     ws!(tag!("(")) >>
-    values: separated_nonempty_list!(tag!(","), ws!(expression)) >>
+    values: separated_list!(tag!(","), ws!(expression)) >>
     ws!(tag!(")")) >>
     (values)
 ));
@@ -41,6 +41,7 @@ mod tests {
     use nom::Needed;
     use super::*;
     use super::super::super::commands::InsertCommand;
+    use super::super::super::expressions::Expression;
 
     #[test]
     fn test_insert_cols() {
@@ -50,9 +51,10 @@ mod tests {
 
     #[test]
     fn test_parse() {
-        assert_eq!(Done(&[][..], Box::new(InsertCommand::new("FOO".into(), vec![]))), parse(b"INSERT INTO foo () VALUES ()"));
-        assert_eq!(Done(&[][..], Box::new(InsertCommand::new("FOO".into(), vec!["A".into(), "B".into()]))), parse(b"INSERT INTO foo (A, B)"));
-        assert_eq!(Incomplete(Needed::Size(19)), parse(b"INSERT    INTO foo"));
+        assert_eq!(Done(&[][..], Box::new(InsertCommand::new("FOO".into(), vec![], vec![]))), parse(b"INSERT INTO foo () VALUES ()"));
+        assert_eq!(Done(&[][..], Box::new(InsertCommand::new("FOO".into(), vec!["A".into(), "B".into()], vec![Expression::Int(2), Expression::Int(3)]))), parse(b"INSERT INTO foo (A, B) VALUES (2, 3)"));
+        assert_eq!(Incomplete(Needed::Size(24)), parse(b"INSERT    INTO foo"));
+        assert_eq!(Incomplete(Needed::Size(31)), parse(b"INSERT    INTO foo (A, B)"));
 
     }
 }

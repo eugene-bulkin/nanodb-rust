@@ -159,7 +159,7 @@ mod tests {
 
         table_manager.create_table(&file_manager, TABLE_NAME, schema.clone()).unwrap();
 
-        let table = table_manager.get_table(TABLE_NAME).unwrap();
+        let table = table_manager.get_table(&file_manager, TABLE_NAME).unwrap();
 
         assert_eq!(table.tuple_file.schema, schema);
     }
