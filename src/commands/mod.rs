@@ -69,6 +69,8 @@ pub enum ExecutionError {
     CouldNotOpenTable(String, table_manager::Error),
     /// The command was unable to create the table.
     CouldNotCreateTable(table_manager::Error),
+    /// The command could not list tables successfully.
+    CouldNotListTables(file_manager::Error),
     /// The table requested does not exist.
     TableDoesNotExist(String),
     /// The column named does not exist.
@@ -119,7 +121,10 @@ impl ::std::fmt::Display for ExecutionError {
                 write!(f, "Unable to create table. {}", e)
             },
             ExecutionError::CouldNotDeleteTable(ref e) => {
-                write!(f, "Unable to create table. {}", e)
+                write!(f, "Unable to delete table. {}", e)
+            },
+            ExecutionError::CouldNotListTables(ref e) => {
+                write!(f, "Unable to list tables. {}", e)
             },
             ExecutionError::CouldNotOpenTable(ref name, ref e) => {
                 write!(f, "Unable to open table {}. {}", name, e)
