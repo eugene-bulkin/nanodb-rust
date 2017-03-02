@@ -679,17 +679,22 @@ mod tests {
     use std::io::Cursor;
 
     use super::*;
-    use super::super::{DBFile, DBFileType, Pinnable};
+    use super::super::{DBFile, DBFileType, Pinnable, PinError};
 
     #[test]
     fn test_pinning() {
-        let mut contents = vec![0; 512];
-        contents.extend_from_slice(&[0xac; 512]);
-        contents.extend_from_slice(&[0xaf; 512]);
-        let mut dbfile = DBFile::new(DBFileType::HeapTupleFile, 512, Cursor::new(contents)).unwrap();
+        let contents = vec![0; 512];
+        let dbfile = DBFile::new(DBFileType::HeapTupleFile, 512, Cursor::new(contents)).unwrap();
 
-        let page0 = DBPage::new(&dbfile, 0).unwrap();
-        let page1 = DBPage::new(&dbfile, 1).unwrap();
-        let page2 = DBPage::new(&dbfile, 2).unwrap();
+        let mut page = DBPage::new(&dbfile, 0).unwrap();
+
+        assert_eq!(Err(PinError::PinCountNotPositive(0)), page.unpin());
+        page.pin();
+        assert_eq!(Ok(()), page.unpin());
+        page.pin();
+        page.pin();
+        assert_eq!(Ok(()), page.unpin());
+        assert_eq!(Ok(()), page.unpin());
+        assert_eq!(Err(PinError::PinCountNotPositive(0)), page.unpin());
     }
 }
