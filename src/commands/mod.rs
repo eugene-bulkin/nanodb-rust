@@ -65,7 +65,7 @@ pub enum ExecutionError {
     /// Unable to construct a schema given the column information provided.
     CouldNotCreateSchema(schema::Error),
     /// The command tried to open a given table and was unable to.
-    CouldNotOpenTable(String),
+    CouldNotOpenTable(String, table_manager::Error),
     /// The command was unable to create the table.
     CouldNotCreateTable(table_manager::Error),
     /// The table requested does not exist.
