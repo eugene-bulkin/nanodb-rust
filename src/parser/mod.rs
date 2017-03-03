@@ -3,6 +3,7 @@
 
 pub mod select;
 pub mod utils;
+pub mod drop;
 pub mod show;
 pub mod create;
 pub mod literal;
@@ -13,6 +14,7 @@ use self::create::parse as create_parse;
 use self::insert::parse as insert_parse;
 use self::select::parse as select_parse;
 use self::show::parse as show_parse;
+use self::drop::parse as drop_parse;
 
 use super::commands::Command;
 
@@ -25,6 +27,7 @@ named!(pub statements (&[u8]) -> Vec<Box<Command>>, separated_nonempty_list!(
     alt_complete!(map!(select_parse, as_boxed_command) |
                   map!(show_parse, as_boxed_command) |
                   map!(create_parse, as_boxed_command) |
+                  map!(drop_parse, as_boxed_command) |
                   map!(insert_parse, as_boxed_command))
 ));
 
