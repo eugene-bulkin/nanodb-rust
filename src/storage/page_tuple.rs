@@ -4,7 +4,7 @@
 use byteorder::{BigEndian, ReadBytesExt};
 
 use std::io::{Seek, SeekFrom};
-use super::{DBPage, PinError, Pinnable, Tuple, TupleError};
+use super::{DBPage, PinError, Pinnable, Tuple, TupleError, ReadNanoDBExt};
 use super::super::{ColumnType, Schema};
 use super::super::expressions::Literal;
 
@@ -15,11 +15,11 @@ pub static NULL_OFFSET: u16 = 0;
 /// would require to be stored in a heap table file with the specified schema. This is used to
 /// insert new tuples into a table file by computing how much space will be needed, so that an
 /// appropriate page can be found.
-pub fn get_tuple_storage_size<T: Tuple>(schema: Schema, tuple: &T) -> Result<u16, TupleError> {
+pub fn get_tuple_storage_size<T: Tuple>(schema: Schema, tuple: &mut T) -> Result<u16, TupleError> {
     let mut storage_size = get_null_flags_size(schema.num_columns()) as u16;
     let mut col_idx = 0;
     for col_info in schema {
-        let value = tuple.get_column_value(col_idx);
+        let value = try!(tuple.get_column_value(col_idx));
         if value != Literal::Null {
             let data_length = match col_info.column_type {
                 ColumnType::VarChar { length: _ } => value.as_string().unwrap().len(),
@@ -95,7 +95,8 @@ fn get_storage_size(col_type: ColumnType, data_length: u16) -> Result<u16, Tuple
 /// is beyond the scope of what this class can provide. Thus, concrete subclasses of this class can
 /// provide page-level data management as needed.
 pub struct PageTuple {
-    db_page: DBPage,
+    /// The underlying DB page.
+    pub db_page: DBPage,
     page_offset: u16,
     schema: Schema,
     value_offsets: Vec<u16>,
@@ -183,7 +184,7 @@ impl PageTuple {
             if try!(self.check_if_column_null(i)) {
                 self.value_offsets[i] = NULL_OFFSET;
             } else {
-                self.value_offsets[0] = value_offset;
+                self.value_offsets[i] = value_offset;
 
                 let col_type = self.schema[i].column_type;
                 value_offset += try!(self.get_column_value_size(col_type, value_offset)) as u16;
@@ -230,7 +231,60 @@ impl Tuple for PageTuple {
         self.schema.num_columns()
     }
 
-    fn get_column_value(&self, col_index: usize) -> Literal {
-        unimplemented!()
+    fn get_column_value(&mut self, col_index: usize) -> Result<Literal, TupleError> {
+        try!(self.check_column_index(col_index));
+
+        if try!(self.is_null_value(col_index)) {
+            return Ok(Literal::Null);
+        }
+
+        let offset = self.value_offsets[col_index];
+        try!(self.db_page.seek(SeekFrom::Start(offset as u64)));
+
+        let col_type: ColumnType = self.schema[col_index].column_type;
+
+        match col_type {
+            ColumnType::TinyInt => {
+                let value = try!(self.db_page.read_i8());
+                Ok(Literal::Int(value as i32))
+            },
+            ColumnType::SmallInt => {
+                let value = try!(self.db_page.read_i16::<BigEndian>());
+                Ok(Literal::Int(value as i32))
+            },
+            ColumnType::Integer => {
+                let value = try!(self.db_page.read_i32::<BigEndian>());
+                Ok(Literal::Int(value))
+            },
+            ColumnType::BigInt => {
+                let value = try!(self.db_page.read_i64::<BigEndian>());
+                Ok(Literal::Long(value))
+            },
+            ColumnType::Float => {
+                let value = try!(self.db_page.read_f32::<BigEndian>());
+                Ok(Literal::Float(value))
+            },
+            ColumnType::Double => {
+                let value = try!(self.db_page.read_f64::<BigEndian>());
+                Ok(Literal::Double(value))
+            },
+            ColumnType::Char { length } => {
+                let value = try!(self.db_page.read_fixed_size_string(length));
+                Ok(Literal::String(value))
+            },
+            ColumnType::VarChar { length: _ } => {
+                let value = try!(self.db_page.read_varchar65535());
+                Ok(Literal::String(value))
+            },
+            ColumnType::FilePointer => {
+                let _page_no = try!(self.db_page.read_u16::<BigEndian>());
+                let _offset = try!(self.db_page.read_u16::<BigEndian>());
+                // TODO
+                Err(TupleError::UnsupportedColumnType)
+            }
+            _ => {
+                Err(TupleError::UnsupportedColumnType)
+            }
+        }
     }
 }

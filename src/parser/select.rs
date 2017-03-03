@@ -59,7 +59,7 @@ named!(pub parse (&[u8]) -> Box<SelectCommand>, do_parse!(
     ))) >>
     select_values: select_values >>
     ws!(tag_no_case!("FROM")) >>
-    table_name: ws!(alpha_s) >>
+    table_name: ws!(dbobj_ident) >>
     limit: opt!(complete!(limit)) >>
     offset: opt!(complete!(offset)) >>
     alt!(eof!() | peek!(tag!(";"))) >>
@@ -105,8 +105,8 @@ mod tests {
     #[test]
     fn test_parse() {
 
-        let kw1 = String::from("foo");
-        let kw2 = String::from("bar");
+        let kw1 = String::from("FOO");
+        let kw2 = String::from("BAR");
 
         let result1 = SelectCommand::new(kw1, false, Value::All, None, None);
         let result2 = SelectCommand::new(kw2, false, Value::All, None, None);

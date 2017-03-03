@@ -35,7 +35,7 @@ impl TupleLiteral {
     ///
     /// # Arguments
     /// * tuple - the tuple to make a copy of
-    pub fn from_tuple<T: Tuple>(tuple: T) -> TupleLiteral {
+    pub fn from_tuple<T: Tuple>(tuple: &mut T) -> TupleLiteral {
         let mut result = TupleLiteral::new();
         result.append_tuple(tuple);
         result
@@ -45,9 +45,9 @@ impl TupleLiteral {
     ///
     /// # Arguments
     /// * tuple - the tuple data to copy into this tuple-literal
-    pub fn append_tuple<T: Tuple>(&mut self, tuple: T) {
+    pub fn append_tuple<T: Tuple>(&mut self, tuple: &mut T) {
         for i in 0..tuple.get_column_count() {
-            self.values.push(tuple.get_column_value(i))
+            self.values.push(tuple.get_column_value(i).unwrap())
         }
     }
 }
@@ -77,11 +77,43 @@ impl Tuple for TupleLiteral {
         }
     }
 
-    fn get_column_value(&self, col_index: usize) -> Literal {
-        self.values[col_index].clone()
+    fn get_column_value(&mut self, col_index: usize) -> Result<Literal, TupleError> {
+        Ok(self.values[col_index].clone())
     }
 
     fn get_column_count(&self) -> usize {
         self.values.len()
+    }
+}
+
+impl ::std::fmt::Display for TupleLiteral {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        try!(write!(f, "TL["));
+        let num_columns = self.get_column_count();
+        for i in 0..num_columns {
+            try!(write!(f, "{}", self.values[i]));
+            if i < num_columns - 1 {
+                try!(write!(f, ","));
+            }
+        }
+        write!(f, "]")
+    }
+}
+
+impl From<TupleLiteral> for Vec<String> {
+    fn from(tl: TupleLiteral) -> Vec<String> {
+        let mut result = Vec::new();
+        let num_columns = tl.get_column_count();
+        for i in 0..num_columns {
+            match tl.values[i] {
+                Literal::String(ref s) => {
+                    result.push(s.clone());
+                },
+                _ => {
+                    result.push(format!("{}", tl.values[i]));
+                }
+            }
+        }
+        result
     }
 }

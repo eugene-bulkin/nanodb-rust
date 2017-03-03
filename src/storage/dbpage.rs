@@ -16,7 +16,7 @@ const OFFSET_NUM_SLOTS: u16 = 0;
 /// This offset-value is stored into a slot when it is empty. It is set to zero because this is
 /// where the page's slot-count is stored and therefore this is obviously an invalid offset for a
 /// tuple to be located at.
-const EMPTY_SLOT: u16 = 0;
+pub const EMPTY_SLOT: u16 = 0;
 
 #[derive(Debug, Clone, PartialEq)]
 /// An error that can occur during the operations on a `DBPage`.
@@ -323,7 +323,10 @@ impl DBPage {
         self.read_u16::<BigEndian>().map_err(Into::into)
     }
 
-    fn get_num_slots(&mut self) -> Result<u16, Error> {
+    /// Returns the number of slots in this data page.  This can be considered to be the current
+    /// "capacity" of the page, since any number of the slots could be set to {@link #EMPTY_SLOT} to
+    /// indicate that they are empty.
+    pub fn get_num_slots(&mut self) -> Result<u16, Error> {
         try!(self.seek(SeekFrom::Start(OFFSET_NUM_SLOTS as u64)));
         self.read_u16::<BigEndian>().map_err(Into::into)
     }
@@ -554,7 +557,7 @@ impl DBPage {
             ColumnType::VarChar { length: _ } => {
                 let value = value.as_string().unwrap();
                 let str_len = value.len();
-                try!(self.write_varchar65536(value));
+                try!(self.write_varchar65535(value));
                 Ok(2 + str_len as u16)
             }
             _ => unimplemented!(),
@@ -567,7 +570,7 @@ impl DBPage {
     /// * offset - The offset at which to put the tuple.
     /// * schema - A reference to the schema the tuple should follow.
     /// * tuple - A reference to the tuple itself.
-    pub fn store_new_tuple<T: Tuple>(&mut self, offset: u16, schema: Schema, tuple: &T) -> Result<(), Error> {
+    pub fn store_new_tuple<T: Tuple>(&mut self, offset: u16, schema: Schema, mut tuple: T) -> Result<(), Error> {
         if schema.num_columns() != tuple.get_column_count() {
             return Err(Error::WrongArity(tuple.get_column_count(), schema.num_columns()));
         }
@@ -576,7 +579,7 @@ impl DBPage {
         let mut col_idx = 0usize;
         for col_info in schema.clone() {
             let col_type = col_info.column_type;
-            let value = tuple.get_column_value(col_idx);
+            let value = try!(tuple.get_column_value(col_idx));
             let mut data_size = 0;
 
             if value == Literal::Null {

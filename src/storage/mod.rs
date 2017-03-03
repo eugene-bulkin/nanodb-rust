@@ -115,7 +115,7 @@ pub trait WriteNanoDBExt: WriteBytesExt {
     ///
     /// # Errors
     /// This will fail if writing the length or the bytes in the string themselves fail.
-    fn write_varchar65536<S>(&mut self, string: S) -> io::Result<()>
+    fn write_varchar65535<S>(&mut self, string: S) -> io::Result<()>
         where S: Into<String>
     {
         let bytes = string.into().into_bytes();
@@ -148,7 +148,6 @@ pub trait WriteNanoDBExt: WriteBytesExt {
         let bytes = string.into_bytes();
         let remaining_bytes = length as usize - str_len;
 
-        try!(self.write_u16::<BigEndian>(bytes.len() as u16));
         try!(self.write(&bytes));
         if (str_len as u16) < length {
             try!(self.write(&vec![0u8; remaining_bytes]));
@@ -175,6 +174,45 @@ pub trait ReadNanoDBExt: ReadBytesExt {
         try!(self.read_exact(&mut buf));
 
         String::from_utf8(buf).map_err(|_| io::ErrorKind::Other.into())
+    }
+    /// Read a string to the output, assuming that it is a VARCHAR that fits in 65535 bytes (i.e.
+    /// the length can be represented in one byte).
+    ///
+    /// # Arguments
+    /// * string - The string to write.
+    ///
+    /// # Errors
+    /// This will fail if writing the length or the bytes in the string themselves fail.
+    fn read_varchar65535(&mut self) -> io::Result<String> {
+        let len = try!(self.read_u16::<BigEndian>()) as usize;
+        let mut buf = vec![0u8; len];
+        try!(self.read_exact(&mut buf));
+
+        String::from_utf8(buf).map_err(|_| io::ErrorKind::Other.into())
+    }
+
+    /// This method reads a string whose length is fixed at a constant size to output. The string is
+    /// expected to be in US-ASCII encoding, so multibyte characters are not supported.
+    ///
+    /// # Arguments
+    /// * string - The string to read.
+    /// * len - The number of bytes used to store the string field.
+    ///
+    /// # Errors
+    /// This will fail if reading the length or the bytes in the string themselves fail.
+    fn read_fixed_size_string(&mut self, len: u16) -> io::Result<String> {
+        let mut buf = vec![0u8; len as usize];
+        try!(self.read_exact(&mut buf));
+
+        let mut actual_length = len as usize;
+        for (i, byte) in buf.iter().enumerate() {
+            if *byte == 0u8 {
+                actual_length = i as usize;
+                break;
+            }
+        }
+
+        String::from_utf8((&buf[0..actual_length]).into()).map_err(|_| io::ErrorKind::Other.into())
     }
 }
 
@@ -257,5 +295,5 @@ pub trait Tuple: Pinnable {
     ///
     /// # Arguments
     /// * col_index - The index of the column
-    fn get_column_value(&self, col_index: usize) -> Literal;
+    fn get_column_value(&mut self, col_index: usize) -> Result<Literal, TupleError>;
 }
