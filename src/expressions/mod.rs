@@ -12,6 +12,7 @@ pub use self::literal::Literal;
 pub use self::processor::Processor as ExpressionProcessor;
 
 use super::ColumnName;
+use super::storage::TupleError;
 
 fn col_name_to_string(col_name: &ColumnName) -> String {
     match *col_name {
@@ -117,6 +118,8 @@ pub enum Error {
     NotBoolean(Literal),
     /// The expression provided needs more than one clause.
     EmptyExpression,
+    /// The expression tried to read a column value and failed.
+    CouldNotRead(TupleError),
     /// This expression's evaluation has not been implemented yet.
     Unimplemented,
 }
@@ -140,6 +143,10 @@ impl ::std::fmt::Display for Error {
             },
             Error::EmptyExpression => {
                 write!(f, "The expression was expecting a set of clauses and got none.")
+            },
+            Error::CouldNotRead(ref e) => {
+                // TODO: Display for TupleError
+                write!(f, "Could not read a value from a tuple: {:?}", e)
             },
             Error::Unimplemented => {
                 write!(f, "The expression's evaluation has not yet been implemented.")

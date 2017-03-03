@@ -570,7 +570,7 @@ impl DBPage {
     /// * offset - The offset at which to put the tuple.
     /// * schema - A reference to the schema the tuple should follow.
     /// * tuple - A reference to the tuple itself.
-    pub fn store_new_tuple<T: Tuple>(&mut self, offset: u16, schema: Schema, tuple: &T) -> Result<(), Error> {
+    pub fn store_new_tuple<T: Tuple>(&mut self, offset: u16, schema: Schema, mut tuple: T) -> Result<(), Error> {
         if schema.num_columns() != tuple.get_column_count() {
             return Err(Error::WrongArity(tuple.get_column_count(), schema.num_columns()));
         }
@@ -579,7 +579,7 @@ impl DBPage {
         let mut col_idx = 0usize;
         for col_info in schema.clone() {
             let col_type = col_info.column_type;
-            let value = tuple.get_column_value(col_idx);
+            let value = try!(tuple.get_column_value(col_idx));
             let mut data_size = 0;
 
             if value == Literal::Null {
