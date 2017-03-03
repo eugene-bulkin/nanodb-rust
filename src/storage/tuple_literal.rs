@@ -85,3 +85,35 @@ impl Tuple for TupleLiteral {
         self.values.len()
     }
 }
+
+impl ::std::fmt::Display for TupleLiteral {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        try!(write!(f, "TL["));
+        let num_columns = self.get_column_count();
+        for i in 0..num_columns {
+            try!(write!(f, "{}", self.values[i]));
+            if i < num_columns - 1 {
+                try!(write!(f, ","));
+            }
+        }
+        write!(f, "]")
+    }
+}
+
+impl From<TupleLiteral> for Vec<String> {
+    fn from(tl: TupleLiteral) -> Vec<String> {
+        let mut result = Vec::new();
+        let num_columns = tl.get_column_count();
+        for i in 0..num_columns {
+            match tl.values[i] {
+                Literal::String(ref s) => {
+                    result.push(s.clone());
+                },
+                _ => {
+                    result.push(format!("{}", tl.values[i]));
+                }
+            }
+        }
+        result
+    }
+}
