@@ -557,7 +557,7 @@ impl DBPage {
             ColumnType::VarChar { length: _ } => {
                 let value = value.as_string().unwrap();
                 let str_len = value.len();
-                try!(self.write_varchar65536(value));
+                try!(self.write_varchar65535(value));
                 Ok(2 + str_len as u16)
             }
             _ => unimplemented!(),
