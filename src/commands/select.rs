@@ -1,6 +1,8 @@
 use super::{Command, ExecutionError};
+use super::utils::print_table;
 use super::super::Server;
 use super::super::parser::select;
+use super::super::storage::{TupleLiteral, Pinnable};
 
 #[derive(Debug, Clone, PartialEq)]
 /// A command for selecting rows from a table.
@@ -48,8 +50,29 @@ impl SelectCommand {
 
 impl Command for SelectCommand {
     fn execute(&mut self, server: &mut Server) -> Result<(), ExecutionError> {
-        println!("{:?}", self);
-        Err(ExecutionError::Unimplemented)
+        let table = try!(server.table_manager.get_table(&server.file_manager, self.table.as_ref()).map_err(|e| ExecutionError::CouldNotOpenTable(self.table.clone(), e)));
+        let col_names: Vec<String> = table.schema.iter().map(|col_info| col_info.name.clone().unwrap()).collect();
+        let mut tuples: Vec<Vec<String>> = Vec::new();
+        let mut cur_tuple = try!(table.get_first_tuple().map_err(|_| ExecutionError::Unimplemented));
+        if cur_tuple.is_none() {
+            println!("No rows are in the table.");
+            return Ok(());
+        }
+        while cur_tuple.is_some() {
+            let mut tuple = cur_tuple.unwrap();
+            tuples.push(TupleLiteral::from_tuple(&mut tuple).into());
+            try!(tuple.unpin());
+
+            let tuple = tuple;
+            cur_tuple = try!(table.get_next_tuple(&tuple).map_err(|_| ExecutionError::Unimplemented));
+        }
+
+        if let Err(_) = print_table(&mut ::std::io::stdout(), col_names, tuples) {
+            // TODO
+            Err(ExecutionError::Unimplemented)
+        } else {
+            Ok(())
+        }
     }
 
     fn as_any(&self) -> &::std::any::Any {
