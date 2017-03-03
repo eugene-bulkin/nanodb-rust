@@ -70,8 +70,8 @@ impl HeapTupleFile {
     ///
     /// # Arguments
     /// * tuple - a tuple object containing the values to add to the table
-    pub fn add_tuple<'a, T: Tuple + 'a>(&mut self, tuple: T) -> Result<Box<Tuple + 'a>, TupleError> {
-        let tuple_size = try!(get_tuple_storage_size(self.schema.clone(), &tuple));
+    pub fn add_tuple<'a, T: Tuple + 'a>(&mut self, mut tuple: T) -> Result<Box<Tuple + 'a>, TupleError> {
+        let tuple_size = try!(get_tuple_storage_size(self.schema.clone(), &mut tuple));
         debug!("Adding new tuple of size {} bytes.", tuple_size);
 
         if (tuple_size + 2) as u32 > self.db_file.get_page_size() {
@@ -124,7 +124,7 @@ impl HeapTupleFile {
 
         debug!("New tuple will reside on page {}, slot {}.", page_no, slot);
 
-        try!(db_page.store_new_tuple(tuple_offset, self.schema.clone(), &tuple));
+        try!(db_page.store_new_tuple(tuple_offset, self.schema.clone(), tuple));
         try!(file_manager::save_page(&mut self.db_file, page_no, &db_page.page_data));
         db_page.set_dirty(false);
         let page_tuple = try!(PageTuple::new(db_page, tuple_offset, self.schema.clone()));

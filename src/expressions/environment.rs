@@ -3,7 +3,7 @@
 
 use super::{ExpressionError, Literal};
 use super::super::{ColumnName, Schema};
-use super::super::storage::{Tuple, TupleLiteral};
+use super::super::storage::{Tuple, TupleLiteral, TupleError};
 
 /// This class holds the environment for evaluating expressions that include symbols. For example,
 /// in the SQL command:
@@ -67,9 +67,9 @@ impl Environment {
     /// # Arguments
     /// * schema - the schema for the specified tuple
     /// * tuple - the tuple to be added
-    pub fn add_tuple<T: Tuple>(&mut self, schema: Schema, tuple: T) {
+    pub fn add_tuple<T: Tuple>(&mut self, schema: Schema, mut tuple: T) {
         self.current_schemas.push(schema);
-        self.current_tuples.push(TupleLiteral::from_tuple(tuple));
+        self.current_tuples.push(TupleLiteral::from_tuple(&mut tuple));
     }
 
     /// Returns the list of tuples being considered.
@@ -80,15 +80,15 @@ impl Environment {
     ///
     /// # Arguments
     /// * col_name - the name of the column.
-    pub fn get_column_value(&self, col_name: &ColumnName) -> Result<Literal, ExpressionError> {
+    pub fn get_column_value(&mut self, col_name: &ColumnName) -> Result<Literal, ExpressionError> {
         let mut found = false;
-        let mut result: Option<Literal> = None;
+        let mut result: Option<Result<Literal, TupleError>> = None;
 
         let is_col_wildcard = col_name.1.is_none();
 
         // First try to find it in the current environment.
         for i in 0..self.current_tuples.len() {
-            let ref tuple: TupleLiteral = self.current_tuples[i];
+            let ref mut tuple: TupleLiteral = self.current_tuples[i];
             let ref schema: Schema = self.current_schemas[i];
 
             let columns = schema.find_columns(col_name);
@@ -106,9 +106,9 @@ impl Environment {
 
         // If that doesn't work, try the parents.
         if !found && !self.parent_envs.is_empty() {
-            for parent in self.parent_envs.iter() {
+            for parent in self.parent_envs.iter_mut() {
                 if let Ok(value) = parent.get_column_value(col_name) {
-                    result = Some(value);
+                    result = Some(Ok(value));
                     found = true;
                     break;
                 }
@@ -119,6 +119,6 @@ impl Environment {
             return Err(ExpressionError::CouldNotResolve(col_name.clone()));
         }
 
-        Ok(result.unwrap())
+        result.unwrap().map_err(|e| ExpressionError::CouldNotRead(e))
     }
 }

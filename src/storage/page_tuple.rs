@@ -15,11 +15,11 @@ pub static NULL_OFFSET: u16 = 0;
 /// would require to be stored in a heap table file with the specified schema. This is used to
 /// insert new tuples into a table file by computing how much space will be needed, so that an
 /// appropriate page can be found.
-pub fn get_tuple_storage_size<T: Tuple>(schema: Schema, tuple: &T) -> Result<u16, TupleError> {
+pub fn get_tuple_storage_size<T: Tuple>(schema: Schema, tuple: &mut T) -> Result<u16, TupleError> {
     let mut storage_size = get_null_flags_size(schema.num_columns()) as u16;
     let mut col_idx = 0;
     for col_info in schema {
-        let value = tuple.get_column_value(col_idx);
+        let value = try!(tuple.get_column_value(col_idx));
         if value != Literal::Null {
             let data_length = match col_info.column_type {
                 ColumnType::VarChar { length: _ } => value.as_string().unwrap().len(),
@@ -230,7 +230,7 @@ impl Tuple for PageTuple {
         self.schema.num_columns()
     }
 
-    fn get_column_value(&self, col_index: usize) -> Literal {
+    fn get_column_value(&mut self, col_index: usize) -> Result<Literal, TupleError> {
         unimplemented!()
     }
 }
