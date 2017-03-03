@@ -16,7 +16,7 @@ const OFFSET_NUM_SLOTS: u16 = 0;
 /// This offset-value is stored into a slot when it is empty. It is set to zero because this is
 /// where the page's slot-count is stored and therefore this is obviously an invalid offset for a
 /// tuple to be located at.
-const EMPTY_SLOT: u16 = 0;
+pub const EMPTY_SLOT: u16 = 0;
 
 #[derive(Debug, Clone, PartialEq)]
 /// An error that can occur during the operations on a `DBPage`.
@@ -323,7 +323,10 @@ impl DBPage {
         self.read_u16::<BigEndian>().map_err(Into::into)
     }
 
-    fn get_num_slots(&mut self) -> Result<u16, Error> {
+    /// Returns the number of slots in this data page.  This can be considered to be the current
+    /// "capacity" of the page, since any number of the slots could be set to {@link #EMPTY_SLOT} to
+    /// indicate that they are empty.
+    pub fn get_num_slots(&mut self) -> Result<u16, Error> {
         try!(self.seek(SeekFrom::Start(OFFSET_NUM_SLOTS as u64)));
         self.read_u16::<BigEndian>().map_err(Into::into)
     }
