@@ -6,7 +6,8 @@ use std::collections::HashMap;
 use std::default::Default;
 use std::io;
 use std::io::{Seek, SeekFrom};
-use std::iter::IntoIterator;
+use std::iter::{IntoIterator};
+use std::slice::Iter;
 use std::ops::Index;
 
 use super::column::{ColumnInfo, ColumnName, ColumnType, EMPTY_CHAR, EMPTY_NUMERIC, EMPTY_VARCHAR};
@@ -179,6 +180,11 @@ impl Schema {
         }
 
         Ok(result)
+    }
+
+    /// Returns an iterator on the column infos.
+    pub fn iter(&self) -> Iter<ColumnInfo> {
+        self.column_infos.iter()
     }
 
     /// Returns the number of columns currently in the schema.
