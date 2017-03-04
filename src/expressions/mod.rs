@@ -4,12 +4,14 @@ pub mod expression;
 pub mod processor;
 pub mod environment;
 pub mod literal;
+pub mod select_clause;
 
 pub use self::Error as ExpressionError;
 pub use self::environment::Environment;
 pub use self::expression::Expression;
 pub use self::literal::Literal;
 pub use self::processor::Processor as ExpressionProcessor;
+pub use self::select_clause::SelectClause;
 
 use super::ColumnName;
 use super::storage::TupleError;

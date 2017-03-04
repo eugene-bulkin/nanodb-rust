@@ -1,6 +1,8 @@
 //! This module contains classes and utilities for storing environment information for NanoDB. These
 //! environments are used for evaluating expressions.
 
+use std::default::Default;
+
 use super::{ExpressionError, Literal};
 use super::super::{ColumnName, Schema};
 use super::super::storage::{Tuple, TupleLiteral, TupleError};
@@ -120,5 +122,15 @@ impl Environment {
         }
 
         result.unwrap().map_err(|e| ExpressionError::CouldNotRead(e))
+    }
+}
+
+impl Default for Environment {
+    fn default() -> Self {
+        Environment {
+            current_schemas: vec![],
+            current_tuples: vec![],
+            parent_envs: vec![],
+        }
     }
 }

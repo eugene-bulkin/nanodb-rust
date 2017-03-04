@@ -38,11 +38,12 @@ mod tests {
 
     use super::statements;
     use super::super::commands::SelectCommand;
+    use super::super::expressions::SelectClause;
 
     #[test]
     fn test_multiple_stmts() {
-        let result1 = SelectCommand::new("FOO", false, select::Value::All, None, None);
-        let result2 = SelectCommand::new("BAR", false, select::Value::All, None, None);
+        let result1 = SelectCommand::new(SelectClause::new("FOO", false, select::Value::All, None, None));
+        let result2 = SelectCommand::new(SelectClause::new("BAR", false, select::Value::All, None, None));
 
         let parsed = statements(b"SELECT * FROM foo; SELECT * FROM bar");
         assert!(parsed.is_done());

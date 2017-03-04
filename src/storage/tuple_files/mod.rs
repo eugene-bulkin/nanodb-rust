@@ -5,4 +5,4 @@
 
 pub mod heap_tuple_file;
 
-pub use self::heap_tuple_file::HeapTupleFile;
+pub use self::heap_tuple_file::{HeapTupleFile, HeapFilePageTuple};

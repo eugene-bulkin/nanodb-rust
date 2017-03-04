@@ -1,6 +1,7 @@
 //! A module handling the parsing of select clauses.
 
 use super::super::commands::SelectCommand;
+use super::super::expressions::SelectClause;
 use super::utils::*;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -64,19 +65,21 @@ named!(pub parse (&[u8]) -> Box<SelectCommand>, do_parse!(
     offset: opt!(complete!(offset)) >>
     alt!(eof!() | peek!(tag!(";"))) >>
     ({
-        Box::new(SelectCommand::new(table_name, match distinct {
+        let clause = SelectClause::new(table_name, match distinct {
                 Some(modifier) => modifier,
                 None => false
             }, select_values,
             limit.and_then(|v| v).map(|v| v as u32),
             offset.and_then(|v| v).map(|v| v as u32)
-        ))
+        );
+        Box::new(SelectCommand::new(clause))
     })
 ));
 
 #[cfg(test)]
 mod tests {
     use nom::IResult::*;
+    use super::super::super::expressions::SelectClause;
     use super::{Value, limit, parse, select_value, select_values};
     use super::super::super::commands::SelectCommand;
 
@@ -108,8 +111,8 @@ mod tests {
         let kw1 = String::from("FOO");
         let kw2 = String::from("BAR");
 
-        let result1 = SelectCommand::new(kw1, false, Value::All, None, None);
-        let result2 = SelectCommand::new(kw2, false, Value::All, None, None);
+        let result1 = SelectCommand::new(SelectClause::new(kw1, false, Value::All, None, None));
+        let result2 = SelectCommand::new(SelectClause::new(kw2, false, Value::All, None, None));
         //        let result3 = Statement::Select {
         //            value: Value::All,
         //            distinct: false,

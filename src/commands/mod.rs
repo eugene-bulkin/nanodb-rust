@@ -59,6 +59,7 @@ pub use self::show::ShowCommand;
 use super::expressions::{Expression, ExpressionError};
 use super::schema;
 use super::storage::{PinError, file_manager, table_manager};
+use super::queries::PlanError;
 
 #[derive(Debug, Clone, PartialEq)]
 /// An error that occurred while attempting to execute a command.
@@ -71,6 +72,10 @@ pub enum ExecutionError {
     CouldNotCreateTable(table_manager::Error),
     /// The command could not list tables successfully.
     CouldNotListTables(file_manager::Error),
+    /// Could not get another tuple in the plan.
+    CouldNotGetNextTuple(PlanError),
+    /// Could not execute a plan.
+    CouldNotExecutePlan(PlanError),
     /// The table requested does not exist.
     TableDoesNotExist(String),
     /// The column named does not exist.
@@ -128,6 +133,14 @@ impl ::std::fmt::Display for ExecutionError {
             },
             ExecutionError::CouldNotOpenTable(ref name, ref e) => {
                 write!(f, "Unable to open table {}. {}", name, e)
+            },
+            ExecutionError::CouldNotGetNextTuple(ref e) => {
+                // TODO: Display for PlanError.
+                write!(f, "Unable to retrieve another tuple. {:?}", e)
+            },
+            ExecutionError::CouldNotExecutePlan(ref e) => {
+                // TODO: Display for PlanError.
+                write!(f, "Unable to execute plan. {:?}", e)
             },
             ExecutionError::Unimplemented => {
                 write!(f, "The requested command is not yet implemented.")
