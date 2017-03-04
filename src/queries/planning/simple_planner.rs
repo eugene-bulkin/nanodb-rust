@@ -24,6 +24,6 @@ impl<'a> SimplePlanner<'a> {
 
 impl<'a> Planner for SimplePlanner<'a> {
     fn make_plan(&mut self, clause: SelectClause) -> NodeResult {
-        make_simple_select(self.file_manager, self.table_manager, clause.table, None)
+        make_simple_select(self.file_manager, self.table_manager, clause.table, clause.where_expr)
     }
 }

@@ -2,7 +2,7 @@
 
 use std::default::Default;
 
-use super::super::{PlanResult};
+use super::super::{PlanError, PlanResult};
 use super::PlanNode;
 use super::super::super::super::Schema;
 use super::super::super::super::expressions::{Expression, Environment, Literal};
@@ -14,18 +14,19 @@ use super::super::super::super::storage::{Pinnable, Tuple};
     ///
     /// # Arguments
     /// * tuple - The tuple to verify.
-fn is_tuple_selected(predicate: Option<&Expression>, schema: Schema, tuple: &mut HeapFilePageTuple) -> bool {
+fn is_tuple_selected(predicate: Option<&Expression>, schema: Schema, tuple: &mut HeapFilePageTuple) -> PlanResult<bool> {
     match predicate {
         Some(ref expr) => {
             let mut env: Environment = Default::default();
             env.add_tuple(schema, tuple);
-            match expr.evaluate(Some(&env)) {
-                Ok(Literal::True) => true,
-                Ok(Literal::False) => false,
-                _ => unimplemented!()
+            match expr.evaluate(&mut Some(&mut env)) {
+                Ok(Literal::True) => Ok(true),
+                Ok(Literal::False) => Ok(false),
+                Ok(_) => Err(PlanError::InvalidPredicate),
+                Err(e) => Err(PlanError::CouldNotApplyPredicate(e)),
             }
         },
-        None => true
+        None => Ok(true)
     }
 }
 
@@ -96,7 +97,7 @@ impl<'a> FileScanNode<'a> {
             let mut boxed_tuple = self.current_tuple.as_mut().unwrap();
             let is_selected = is_tuple_selected(self.predicate.as_ref(), self.table.schema.clone(), &mut *boxed_tuple);
             // If we found a tuple that satisfies the predicate, break out of the loop!
-            if is_selected {
+            if try!(is_selected) {
                 return Ok(());
             }
 

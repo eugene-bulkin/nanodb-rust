@@ -39,7 +39,6 @@ impl Command for SelectCommand {
 
         while let Some(mut boxed_tuple) = try!(plan.get_next_tuple().map_err(ExecutionError::CouldNotGetNextTuple)) {
             let literal = TupleLiteral::from_tuple(&mut *boxed_tuple);
-            println!("{:?}", literal);
             tuples.push(literal.into());
         }
         if tuples.is_empty() {

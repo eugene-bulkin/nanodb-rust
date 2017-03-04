@@ -2,6 +2,8 @@ use nom::{alpha, digit};
 
 use std::str::{self, FromStr};
 
+use super::super::column::ColumnName;
+
 #[derive(Debug, Clone, PartialEq)]
 /// An enum representing a SQL literal.
 pub enum Literal {
@@ -36,6 +38,21 @@ named!(pub quoted_ident (&[u8]) -> String, do_parse!(
 ));
 
 named!(pub dbobj_ident (&[u8]) -> String, alt_complete!(ident | quoted_ident));
+
+named!(pub column_name (&[u8]) -> ColumnName, do_parse!(
+    n1: dbobj_ident >>
+    n2: opt!(complete!(do_parse!(
+        tag!(".") >>
+        n: dbobj_ident >>
+        (n)
+    ))) >>
+    ({
+        match n2 {
+            Some(col_name) => (Some(n1), Some(col_name)),
+            None => (None, Some(n1))
+        }
+    })
+));
 
 named!(pub alpha_s (&[u8]) -> String, map!(map_res!(alpha, str::from_utf8), String::from));
 
@@ -128,6 +145,11 @@ mod tests {
         assert_eq!(Done(&b""[..], "_buz".into()), quoted_ident(b"\"_buz\""));
         assert_eq!(Done(&b""[..], "_buz3".into()), quoted_ident(b"\"_buz3\""));
         assert!(quoted_ident(b"foo").is_err());
+    }
+
+    #[test]
+    fn test_column_name() {
+        assert_eq!(Done(&b""[..], (None, Some("FOO".into()))), column_name(b"foo"));
     }
 
     #[test]

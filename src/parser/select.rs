@@ -2,6 +2,7 @@
 
 use super::super::commands::SelectCommand;
 use super::super::expressions::SelectClause;
+use super::expression::expression;
 use super::utils::*;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -61,6 +62,11 @@ named!(pub parse (&[u8]) -> Box<SelectCommand>, do_parse!(
     select_values: select_values >>
     ws!(tag_no_case!("FROM")) >>
     table_name: ws!(dbobj_ident) >>
+    where_expr: opt!(complete!(do_parse!(
+        ws!(tag_no_case!("WHERE")) >>
+        e: dbg!(ws!(expression)) >>
+        (e)
+    ))) >>
     limit: opt!(complete!(limit)) >>
     offset: opt!(complete!(offset)) >>
     alt!(eof!() | peek!(tag!(";"))) >>
@@ -70,7 +76,8 @@ named!(pub parse (&[u8]) -> Box<SelectCommand>, do_parse!(
                 None => false
             }, select_values,
             limit.and_then(|v| v).map(|v| v as u32),
-            offset.and_then(|v| v).map(|v| v as u32)
+            offset.and_then(|v| v).map(|v| v as u32),
+            where_expr,
         );
         Box::new(SelectCommand::new(clause))
     })
@@ -111,8 +118,8 @@ mod tests {
         let kw1 = String::from("FOO");
         let kw2 = String::from("BAR");
 
-        let result1 = SelectCommand::new(SelectClause::new(kw1, false, Value::All, None, None));
-        let result2 = SelectCommand::new(SelectClause::new(kw2, false, Value::All, None, None));
+        let result1 = SelectCommand::new(SelectClause::new(kw1, false, Value::All, None, None, None));
+        let result2 = SelectCommand::new(SelectClause::new(kw2, false, Value::All, None, None, None));
         //        let result3 = Statement::Select {
         //            value: Value::All,
         //            distinct: false,

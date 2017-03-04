@@ -32,7 +32,7 @@ impl Command for InsertCommand {
                 let expr_values = {
                     let mut expr_values = Vec::new();
                     for expr in &self.values {
-                        let value = try!(expr.evaluate(None));
+                        let value = try!(expr.evaluate(&mut None));
                         expr_values.push(value);
                     }
                     expr_values

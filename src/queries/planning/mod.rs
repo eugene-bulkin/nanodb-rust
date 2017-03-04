@@ -7,7 +7,7 @@ pub mod plan_nodes;
 pub use self::plan_nodes::{PlanNode, FileScanNode};
 pub use self::simple_planner::SimplePlanner;
 
-use super::super::expressions::{Expression, SelectClause};
+use super::super::expressions::{Expression, ExpressionError, SelectClause};
 use super::super::storage::{PinError, file_manager, table_manager, FileManager, TableManager};
 
 /// An error that could occur during planning.
@@ -21,6 +21,10 @@ pub enum Error {
     PinError(PinError),
     /// The operation is unimplemented.
     Unimplemented,
+    /// The predicate does not evaluate to a boolean.
+    InvalidPredicate,
+    /// The predicate could not be evaluated.
+    CouldNotApplyPredicate(ExpressionError),
 }
 
 impl From<file_manager::Error> for Error {

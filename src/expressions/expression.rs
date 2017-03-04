@@ -1,5 +1,6 @@
 //! This module contains utilities for dealing with expressions, including the `Expression` struct.
 
+use super::super::ColumnName;
 use super::{ArithmeticType, CompareType, Environment, ExpressionError, Literal};
 
 fn coerce_literals(left: Literal, right: Literal) -> (Literal, Literal) {
@@ -33,6 +34,8 @@ pub enum Expression {
     IsNull(Box<Expression>),
     /// An arithmetic expression
     Arithmetic(Box<Expression>, ArithmeticType, Box<Expression>),
+    /// A column value for later dynamic evaluation.
+    ColumnValue(ColumnName),
     /// NULL
     Null,
     /// TRUE
@@ -66,6 +69,12 @@ impl From<Literal> for Expression {
     }
 }
 
+impl From<ColumnName> for Expression {
+    fn from(name: ColumnName) -> Self {
+        Expression::ColumnValue(name)
+    }
+}
+
 impl Expression {
     fn try_literal(&self) -> Option<Literal> {
         match *self {
@@ -91,21 +100,21 @@ impl Expression {
     /// # Errors
     /// This will return some `ExpressionError` if the expression cannot be evaluated given the
     /// environment.
-    pub fn evaluate(&self, env: Option<&Environment>) -> Result<Literal, ExpressionError> {
+    pub fn evaluate(&self, mut env: &mut Option<&mut Environment>) -> Result<Literal, ExpressionError> {
         if let Some(l) = self.try_literal() {
             return Ok(l);
         }
         match *self {
             Expression::Arithmetic(ref left, op, ref right) => {
-                self.evaluate_arithmetic(env, left.clone(), right.clone(), op)
-            }
+                self.evaluate_arithmetic(&mut env, left.clone(), right.clone(), op)
+            },
             Expression::Compare(ref left, op, ref right) => self.evaluate_compare(env, left.clone(), right.clone(), op),
             Expression::OR(ref exprs) => {
                 if exprs.is_empty() {
                     return Err(ExpressionError::EmptyExpression);
                 }
                 for expr in exprs {
-                    let value = try!(expr.evaluate(env));
+                    let value = try!(expr.evaluate({env})).clone();
                     match value {
                         Literal::True => {
                             // Can short-circuit here.
@@ -157,19 +166,26 @@ impl Expression {
                 } else {
                     Literal::False
                 })
+            },
+            Expression::ColumnValue(ref name) => {
+                if let Some(ref mut inner) = *env {
+                    inner.get_column_value(&name)
+                } else {
+                    Err(ExpressionError::CouldNotResolve(name.clone()))
+                }
             }
             _ => Err(ExpressionError::Unimplemented),
         }
     }
 
     fn evaluate_arithmetic(&self,
-                           env: Option<&Environment>,
+                           mut env: &mut Option<&mut Environment>,
                            left: Box<Expression>,
                            right: Box<Expression>,
                            op: ArithmeticType)
                            -> Result<Literal, ExpressionError> {
-        let left_val = try!(left.evaluate(env));
-        let right_val = try!(right.evaluate(env));
+        let left_val = try!(left.evaluate(&mut env));
+        let right_val = try!(right.evaluate(&mut env));
         if !left_val.is_numeric() {
             return Err(ExpressionError::NotNumeric(left_val.clone()));
         }
@@ -227,13 +243,13 @@ impl Expression {
     }
 
     fn evaluate_compare(&self,
-                        env: Option<&Environment>,
+                        mut env: &mut Option<&mut Environment>,
                         left: Box<Expression>,
                         right: Box<Expression>,
                         op: CompareType)
                         -> Result<Literal, ExpressionError> {
-        let left_val = try!(left.evaluate(env));
-        let right_val = try!(right.evaluate(env));
+        let left_val = try!(left.evaluate(&mut env));
+        let right_val = try!(right.evaluate(&mut env));
         if !left_val.is_numeric() {
             return Err(ExpressionError::NotNumeric(left_val.clone()));
         }
@@ -323,6 +339,14 @@ impl ::std::fmt::Display for Expression {
             Expression::Float(num) => { write!(f, "{}", num) },
             Expression::Double(num) => { write!(f, "{}", num) },
             Expression::String(ref s) => { write!(f, "\'{}\'", s) },
+            Expression::ColumnValue(ref name) => {
+                match *name {
+                    (Some(ref table_name), Some(ref col_name)) => write!(f, "{}.{}", table_name, col_name),
+                    (None, Some(ref col_name)) => write!(f, "{}", col_name),
+                    (Some(ref table_name), None) => write!(f, "{}.*", table_name),
+                    (None, None) => write!(f, "*"),
+                }
+            },
             Expression::OR(ref exprs) => {
                 let r: Vec<_> = exprs.iter().map(|e| wrap_expr_parens(e)).collect();
                 write!(f, "{}", r.join(" OR "))
@@ -391,26 +415,26 @@ mod tests {
         let expr11 = Expression::Arithmetic(Box::new(Expression::Int(11)),
                                             ArithmeticType::Divide,
                                             Box::new(Expression::Double(4f64)));
-        assert_eq!(Err(ExpressionError::NotNumeric(Literal::True)), expr6.evaluate(None));
-        assert_eq!(Ok(Literal::Int(123)), expr1.evaluate(None));
-        assert_eq!(Ok(Literal::Int(555)), expr2.evaluate(None));
-        assert_eq!(Ok(Literal::Int(-309)), expr3.evaluate(None));
-        assert_eq!(Ok(Literal::Long(555)), expr4.evaluate(None));
-        assert_eq!(Ok(Literal::Long(555)), expr5.evaluate(None));
-        assert_eq!(Ok(Literal::Int(21)), expr7.evaluate(None));
-        assert_eq!(Ok(Literal::Int(2)), expr8.evaluate(None));
-        assert_eq!(Ok(Literal::Int(3)), expr9.evaluate(None));
-        assert_eq!(Ok(Literal::Float(2.75)), expr10.evaluate(None));
-        assert_eq!(Ok(Literal::Double(2.75)), expr11.evaluate(None));
+        assert_eq!(Err(ExpressionError::NotNumeric(Literal::True)), expr6.evaluate(&mut None));
+        assert_eq!(Ok(Literal::Int(123)), expr1.evaluate(&mut None));
+        assert_eq!(Ok(Literal::Int(555)), expr2.evaluate(&mut None));
+        assert_eq!(Ok(Literal::Int(-309)), expr3.evaluate(&mut None));
+        assert_eq!(Ok(Literal::Long(555)), expr4.evaluate(&mut None));
+        assert_eq!(Ok(Literal::Long(555)), expr5.evaluate(&mut None));
+        assert_eq!(Ok(Literal::Int(21)), expr7.evaluate(&mut None));
+        assert_eq!(Ok(Literal::Int(2)), expr8.evaluate(&mut None));
+        assert_eq!(Ok(Literal::Int(3)), expr9.evaluate(&mut None));
+        assert_eq!(Ok(Literal::Float(2.75)), expr10.evaluate(&mut None));
+        assert_eq!(Ok(Literal::Double(2.75)), expr11.evaluate(&mut None));
     }
 
     #[test]
     fn test_is_null() {
-        assert_eq!(Ok(Literal::True), Expression::IsNull(Box::new(Expression::Null)).evaluate(None));
-        assert_eq!(Ok(Literal::False), Expression::IsNull(Box::new(Expression::True)).evaluate(None));
-        assert_eq!(Ok(Literal::False), Expression::IsNull(Box::new(Expression::False)).evaluate(None));
-        assert_eq!(Ok(Literal::False), Expression::IsNull(Box::new(Expression::Int(430))).evaluate(None));
-        assert_eq!(Ok(Literal::False), Expression::IsNull(Box::new(Expression::Double(2.3))).evaluate(None));
+        assert_eq!(Ok(Literal::True), Expression::IsNull(Box::new(Expression::Null)).evaluate(&mut None));
+        assert_eq!(Ok(Literal::False), Expression::IsNull(Box::new(Expression::True)).evaluate(&mut None));
+        assert_eq!(Ok(Literal::False), Expression::IsNull(Box::new(Expression::False)).evaluate(&mut None));
+        assert_eq!(Ok(Literal::False), Expression::IsNull(Box::new(Expression::Int(430))).evaluate(&mut None));
+        assert_eq!(Ok(Literal::False), Expression::IsNull(Box::new(Expression::Double(2.3))).evaluate(&mut None));
     }
 
     #[test]
@@ -419,23 +443,23 @@ mod tests {
         let e_false = Expression::False;
         let e_other = Expression::Int(34);
 
-        assert_eq!(Ok(Literal::True), Expression::AND(vec![e_true.clone()]).evaluate(None));
-        assert_eq!(Ok(Literal::True), Expression::OR(vec![e_true.clone()]).evaluate(None));
-        assert_eq!(Ok(Literal::False), Expression::NOT(Box::new(e_true.clone())).evaluate(None));
+        assert_eq!(Ok(Literal::True), Expression::AND(vec![e_true.clone()]).evaluate(&mut None));
+        assert_eq!(Ok(Literal::True), Expression::OR(vec![e_true.clone()]).evaluate(&mut None));
+        assert_eq!(Ok(Literal::False), Expression::NOT(Box::new(e_true.clone())).evaluate(&mut None));
 
-        assert_eq!(Ok(Literal::False), Expression::AND(vec![e_false.clone()]).evaluate(None));
-        assert_eq!(Ok(Literal::False), Expression::OR(vec![e_false.clone()]).evaluate(None));
-        assert_eq!(Ok(Literal::True), Expression::NOT(Box::new(e_false.clone())).evaluate(None));
+        assert_eq!(Ok(Literal::False), Expression::AND(vec![e_false.clone()]).evaluate(&mut None));
+        assert_eq!(Ok(Literal::False), Expression::OR(vec![e_false.clone()]).evaluate(&mut None));
+        assert_eq!(Ok(Literal::True), Expression::NOT(Box::new(e_false.clone())).evaluate(&mut None));
 
-        assert_eq!(Ok(Literal::False), Expression::AND(vec![e_false.clone(), e_true.clone()]).evaluate(None));
-        assert_eq!(Ok(Literal::True), Expression::OR(vec![e_false.clone(), e_true.clone()]).evaluate(None));
+        assert_eq!(Ok(Literal::False), Expression::AND(vec![e_false.clone(), e_true.clone()]).evaluate(&mut None));
+        assert_eq!(Ok(Literal::True), Expression::OR(vec![e_false.clone(), e_true.clone()]).evaluate(&mut None));
 
-        assert_eq!(Err(ExpressionError::EmptyExpression), Expression::AND(vec![]).evaluate(None));
-        assert_eq!(Err(ExpressionError::EmptyExpression), Expression::OR(vec![]).evaluate(None));
+        assert_eq!(Err(ExpressionError::EmptyExpression), Expression::AND(vec![]).evaluate(&mut None));
+        assert_eq!(Err(ExpressionError::EmptyExpression), Expression::OR(vec![]).evaluate(&mut None));
 
-        assert_eq!(Err(ExpressionError::NotBoolean(Literal::Int(34))), Expression::AND(vec![e_other.clone()]).evaluate(None));
-        assert_eq!(Err(ExpressionError::NotBoolean(Literal::Int(34))), Expression::OR(vec![e_other.clone()]).evaluate(None));
-        assert_eq!(Err(ExpressionError::NotBoolean(Literal::Int(34))), Expression::NOT(Box::new(e_other.clone())).evaluate(None));
+        assert_eq!(Err(ExpressionError::NotBoolean(Literal::Int(34))), Expression::AND(vec![e_other.clone()]).evaluate(&mut None));
+        assert_eq!(Err(ExpressionError::NotBoolean(Literal::Int(34))), Expression::OR(vec![e_other.clone()]).evaluate(&mut None));
+        assert_eq!(Err(ExpressionError::NotBoolean(Literal::Int(34))), Expression::NOT(Box::new(e_other.clone())).evaluate(&mut None));
     }
 
     #[test]
@@ -444,27 +468,27 @@ mod tests {
         let left2 = Box::new(Expression::Float(30.0));
         let right = Box::new(Expression::Long(35));
 
-        assert_eq!(Err(ExpressionError::NotNumeric(Literal::Null)), Expression::Compare(left.clone(), CompareType::LessThan, Box::new(Expression::Null)).evaluate(None));
+        assert_eq!(Err(ExpressionError::NotNumeric(Literal::Null)), Expression::Compare(left.clone(), CompareType::LessThan, Box::new(Expression::Null)).evaluate(&mut None));
 
-        assert_eq!(Ok(Literal::True), Expression::Compare(left.clone(), CompareType::LessThan, right.clone()).evaluate(None));
-        assert_eq!(Ok(Literal::True), Expression::Compare(left.clone(), CompareType::LessThanEqual, right.clone()).evaluate(None));
-        assert_eq!(Ok(Literal::False), Expression::Compare(left.clone(), CompareType::GreaterThan, right.clone()).evaluate(None));
-        assert_eq!(Ok(Literal::False), Expression::Compare(left.clone(), CompareType::GreaterThanEqual, right.clone()).evaluate(None));
-        assert_eq!(Ok(Literal::False), Expression::Compare(left.clone(), CompareType::Equals, right.clone()).evaluate(None));
-        assert_eq!(Ok(Literal::True), Expression::Compare(left.clone(), CompareType::NotEquals, right.clone()).evaluate(None));
+        assert_eq!(Ok(Literal::True), Expression::Compare(left.clone(), CompareType::LessThan, right.clone()).evaluate(&mut None));
+        assert_eq!(Ok(Literal::True), Expression::Compare(left.clone(), CompareType::LessThanEqual, right.clone()).evaluate(&mut None));
+        assert_eq!(Ok(Literal::False), Expression::Compare(left.clone(), CompareType::GreaterThan, right.clone()).evaluate(&mut None));
+        assert_eq!(Ok(Literal::False), Expression::Compare(left.clone(), CompareType::GreaterThanEqual, right.clone()).evaluate(&mut None));
+        assert_eq!(Ok(Literal::False), Expression::Compare(left.clone(), CompareType::Equals, right.clone()).evaluate(&mut None));
+        assert_eq!(Ok(Literal::True), Expression::Compare(left.clone(), CompareType::NotEquals, right.clone()).evaluate(&mut None));
 
-        assert_eq!(Ok(Literal::False), Expression::Compare(left.clone(), CompareType::LessThan, left.clone()).evaluate(None));
-        assert_eq!(Ok(Literal::True), Expression::Compare(left.clone(), CompareType::LessThanEqual, left.clone()).evaluate(None));
-        assert_eq!(Ok(Literal::False), Expression::Compare(left.clone(), CompareType::GreaterThan, left.clone()).evaluate(None));
-        assert_eq!(Ok(Literal::True), Expression::Compare(left.clone(), CompareType::GreaterThanEqual, left.clone()).evaluate(None));
-        assert_eq!(Ok(Literal::True), Expression::Compare(left.clone(), CompareType::Equals, left.clone()).evaluate(None));
-        assert_eq!(Ok(Literal::False), Expression::Compare(left.clone(), CompareType::NotEquals, left.clone()).evaluate(None));
+        assert_eq!(Ok(Literal::False), Expression::Compare(left.clone(), CompareType::LessThan, left.clone()).evaluate(&mut None));
+        assert_eq!(Ok(Literal::True), Expression::Compare(left.clone(), CompareType::LessThanEqual, left.clone()).evaluate(&mut None));
+        assert_eq!(Ok(Literal::False), Expression::Compare(left.clone(), CompareType::GreaterThan, left.clone()).evaluate(&mut None));
+        assert_eq!(Ok(Literal::True), Expression::Compare(left.clone(), CompareType::GreaterThanEqual, left.clone()).evaluate(&mut None));
+        assert_eq!(Ok(Literal::True), Expression::Compare(left.clone(), CompareType::Equals, left.clone()).evaluate(&mut None));
+        assert_eq!(Ok(Literal::False), Expression::Compare(left.clone(), CompareType::NotEquals, left.clone()).evaluate(&mut None));
 
-        assert_eq!(Ok(Literal::False), Expression::Compare(left.clone(), CompareType::LessThan, left2.clone()).evaluate(None));
-        assert_eq!(Ok(Literal::True), Expression::Compare(left.clone(), CompareType::LessThanEqual, left2.clone()).evaluate(None));
-        assert_eq!(Ok(Literal::False), Expression::Compare(left.clone(), CompareType::GreaterThan, left2.clone()).evaluate(None));
-        assert_eq!(Ok(Literal::True), Expression::Compare(left.clone(), CompareType::GreaterThanEqual, left2.clone()).evaluate(None));
-        assert_eq!(Ok(Literal::True), Expression::Compare(left.clone(), CompareType::Equals, left2.clone()).evaluate(None));
-        assert_eq!(Ok(Literal::False), Expression::Compare(left.clone(), CompareType::NotEquals, left2.clone()).evaluate(None));
+        assert_eq!(Ok(Literal::False), Expression::Compare(left.clone(), CompareType::LessThan, left2.clone()).evaluate(&mut None));
+        assert_eq!(Ok(Literal::True), Expression::Compare(left.clone(), CompareType::LessThanEqual, left2.clone()).evaluate(&mut None));
+        assert_eq!(Ok(Literal::False), Expression::Compare(left.clone(), CompareType::GreaterThan, left2.clone()).evaluate(&mut None));
+        assert_eq!(Ok(Literal::True), Expression::Compare(left.clone(), CompareType::GreaterThanEqual, left2.clone()).evaluate(&mut None));
+        assert_eq!(Ok(Literal::True), Expression::Compare(left.clone(), CompareType::Equals, left2.clone()).evaluate(&mut None));
+        assert_eq!(Ok(Literal::False), Expression::Compare(left.clone(), CompareType::NotEquals, left2.clone()).evaluate(&mut None));
     }
 }
