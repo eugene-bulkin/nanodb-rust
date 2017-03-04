@@ -1,7 +1,9 @@
 //! This module contains all plan nodes.
 
-pub mod file_scan;
+mod file_scan;
+mod project;
 
+pub use self::project::ProjectNode;
 pub use self::file_scan::FileScanNode;
 
 use super::super::super::storage::{Tuple};

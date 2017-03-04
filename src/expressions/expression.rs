@@ -75,6 +75,18 @@ impl From<ColumnName> for Expression {
     }
 }
 
+impl From<String> for Expression {
+    fn from(s: String) -> Self {
+        Expression::String(s)
+    }
+}
+
+impl<'a> From<&'a str> for Expression {
+    fn from(s: &str) -> Self {
+        Expression::String(s.into())
+    }
+}
+
 impl Expression {
     fn try_literal(&self) -> Option<Literal> {
         match *self {

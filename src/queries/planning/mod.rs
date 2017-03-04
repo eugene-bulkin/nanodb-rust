@@ -4,11 +4,12 @@
 pub mod simple_planner;
 pub mod plan_nodes;
 
-pub use self::plan_nodes::{PlanNode, FileScanNode};
+pub use self::plan_nodes::{PlanNode, FileScanNode, ProjectNode};
 pub use self::simple_planner::SimplePlanner;
 
 use super::super::expressions::{Expression, ExpressionError, SelectClause};
 use super::super::storage::{PinError, file_manager, table_manager, FileManager, TableManager};
+use ::ColumnName;
 
 /// An error that could occur during planning.
 #[derive(Clone, Debug, PartialEq)]
@@ -25,6 +26,10 @@ pub enum Error {
     InvalidPredicate,
     /// The predicate could not be evaluated.
     CouldNotApplyPredicate(ExpressionError),
+    /// The specified column does not exist.
+    ColumnDoesNotExist(ColumnName),
+    /// The node was not prepared before using.
+    NodeNotPrepared,
 }
 
 impl From<file_manager::Error> for Error {

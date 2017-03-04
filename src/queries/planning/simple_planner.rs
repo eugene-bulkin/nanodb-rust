@@ -1,7 +1,8 @@
 //! This module contains the classes and functions needed for a simple query planner.
 
+use super::{Planner, NodeResult, make_simple_select, ProjectNode};
 use super::super::super::expressions::SelectClause;
-use super::{Planner, NodeResult, make_simple_select};
+use super::super::super::parser::select::Value;
 use super::super::super::storage::{FileManager, TableManager};
 
 /// This class generates execution plannodes for performing SQL queries. The primary responsibility
@@ -24,6 +25,14 @@ impl<'a> SimplePlanner<'a> {
 
 impl<'a> Planner for SimplePlanner<'a> {
     fn make_plan(&mut self, clause: SelectClause) -> NodeResult {
-        make_simple_select(self.file_manager, self.table_manager, clause.table, clause.where_expr)
+        let mut cur_node = try!(make_simple_select(self.file_manager, self.table_manager, clause.table, clause.where_expr));
+        try!(cur_node.prepare());
+
+        if let Value::Values(values) = clause.value {
+            cur_node = Box::new(ProjectNode::new(cur_node, values));
+            try!(cur_node.prepare());
+        }
+
+        Ok(cur_node)
     }
 }

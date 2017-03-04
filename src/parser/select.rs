@@ -1,7 +1,7 @@
 //! A module handling the parsing of select clauses.
 
 use super::super::commands::SelectCommand;
-use super::super::expressions::SelectClause;
+use super::super::expressions::{Expression, SelectClause};
 use super::expression::expression;
 use super::utils::*;
 
@@ -12,18 +12,18 @@ pub enum Value {
     All,
     /// Represents multiple select values. For example, the select value in `SELECT a, b AS c FROM
     /// ...` would be represented by `Values::Values(vec![("A", None), ("B", Some("C"))])`.
-    Values(Vec<(String, Option<String>)>),
+    Values(Vec<(Expression, Option<String>)>),
 }
 
-named!(select_value (&[u8]) -> (String, Option<String>), alt_complete!(
-        do_parse!(a:alpha_s >> ws!(tag!("AS")) >> b:alpha_s >> (a,b)) => { |res: (String, String)| (res.0, Some(res.1)) }
-    |   alpha_s => { |res: String| (res, None) }
+named!(select_value (&[u8]) -> (Expression, Option<String>), alt_complete!(
+        do_parse!(a:expression >> ws!(tag_no_case!("AS")) >> b:dbobj_ident >> (a,b)) => { |res: (Expression, String)| (res.0, Some(res.1)) }
+    |   expression => { |res: Expression| (res, None) }
 ));
 
 named!(select_values (&[u8]) -> Value, do_parse!(
     result: alt!(
             tag!("*")   => { |_| Value::All }
-        | separated_nonempty_list!(tag!(","), ws!(select_value)) => { |res: Vec<(String, Option<String>)>| Value::Values(res) }
+        | separated_nonempty_list!(tag!(","), ws!(select_value)) => { |res: Vec<(Expression, Option<String>)>| Value::Values(res) }
     ) >>
     (result)
 ));
@@ -86,7 +86,7 @@ named!(pub parse (&[u8]) -> Box<SelectCommand>, do_parse!(
 #[cfg(test)]
 mod tests {
     use nom::IResult::*;
-    use super::super::super::expressions::SelectClause;
+    use ::expressions::{Expression, SelectClause};
     use super::{Value, limit, parse, select_value, select_values};
     use super::super::super::commands::SelectCommand;
 
@@ -100,17 +100,23 @@ mod tests {
 
     #[test]
     fn test_select_values() {
+        let kw1 = "FOO";
+        let kw2 = "BAR";
+        let kw3 = "BAZ";
 
-        let kw1 = String::from("foo");
-        let kw2 = String::from("bar");
+        let cn1: Expression = (None, Some(kw1.into())).into();
+        let cn2: Expression = (None, Some(kw2.into())).into();
+        let cn3: Expression = (Some(kw1.into()), Some(kw2.into())).into();
 
-        assert_eq!(Done(&b""[..], (kw1.clone(), None)), select_value(b"foo"));
-        assert_eq!(Done(&b""[..], (kw1.clone(), Some(kw2.clone()))), select_value(b"foo AS bar"));
+        assert_eq!(Done(&b""[..], (cn1.clone(), None)), select_value(b"foo"));
+        assert_eq!(Done(&b""[..], (cn1.clone(), Some(kw2.into()))), select_value(b"foo AS bar"));
+        assert_eq!(Done(&b""[..], (cn3.clone(), None)), select_value(b"foo.bar"));
+        assert_eq!(Done(&b""[..], (cn3.clone(), Some(kw3.into()))), select_value(b"foo.bar as baz"));
 
         assert_eq!(Done(&b""[..], Value::All), select_values(b"*"));
-        assert_eq!(Done(&b""[..], Value::Values(vec![(kw1.clone(), None), (kw2.clone(), None)])), select_values(b"foo,bar"));
-        assert_eq!(Done(&b""[..], Value::Values(vec![(kw2.clone(), None), (kw1.clone(), None)])), select_values(b"bar, foo"));
-        assert_eq!(Done(&b""[..], Value::Values(vec![(kw1.clone(), None), (kw2.clone(), Some(String::from("buz")))])), select_values(b"foo, bar AS buz"));
+        assert_eq!(Done(&b""[..], Value::Values(vec![(cn1.clone(), None), (cn2.clone(), None)])), select_values(b"foo,bar"));
+        assert_eq!(Done(&b""[..], Value::Values(vec![(cn2.clone(), None), (cn1.clone(), None)])), select_values(b"bar, foo"));
+        assert_eq!(Done(&b""[..], Value::Values(vec![(cn1.clone(), None), (cn2.clone(), Some("BUZ".into()))])), select_values(b"foo, bar AS buz"));
     }
     #[test]
     fn test_parse() {
