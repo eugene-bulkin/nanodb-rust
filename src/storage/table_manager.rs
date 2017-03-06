@@ -82,23 +82,19 @@ impl From<file_manager::Error> for Error {
 
 /// This class provides utilities for tables that can have indexes and constraints on them.
 pub struct TableManager {
-    open_tables: HashMap<String, Table>,
+    open_tables: RefCell<HashMap<String, Table>>,
 }
 
 impl TableManager {
     /// Instantiates the table manager.
     pub fn new() -> TableManager {
-        TableManager { open_tables: HashMap::new() }
+        TableManager { open_tables: RefCell::new(HashMap::new()) }
     }
 
-    /// Return a reference to a table, if it exists, from the table manager.
-    ///
-    /// # Arguments
-    /// * name - The name of the table.
-    pub fn get_table<S: Into<String>>(&mut self, file_manager: &FileManager, name: S) -> Result<&Table, Error> {
+    fn insert_if_needed<S: Into<String>>(&self, file_manager: &FileManager, name: S) -> Result<(), Error> {
         let name = name.into();
 
-        if !self.open_tables.contains_key(&name) {
+        if !self.open_tables.borrow().contains_key(&name) {
             match file_manager.open_dbfile(get_table_file_name(name.as_ref())) {
                 Ok(db_file) => {
                     match HeapTupleFile::open(db_file) {
@@ -108,25 +104,37 @@ impl TableManager {
                                 tuple_file: Rc::new(RefCell::new(tuple_file)),
                             };
 
-                            self.open_tables.insert(name.clone(), table);
-                            Ok(self.open_tables.get(&name).unwrap())
+                            self.open_tables.borrow_mut().insert(name.clone(), table);
+                            Ok(())
                         }
                         Err(e) => Err(Error::FileManagerError(e.into())),
                     }
                 }
                 Err(e) => {
-                    return Err(e.into());
+                    Err(e.into())
                 }
             }
         } else {
-            Ok(self.open_tables.get(&name).unwrap())
+            Ok(())
         }
+    }
+
+    /// Return a reference to a table, if it exists, from the table manager.
+    ///
+    /// # Arguments
+    /// * name - The name of the table.
+    pub fn get_table<S: Into<String>>(&self, file_manager: &FileManager, name: S) -> Result<Table, Error> {
+        let name = name.into();
+
+        try!(self.insert_if_needed(file_manager, name.as_ref()));
+
+        Ok(self.open_tables.borrow().get(&name).unwrap().clone())
     }
 
     /// Checks if a table with the given name exists.
     pub fn table_exists<S: Into<String>>(&self, file_manager: &FileManager, name: S) -> bool {
         let name = name.into();
-        match self.open_tables.get(&name) {
+        match self.open_tables.borrow().get(&name) {
             Some(_) => true,
             _ => file_manager.dbfile_exists(get_table_file_name(name)),
         }
@@ -137,7 +145,7 @@ impl TableManager {
     /// [`Schema`](../schema/struct.Schema.html) object.
     ///
     /// TODO: Add properties
-    pub fn create_table<S: Into<String>>(&mut self,
+    pub fn create_table<S: Into<String>>(&self,
                                          file_manager: &FileManager,
                                          table_name: S,
                                          schema: Schema)
@@ -156,7 +164,7 @@ impl TableManager {
                     tuple_file: Rc::new(RefCell::new(tuple_file)),
                 };
 
-                self.open_tables.insert(table_name, table);
+                self.open_tables.borrow_mut().insert(table_name, table);
 
                 Ok(())
             }
@@ -178,7 +186,7 @@ mod tests {
         const TABLE_NAME: &'static str = "foo";
         let dir = TempDir::new("test_dbfiles").expect("Unable to create test_dbfiles directory!");
         let file_manager = FileManager::with_directory(dir.path()).unwrap();
-        let mut table_manager = TableManager::new();
+        let table_manager = TableManager::new();
 
         let schema = Schema::with_columns(vec![
             ColumnInfo::with_name(ColumnType::Integer, "A"),

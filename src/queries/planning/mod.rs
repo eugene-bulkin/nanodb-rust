@@ -66,7 +66,7 @@ pub type NodeResult<'a> = Result<Box<PlanNode + 'a>, Error>;
     /// * table_manager - A reference to the table manager.
     /// * table_name - The name of the table to select on.
     /// * predicate - An optional predicate to filter on.
-pub fn make_simple_select<'table, S: Into<String>>(file_manager: &FileManager, table_manager: &'table mut TableManager, table_name: S, predicate: Option<Expression>) -> NodeResult<'table> {
+pub fn make_simple_select<'table, S: Into<String>>(file_manager: &FileManager, table_manager: &'table TableManager, table_name: S, predicate: Option<Expression>) -> NodeResult<'table> {
     let table_name = table_name.into();
 
     let table = try!(table_manager.get_table(file_manager, table_name));

@@ -38,21 +38,21 @@ fn is_tuple_selected(predicate: Option<&Expression>, schema: Schema, tuple: &mut
 /// the index's tuples, in whatever order the index will produce the tuples. If the planner wishes
 /// to take advantage of an index's ability to look up tuples based on various values, the
 /// `IndexScanNode` should be used instead.
-pub struct FileScanNode<'a> {
-    table: &'a Table,
+pub struct FileScanNode {
+    table: Table,
     jump_to_marked: bool,
     done: bool,
     predicate: Option<Expression>,
     current_tuple: Option<Box<HeapFilePageTuple>>,
 }
 
-impl<'a> FileScanNode<'a> {
+impl FileScanNode {
     /// Instantiate a new file scan node.
     ///
     /// # Arguments
     /// * table - The table to scan.
     /// * predicate - The predicate to filter on if it exists.
-    pub fn new(table: &'a Table, predicate: Option<Expression>) -> FileScanNode<'a> {
+    pub fn new(table: Table, predicate: Option<Expression>) -> FileScanNode {
         FileScanNode {
             table: table,
             jump_to_marked: false,
@@ -106,7 +106,7 @@ impl<'a> FileScanNode<'a> {
     }
 }
 
-impl<'a> PlanNode for FileScanNode<'a> {
+impl PlanNode for FileScanNode {
     fn get_schema(&self) -> Schema {
         self.table.get_schema()
     }

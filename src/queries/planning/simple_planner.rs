@@ -10,12 +10,12 @@ use super::super::super::storage::{FileManager, TableManager};
 /// also use this class to generate simple plannodes to identify the tuples to update or delete.
 pub struct SimplePlanner<'a> {
     file_manager: &'a FileManager,
-    table_manager: &'a mut TableManager,
+    table_manager: &'a TableManager,
 }
 
 impl<'a> SimplePlanner<'a> {
     /// Instantiates a new SimplePlanner.
-    pub fn new(file_manager: &'a FileManager, table_manager: &'a mut TableManager) -> SimplePlanner<'a> {
+    pub fn new(file_manager: &'a FileManager, table_manager: &'a TableManager) -> SimplePlanner<'a> {
         SimplePlanner {
             file_manager: file_manager,
             table_manager: table_manager,
@@ -25,7 +25,7 @@ impl<'a> SimplePlanner<'a> {
 
 impl<'a> Planner for SimplePlanner<'a> {
     fn make_plan(&mut self, clause: SelectClause) -> NodeResult {
-        let mut cur_node = try!(make_simple_select(self.file_manager, self.table_manager, clause.table, clause.where_expr));
+        let mut cur_node = try!(make_simple_select(self.file_manager, self.table_manager, clause.table.clone(), clause.where_expr.clone()));
         try!(cur_node.prepare());
 
         if let Value::Values(values) = clause.value {
