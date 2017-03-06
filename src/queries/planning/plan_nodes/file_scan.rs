@@ -39,7 +39,7 @@ fn is_tuple_selected(predicate: Option<&Expression>, schema: Schema, tuple: &mut
 /// to take advantage of an index's ability to look up tuples based on various values, the
 /// `IndexScanNode` should be used instead.
 pub struct FileScanNode<'a> {
-    table: &'a mut Table,
+    table: &'a Table,
     jump_to_marked: bool,
     done: bool,
     predicate: Option<Expression>,
@@ -52,7 +52,7 @@ impl<'a> FileScanNode<'a> {
     /// # Arguments
     /// * table - The table to scan.
     /// * predicate - The predicate to filter on if it exists.
-    pub fn new(table: &'a mut Table, predicate: Option<Expression>) -> FileScanNode<'a> {
+    pub fn new(table: &'a Table, predicate: Option<Expression>) -> FileScanNode<'a> {
         FileScanNode {
             table: table,
             jump_to_marked: false,
@@ -95,7 +95,7 @@ impl<'a> FileScanNode<'a> {
             }
 
             let mut boxed_tuple = self.current_tuple.as_mut().unwrap();
-            let is_selected = is_tuple_selected(self.predicate.as_ref(), self.table.schema.clone(), &mut *boxed_tuple);
+            let is_selected = is_tuple_selected(self.predicate.as_ref(), self.table.get_schema().clone(), &mut *boxed_tuple);
             // If we found a tuple that satisfies the predicate, break out of the loop!
             if try!(is_selected) {
                 return Ok(());
@@ -108,7 +108,7 @@ impl<'a> FileScanNode<'a> {
 
 impl<'a> PlanNode for FileScanNode<'a> {
     fn get_schema(&self) -> Schema {
-        self.table.schema.clone()
+        self.table.get_schema()
     }
 
     fn prepare(&mut self) -> PlanResult<()> {

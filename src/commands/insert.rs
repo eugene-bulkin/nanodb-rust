@@ -39,7 +39,7 @@ impl Command for InsertCommand {
                 };
                 // Verify all columns exist in the schema.
                 for (i, col_name) in self.col_names.iter().enumerate() {
-                    match table.schema.get_column(col_name.as_ref()) {
+                    match table.get_schema().get_column(col_name.as_ref()) {
                         Some(column) => {
                             let ref expr_value = expr_values[i];
                             let ref expr = self.values[i];

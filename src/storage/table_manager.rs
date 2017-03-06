@@ -1,30 +1,49 @@
 //! This module contains utilities to handle tables themselves, including indexing and constraints.
 
 use std::collections::HashMap;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 use super::{DBFileType, FileManager, file_manager};
 use super::super::Schema;
-use super::tuple_files::HeapTupleFile;
+use super::tuple_files::{HeapTupleFile, HeapFilePageTuple};
+use super::{TupleError, Tuple};
 
 /// This class represents a single table in the database, including the table's name, and the tuple
 /// file that holds the table's data.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Table {
     /// The name of the table.
     pub name: Option<String>,
-    tuple_file: HeapTupleFile,
+    tuple_file: Rc<RefCell<HeapTupleFile>>,
 }
 
-impl ::std::ops::Deref for Table {
-    type Target = HeapTupleFile;
-    fn deref(&self) -> &Self::Target {
-        &self.tuple_file
+impl Table {
+    /// Retrieve the schema from the tuple file.
+    pub fn get_schema(&self) -> Schema {
+        self.tuple_file.borrow().schema.clone()
     }
-}
 
-impl ::std::ops::DerefMut for Table {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.tuple_file
+    /// Wrapper around the tuple file's `add_tuple` method.
+    pub fn add_tuple<'a, T: Tuple + 'a>(&self, tuple: T) -> Result<Box<Tuple + 'a>, TupleError> {
+        let mut borrowed = self.tuple_file.borrow_mut();
+        let result = borrowed.add_tuple(tuple);
+        result
+    }
+
+    /// Wrapper around the tuple file's `get_first_tuple` method.
+    pub fn get_first_tuple(&self) -> Result<Option<HeapFilePageTuple>, file_manager::Error> {
+        let mut borrowed = self.tuple_file.borrow_mut();
+        let result = borrowed.get_first_tuple();
+        result
+    }
+
+
+    /// Wrapper around the tuple file's `get_next_tuple` method.
+    pub fn get_next_tuple(&self, cur_tuple: &HeapFilePageTuple) -> Result<Option<HeapFilePageTuple>, file_manager::Error> {
+        let mut borrowed = self.tuple_file.borrow_mut();
+        let result = borrowed.get_next_tuple(cur_tuple);
+        result
     }
 }
 
@@ -76,7 +95,7 @@ impl TableManager {
     ///
     /// # Arguments
     /// * name - The name of the table.
-    pub fn get_table<S: Into<String>>(&mut self, file_manager: &FileManager, name: S) -> Result<&mut Table, Error> {
+    pub fn get_table<S: Into<String>>(&mut self, file_manager: &FileManager, name: S) -> Result<&Table, Error> {
         let name = name.into();
 
         if !self.open_tables.contains_key(&name) {
@@ -86,11 +105,11 @@ impl TableManager {
                         Ok(tuple_file) => {
                             let table = Table {
                                 name: name.clone().into(),
-                                tuple_file: tuple_file,
+                                tuple_file: Rc::new(RefCell::new(tuple_file)),
                             };
 
                             self.open_tables.insert(name.clone(), table);
-                            Ok(self.open_tables.get_mut(&name).unwrap())
+                            Ok(self.open_tables.get(&name).unwrap())
                         }
                         Err(e) => Err(Error::FileManagerError(e.into())),
                     }
@@ -100,7 +119,7 @@ impl TableManager {
                 }
             }
         } else {
-            Ok(self.open_tables.get_mut(&name).unwrap())
+            Ok(self.open_tables.get(&name).unwrap())
         }
     }
 
@@ -134,7 +153,7 @@ impl TableManager {
 
                 let table = Table {
                     name: table_name.clone().into(),
-                    tuple_file: tuple_file,
+                    tuple_file: Rc::new(RefCell::new(tuple_file)),
                 };
 
                 self.open_tables.insert(table_name, table);
@@ -171,6 +190,6 @@ mod tests {
 
         let table = table_manager.get_table(&file_manager, TABLE_NAME).unwrap();
 
-        assert_eq!(table.tuple_file.schema, schema);
+        assert_eq!(table.get_schema(), schema);
     }
 }
