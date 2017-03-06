@@ -181,6 +181,19 @@ impl ColumnType {
             Literal::Null => true,
         }
     }
+
+    /// Generates a default literal for the given type.
+    pub fn default_literal(&self) -> Literal {
+        match *self {
+            ColumnType::TinyInt | ColumnType::SmallInt | ColumnType::Integer => Literal::Int(0),
+            ColumnType::BigInt => Literal::Long(0),
+            ColumnType::Float => Literal::Float(0.0),
+            ColumnType::Double => Literal::Double(0.0),
+            ColumnType::Char { .. } | ColumnType::VarChar { .. } | ColumnType::Text => Literal::String("".into()),
+            // TODO
+            _ => Literal::Null,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

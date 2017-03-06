@@ -11,7 +11,7 @@ use std::slice::Iter;
 use std::ops::Index;
 
 use super::column::{ColumnInfo, ColumnName, ColumnType, EMPTY_CHAR, EMPTY_NUMERIC, EMPTY_VARCHAR};
-use super::storage::{DBPage, ReadNanoDBExt, WriteNanoDBExt};
+use super::storage::{DBPage, ReadNanoDBExt, WriteNanoDBExt, TupleLiteral};
 use super::storage::header_page::OFFSET_SCHEMA_START;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -395,6 +395,16 @@ impl Schema {
             }
         }
         Ok(())
+    }
+
+    /// Creates a tuple literal with default values (for getting a schema with an environment).
+    pub fn default_tuple(&self) -> TupleLiteral {
+        let mut result = TupleLiteral::new();
+        for info in self.column_infos.iter() {
+            let value = info.column_type.default_literal();
+            result.add_value(value);
+        }
+        result
     }
 }
 

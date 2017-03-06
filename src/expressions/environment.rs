@@ -74,6 +74,16 @@ impl Environment {
         self.current_tuples.push(TupleLiteral::from_tuple(&mut tuple));
     }
 
+    /// Adds a tuple to the environment with the given schema given a reference to a tuple.
+    ///
+    /// # Arguments
+    /// * schema - the schema for the specified tuple
+    /// * tuple - the tuple to be added
+    pub fn add_tuple_ref<T: Tuple + ?Sized>(&mut self, schema: Schema, tuple: &mut T) {
+        self.current_schemas.push(schema);
+        self.current_tuples.push(TupleLiteral::from_tuple(tuple));
+    }
+
     /// Returns the list of tuples being considered.
     pub fn get_current_tuples(&self) -> Vec<TupleLiteral> {
         self.current_tuples.clone()
