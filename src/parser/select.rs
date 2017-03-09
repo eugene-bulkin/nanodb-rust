@@ -1,7 +1,7 @@
 //! A module handling the parsing of select clauses.
 
 use super::super::commands::SelectCommand;
-use super::super::expressions::{Expression, SelectClause};
+use super::super::expressions::{Expression, SelectClause, FromClause};
 use super::expression::expression;
 use super::utils::*;
 
@@ -52,6 +52,13 @@ named!(offset (&[u8]) -> Option<i32>, do_parse!(
     })
 ));
 
+named!(from_clause (&[u8]) -> FromClause, do_parse!(
+    table_name: ws!(dbobj_ident) >>
+    ({
+        FromClause::BaseTable { table: table_name, alias: None }
+    })
+));
+
 /// Parses a `SELECT` statement into a `SelectCommand`.
 named!(pub parse (&[u8]) -> Box<SelectCommand>, do_parse!(
     ws!(tag_no_case!("SELECT")) >>
@@ -61,7 +68,7 @@ named!(pub parse (&[u8]) -> Box<SelectCommand>, do_parse!(
     ))) >>
     select_values: select_values >>
     ws!(tag_no_case!("FROM")) >>
-    table_name: ws!(dbobj_ident) >>
+    from_clause: ws!(from_clause) >>
     where_expr: opt!(complete!(do_parse!(
         ws!(tag_no_case!("WHERE")) >>
         e: dbg!(ws!(expression)) >>
@@ -71,7 +78,7 @@ named!(pub parse (&[u8]) -> Box<SelectCommand>, do_parse!(
     offset: opt!(complete!(offset)) >>
     alt!(eof!() | peek!(tag!(";"))) >>
     ({
-        let clause = SelectClause::new(table_name, match distinct {
+        let clause = SelectClause::new(from_clause, match distinct {
                 Some(modifier) => modifier,
                 None => false
             }, select_values,
