@@ -6,6 +6,7 @@ pub mod environment;
 pub mod literal;
 pub mod select_clause;
 pub mod from_clause;
+pub mod select_value;
 
 pub use self::Error as ExpressionError;
 pub use self::environment::Environment;
@@ -14,6 +15,7 @@ pub use self::literal::Literal;
 pub use self::processor::Processor as ExpressionProcessor;
 pub use self::select_clause::SelectClause;
 pub use self::from_clause::{FromClause, FromClauseType, JoinType, JoinConditionType};
+pub use self::select_value::SelectValue;
 
 use super::ColumnName;
 use super::storage::TupleError;

@@ -3,29 +3,41 @@
 use std::default::Default;
 
 use super::super::commands::SelectCommand;
-use ::expressions::{Expression, SelectClause, FromClause, JoinType, JoinConditionType};
+use ::expressions::{Expression, SelectClause, FromClause, JoinType, JoinConditionType, SelectValue};
 use super::expression::expression;
 use super::utils::*;
 
-#[derive(Debug, PartialEq, Clone)]
-/// An enum describing a select value.
-pub enum Value {
-    /// Represents the wildcard `*`.
-    All,
-    /// Represents multiple select values. For example, the select value in `SELECT a, b AS c FROM
-    /// ...` would be represented by `Values::Values(vec![("A", None), ("B", Some("C"))])`.
-    Values(Vec<(Expression, Option<String>)>),
-}
-
-named!(select_value (&[u8]) -> (Expression, Option<String>), alt_complete!(
-        do_parse!(a:expression >> ws!(tag_no_case!("AS")) >> b:dbobj_ident >> (a,b)) => { |res: (Expression, String)| (res.0, Some(res.1)) }
-    |   expression => { |res: Expression| (res, None) }
+named!(select_value (&[u8]) -> SelectValue, alt_complete!(
+        do_parse!(a:expression >> ws!(tag_no_case!("AS")) >> b:dbobj_ident >> (a,b)) => { |res: (Expression, String)| {
+            match res.0 {
+                Expression::ColumnValue(ref col_name) => {
+                    if col_name.1.is_none() {
+                        SelectValue::WildcardColumn { table: col_name.0.clone() }
+                    } else {
+                        SelectValue::Expression { expression: res.0.clone(), alias: Some(res.1.clone()) }
+                    }
+                },
+                _ => SelectValue::Expression { expression: res.0.clone(), alias: Some(res.1.clone()) }
+            }
+        } }
+    |   expression => { |res: Expression| {
+        match res {
+            Expression::ColumnValue(ref col_name) => {
+                if col_name.1.is_none() {
+                    SelectValue::WildcardColumn { table: col_name.0.clone() }
+                } else {
+                    SelectValue::Expression { expression: res.clone(), alias: None }
+                }
+            },
+            _ => SelectValue::Expression { expression: res.clone(), alias: None }
+        }
+    } }
 ));
 
-named!(select_values (&[u8]) -> Value, do_parse!(
+named!(select_values (&[u8]) -> Vec<SelectValue>, do_parse!(
     result: alt!(
-            tag!("*")   => { |_| Value::All }
-        | separated_nonempty_list!(tag!(","), ws!(select_value)) => { |res: Vec<(Expression, Option<String>)>| Value::Values(res) }
+            tag!("*")   => { |_| vec![SelectValue::WildcardColumn { table: None }] }
+        | separated_nonempty_list!(tag!(","), ws!(select_value))
     ) >>
     (result)
 ));
@@ -184,7 +196,7 @@ named!(pub parse (&[u8]) -> Box<SelectCommand>, do_parse!(
 mod tests {
     use nom::IResult::*;
     use ::commands::SelectCommand;
-    use ::expressions::{Expression, SelectClause, FromClause, JoinConditionType, JoinType};
+    use ::expressions::{Expression, SelectClause, FromClause, JoinConditionType, JoinType, SelectValue};
     use super::*;
 
     #[test]
@@ -227,15 +239,22 @@ mod tests {
         let cn2: Expression = (None, Some(kw2.into())).into();
         let cn3: Expression = (Some(kw1.into()), Some(kw2.into())).into();
 
-        assert_eq!(Done(&b""[..], (cn1.clone(), None)), select_value(b"foo"));
-        assert_eq!(Done(&b""[..], (cn1.clone(), Some(kw2.into()))), select_value(b"foo AS bar"));
-        assert_eq!(Done(&b""[..], (cn3.clone(), None)), select_value(b"foo.bar"));
-        assert_eq!(Done(&b""[..], (cn3.clone(), Some(kw3.into()))), select_value(b"foo.bar as baz"));
+        assert_eq!(Done(&b""[..], SelectValue::Expression { expression: cn1.clone(), alias: None }), select_value(b"foo"));
+        assert_eq!(Done(&b""[..], SelectValue::Expression { expression: cn1.clone(), alias: Some(kw2.into()) }), select_value(b"foo AS bar"));
+        assert_eq!(Done(&b""[..], SelectValue::Expression { expression: cn3.clone(), alias: None }), select_value(b"foo.bar"));
+        assert_eq!(Done(&b""[..], SelectValue::Expression { expression: cn3.clone(), alias: Some(kw3.into()) }), select_value(b"foo.bar as baz"));
 
-        assert_eq!(Done(&b""[..], Value::All), select_values(b"*"));
-        assert_eq!(Done(&b""[..], Value::Values(vec![(cn1.clone(), None), (cn2.clone(), None)])), select_values(b"foo,bar"));
-        assert_eq!(Done(&b""[..], Value::Values(vec![(cn2.clone(), None), (cn1.clone(), None)])), select_values(b"bar, foo"));
-        assert_eq!(Done(&b""[..], Value::Values(vec![(cn1.clone(), None), (cn2.clone(), Some("BUZ".into()))])), select_values(b"foo, bar AS buz"));
+        assert_eq!(Done(&b""[..], vec![SelectValue::WildcardColumn { table: None }]), select_values(b"*"));
+        assert_eq!(Done(&b""[..], vec![SelectValue::WildcardColumn { table: Some(kw1.into()) }]), select_values(b"foo.*"));
+        assert_eq!(Done(&b""[..], vec![SelectValue::Expression { expression: cn1.clone(), alias: None },
+                                                     SelectValue::Expression { expression: cn2.clone(), alias: None }
+        ]), select_values(b"foo,bar"));
+        assert_eq!(Done(&b""[..], vec![SelectValue::Expression { expression: cn2.clone(), alias: None },
+                                                     SelectValue::Expression { expression: cn1.clone(), alias: None }
+        ]), select_values(b"bar, foo"));
+        assert_eq!(Done(&b""[..], vec![SelectValue::Expression { expression: cn1.clone(), alias: None },
+                                                     SelectValue::Expression { expression: cn2.clone(), alias: Some(kw3.into()) }
+        ]), select_values(b"foo, bar AS baz"));
     }
     #[test]
     fn test_parse() {
@@ -246,8 +265,8 @@ mod tests {
         let fc1 = FromClause::base_table(kw1, None);
         let fc2 = FromClause::base_table(kw2, None);
 
-        let result1 = SelectCommand::new(SelectClause::new(fc1, false, Value::All, None, None, None));
-        let result2 = SelectCommand::new(SelectClause::new(fc2, false, Value::All, None, None, None));
+        let result1 = SelectCommand::new(SelectClause::new(fc1, false, vec![SelectValue::WildcardColumn { table: None }], None, None, None));
+        let result2 = SelectCommand::new(SelectClause::new(fc2, false, vec![SelectValue::WildcardColumn { table: None }], None, None, None));
         //        let result3 = Statement::Select {
         //            value: Value::All,
         //            distinct: false,

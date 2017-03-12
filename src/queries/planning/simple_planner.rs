@@ -2,7 +2,6 @@
 
 use super::{Planner, NodeResult, make_simple_select, ProjectNode, NestedLoopJoinNode};
 use super::super::super::expressions::{FromClause, FromClauseType, JoinType, SelectClause};
-use super::super::super::parser::select::Value;
 use super::super::super::storage::{FileManager, TableManager};
 
 /// This class generates execution plannodes for performing SQL queries. The primary responsibility
@@ -47,17 +46,17 @@ impl<'a> SimplePlanner<'a> {
 
 impl<'a> Planner for SimplePlanner<'a> {
     fn make_plan(&mut self, clause: SelectClause) -> NodeResult {
-        let mut cur_node = try!(self.make_join_tree(clause.from_clause));
+        let mut cur_node = try!(self.make_join_tree(clause.from_clause.clone()));
         try!(cur_node.prepare());
 
         if cur_node.has_predicate() {
-            if let Some(expr) = clause.where_expr {
-                try!(cur_node.as_mut().set_predicate(expr));
+            if let Some(ref expr) = clause.where_expr {
+                try!(cur_node.as_mut().set_predicate(expr.clone()));
             }
         }
 
-        if let Value::Values(values) = clause.value {
-            cur_node = Box::new(ProjectNode::new(cur_node, values));
+        if !clause.is_trivial_project() {
+            cur_node = Box::new(ProjectNode::new(cur_node, clause.values));
             try!(cur_node.prepare());
         }
 

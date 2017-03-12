@@ -1,7 +1,6 @@
 //! This module contains tools for using select clauses.
 
-use super::super::parser::select;
-use super::super::expressions::{FromClause, Expression};
+use ::expressions::{FromClause, Expression, SelectValue};
 use ::storage::{FileManager, TableManager};
 use ::Schema;
 use ::commands::ExecutionError;
@@ -16,7 +15,7 @@ pub struct SelectClause {
     /// Whether the row values must be distinct.
     pub distinct: bool,
     /// What select values are desired.
-    pub value: select::Value,
+    pub values: Vec<SelectValue>,
     /// An optional limit on the number of rows.
     pub limit: Option<u32>,
     /// An optional starting point at which to start returning rows.
@@ -37,7 +36,7 @@ impl SelectClause {
     /// * where_expr - Optionally, the WHERE clause.
     pub fn new(from_clause: FromClause,
                distinct: bool,
-               value: select::Value,
+               values: Vec<SelectValue>,
                limit: Option<u32>,
                offset: Option<u32>,
                where_expr: Option<Expression>)
@@ -45,11 +44,23 @@ impl SelectClause {
         SelectClause {
             from_clause: from_clause,
             distinct: distinct,
-            value: value,
+            values: values,
             limit: limit,
             offset: offset,
             where_expr: where_expr,
         }
+    }
+
+    /// Checks if the projection is trivial.
+    pub fn is_trivial_project(&self) -> bool {
+        if self.values.len() == 1 {
+            if let SelectValue::WildcardColumn { ref table } = self.values[0] {
+                if table.is_none() {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     /// Compute the schema for this select clause.
@@ -63,8 +74,9 @@ impl SelectClause {
 impl ::std::fmt::Display for SelectClause {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         try!(write!(f, "SelectClause[\n"));
-        if let select::Value::Values(ref values) = self.value {
-            try!(write!(f, "\tvalues={:?}\n", values));
+        if !self.is_trivial_project() {
+            let values: Vec<String> = self.values.iter().map(|f| format!("{}", f)).collect();
+            try!(write!(f, "\tvalues={}\n", values.join(", ")));
         }
         try!(write!(f, "\tfrom={}\n", self.from_clause));
 

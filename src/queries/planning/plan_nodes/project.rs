@@ -4,7 +4,7 @@ use std::default::Default;
 
 use super::super::{PlanResult, PlanError};
 use super::PlanNode;
-use ::expressions::{Expression, Environment};
+use ::expressions::{Expression, Environment, SelectValue};
 use ::{Schema, ColumnInfo};
 use ::storage::{Tuple, TupleLiteral};
 
@@ -12,7 +12,7 @@ use ::storage::{Tuple, TupleLiteral};
 /// operator.
 pub struct ProjectNode<'a> {
     child: Box<PlanNode + 'a>,
-    values: Vec<(Expression, Option<String>)>,
+    values: Vec<SelectValue>,
     current_tuple: Option<Box<Tuple>>,
     input_schema: Schema,
     output_schema: Option<Schema>,
@@ -24,7 +24,7 @@ impl<'a> ProjectNode<'a> {
     /// # Argument
     /// * child - The child of the node.
     /// * values - The select values of the query.
-    pub fn new(child: Box<PlanNode + 'a>, values: Vec<(Expression, Option<String>)>) -> ProjectNode<'a> {
+    pub fn new(child: Box<PlanNode + 'a>, values: Vec<SelectValue>) -> ProjectNode<'a> {
         let schema = child.get_schema();
         ProjectNode {
             child: child,
@@ -38,25 +38,51 @@ impl<'a> ProjectNode<'a> {
 
     fn project_tuple(&self, tuple: &mut Tuple) -> PlanResult<TupleLiteral> {
         let mut result = TupleLiteral::new();
-        for &(ref select_value, _) in self.values.iter() {
-            if let Expression::ColumnValue(ref column_name) = *select_value {
-                let matches = self.input_schema.find_columns(column_name);
-                if matches.is_empty() {
-                    return Err(PlanError::ColumnDoesNotExist(column_name.clone()));
+        for select_value in self.values.iter() {
+            match *select_value {
+                SelectValue::Expression { ref expression, .. } => {
+                    if let Expression::ColumnValue(ref column_name) = *expression {
+                        let matches = self.input_schema.find_columns(column_name);
+                        if matches.is_empty() {
+                            return Err(PlanError::ColumnDoesNotExist(column_name.clone()));
+                        }
+                        if matches.len() > 1 {
+                            return Err(PlanError::Unimplemented);
+                        }
+                        let (ref idx, _) = matches[0];
+                        // TODO: Propagate error
+                        let value = tuple.get_column_value(*idx).unwrap();
+                        result.add_value(value);
+                    } else {
+                        let mut env: Environment = Default::default();
+                        env.add_tuple_ref(self.input_schema.clone(), tuple);
+                        // TODO: Propagate error
+                        let value = expression.evaluate(&mut Some(&mut env)).unwrap();
+                        result.add_value(value);
+                    }
+                },
+                SelectValue::WildcardColumn { ref table } => {
+                    // This value is a wildcard.  Find the columns that match the
+                    // wildcard, then add their values one by one.
+
+                    // Wildcard expressions cannot rename their results.
+                    match *table {
+                        Some(ref name) => {
+                            // Need to find all columns that are associated with the
+                            // specified table.
+                            let matches = self.input_schema.find_columns(&(Some(name.clone()), None));
+
+                            for (idx, _) in matches {
+                                let value = tuple.get_column_value(idx).unwrap();
+                                result.add_value(value);
+                            }
+                        },
+                        None => {
+                            // No table is specified, so this is all columns in the child schema.
+                            result.append_tuple(tuple);
+                        }
+                    }
                 }
-                if matches.len() > 1 {
-                    return Err(PlanError::Unimplemented);
-                }
-                let (ref idx, _) = matches[0];
-                // TODO: Propagate error
-                let value = tuple.get_column_value(*idx).unwrap();
-                result.add_value(value);
-            } else {
-                let mut env: Environment = Default::default();
-                env.add_tuple_ref(self.input_schema.clone(), tuple);
-                // TODO: Propagate error
-                let value = select_value.evaluate(&mut Some(&mut env)).unwrap();
-                result.add_value(value);
             }
         }
         Ok(result)
@@ -104,41 +130,74 @@ impl<'a> PlanNode for ProjectNode<'a> {
         };
 
         let mut result = Schema::new();
-        for &(ref select_value, ref alias) in self.values.iter() {
-            if let Expression::ColumnValue(ref column_name) = *select_value {
-                let matches = self.input_schema.find_columns(column_name);
-                if matches.is_empty() {
-                    return Err(PlanError::ColumnDoesNotExist(column_name.clone()));
+        for select_value in self.values.iter() {
+            match *select_value {
+                SelectValue::Expression { ref expression, ref alias } => {
+                    // Determining the schema is relatively straightforward.  The
+                    // statistics, unfortunately, are a different matter:  if the
+                    // expression is a simple column-reference then we can look up
+                    // the stats from the subplan, but if the expression is an
+                    // arithmetic operation, we need to guess...
+
+                    if let Expression::ColumnValue(ref column_name) = *expression {
+                        let matches = self.input_schema.find_columns(column_name);
+                        if matches.is_empty() {
+                            return Err(PlanError::ColumnDoesNotExist(column_name.clone()));
+                        }
+                        if matches.len() > 1 {
+                            // TODO: Return a real error here
+                            return Err(PlanError::Unimplemented);
+                        }
+                        let (ref idx, _) = matches[0];
+                        try!(result.add_column(ColumnInfo::with_name(self.input_schema[*idx].column_type, match *alias {
+                            Some(ref name) => name.clone(),
+                            None => column_name.1.clone().unwrap(),
+                        })).map_err(|_| PlanError::Unimplemented)); // TODO: Return a real error here
+                    } else {
+                        // First, see if we can just figure out what it is without a tuple (e.g. it's a
+                        // constant expression).
+                        // TODO: Return real errors here, and maybe find a way to combine the two cases.
+                        if let Ok(literal) = expression.evaluate(&mut None) {
+                            let col_type = literal.get_column_type();
+                            try!(result.add_column(ColumnInfo::with_name(col_type, match *alias {
+                                Some(ref name) => name.clone(),
+                                None => format!("{}", literal),
+                            })).map_err(|_| PlanError::Unimplemented));
+                        } else if let Ok(literal) = expression.evaluate(&mut Some(&mut default_env)) {
+                            let col_type = literal.get_column_type();
+                            try!(result.add_column(ColumnInfo::with_name(col_type, match *alias {
+                                Some(ref name) => name.clone(),
+                                None => format!("{}", expression),
+                            })).map_err(|_| PlanError::Unimplemented));
+                        } else {
+                            return Err(PlanError::Unimplemented);
+                        }
+                    }
                 }
-                if matches.len() > 1 {
-                    // TODO: Return a real error here
-                    return Err(PlanError::Unimplemented);
-                }
-                let (ref idx, _) = matches[0];
-                try!(result.add_column(ColumnInfo::with_name(self.input_schema[*idx].column_type, match *alias {
-                    Some(ref name) => name.clone(),
-                    None => column_name.1.clone().unwrap(),
-                })).map_err(|_| PlanError::Unimplemented)); // TODO: Return a real error here
-            } else {
-                // First, see if we can just figure out what it is without a tuple (e.g. it's a
-                // constant expression).
-                // TODO: Return real errors here, and maybe find a way to combine the two cases.
-                if let Ok(literal) = select_value.evaluate(&mut None) {
-                    let col_type = literal.get_column_type();
-                    try!(result.add_column(ColumnInfo::with_name(col_type, match *alias {
-                        Some(ref name) => name.clone(),
-                        None => format!("{}", literal),
-                    })).map_err(|_| PlanError::Unimplemented));
-                } else if let Ok(literal) = select_value.evaluate(&mut Some(&mut default_env)) {
-                    let col_type = literal.get_column_type();
-                    try!(result.add_column(ColumnInfo::with_name(col_type, match *alias {
-                        Some(ref name) => name.clone(),
-                        None => format!("{}", select_value),
-                    })).map_err(|_| PlanError::Unimplemented));
-                } else {
-                    return Err(PlanError::Unimplemented);
+                SelectValue::WildcardColumn {ref table } => {
+                    // This value is a wildcard.  Find the columns that match the
+                    // wildcard, then add their values one by one.
+
+                    // Wildcard expressions cannot rename their results.
+                    match *table {
+                        Some(ref name) => {
+                            // Need to find all columns that are associated with the
+                            // specified table.
+                            let matches = self.input_schema.find_columns(&(Some(name.clone()), None));
+
+                            for (_, info) in matches {
+                                // TODO: Return a real error here
+                                try!(result.add_column(info).map_err(|_| PlanError::Unimplemented));
+                            }
+                        },
+                        None => {
+                            // No table is specified, so this is all columns in the child schema.
+                            try!(result.add_columns(self.input_schema.clone()).map_err(|_| PlanError::Unimplemented));
+                        }
+                    }
                 }
             }
+
         }
         self.output_schema = Some(result);
         Ok(())
