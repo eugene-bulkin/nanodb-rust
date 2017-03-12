@@ -33,7 +33,7 @@ impl Command for SelectCommand {
     fn execute(&mut self, server: &mut Server) -> Result<(), ExecutionError> {
         let result_schema = try!(self.clause.compute_schema(&server.file_manager, &server.table_manager));
         debug!("Prepared SelectClause:\n{}", self.clause);
-        debug!("Result schema: {:?}", result_schema);
+        debug!("Result schema: {}", result_schema);
 
         let mut planner = SimplePlanner::new(&server.file_manager, &mut server.table_manager);
         let mut plan = try!(planner.make_plan(self.clause.clone()).map_err(ExecutionError::CouldNotExecutePlan));

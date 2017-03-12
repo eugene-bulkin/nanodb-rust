@@ -408,6 +408,13 @@ impl Schema {
     }
 }
 
+impl ::std::fmt::Display for Schema {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        let infos: Vec<String> = self.column_infos.iter().map(|f| format!("{}", f)).collect();
+        write!(f, "Schema[cols={}]", infos.join(", "))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
