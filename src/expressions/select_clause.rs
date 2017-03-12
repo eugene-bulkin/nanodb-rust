@@ -72,6 +72,14 @@ impl ::std::fmt::Display for SelectClause {
             try!(write!(f, "\twhere={}\n", expr));
         }
 
+        if let Some(limit) = self.limit {
+            try!(write!(f, "\tlimit={}\n", limit));
+        }
+
+        if let Some(offset) = self.offset {
+            try!(write!(f, "\toffset={}\n", offset));
+        }
+
         // TODO: GROUP BY, ORDER BY, HAVING, correlated with?
         write!(f, "]")
     }
