@@ -259,7 +259,7 @@ impl ColumnInfo {
 
     /// Returns the column name for a column-info object.
     pub fn get_column_name(&self) -> ColumnName {
-        (self.name.clone(), self.table_name.clone())
+        (self.table_name.clone(), self.name.clone())
     }
 }
 
