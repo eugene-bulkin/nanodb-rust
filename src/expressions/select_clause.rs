@@ -59,3 +59,20 @@ impl SelectClause {
         self.from_clause.compute_schema(file_manager, table_manager)
     }
 }
+
+impl ::std::fmt::Display for SelectClause {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        try!(write!(f, "SelectClause[\n"));
+        if let select::Value::Values(ref values) = self.value {
+            try!(write!(f, "\tvalues={:?}\n", values));
+        }
+        try!(write!(f, "\tfrom={:?}\n", self.from_clause));
+
+        if let Some(ref expr) = self.where_expr {
+            try!(write!(f, "\twhere={}\n", expr));
+        }
+
+        // TODO: GROUP BY, ORDER BY, HAVING, correlated with?
+        write!(f, "]")
+    }
+}
