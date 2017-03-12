@@ -2,6 +2,9 @@
 
 use super::super::parser::select;
 use super::super::expressions::{FromClause, Expression};
+use ::storage::{FileManager, TableManager};
+use ::Schema;
+use ::commands::ExecutionError;
 
 /// This class represents a single `SELECT ...` statement or clause. `SELECT` statements can appear
 /// as clauses within other expressions, so the class is written to be used easily within other
@@ -47,5 +50,12 @@ impl SelectClause {
             offset: offset,
             where_expr: where_expr,
         }
+    }
+
+    /// Compute the schema for this select clause.
+    pub fn compute_schema(&mut self, file_manager: &FileManager, table_manager: &TableManager) -> Result<Schema, ExecutionError> {
+        // TODO
+        // For now, just return the from clause schema.
+        self.from_clause.compute_schema(file_manager, table_manager)
     }
 }

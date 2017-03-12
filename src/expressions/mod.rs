@@ -13,7 +13,7 @@ pub use self::expression::Expression;
 pub use self::literal::Literal;
 pub use self::processor::Processor as ExpressionProcessor;
 pub use self::select_clause::SelectClause;
-pub use self::from_clause::{FromClause, JoinType};
+pub use self::from_clause::{FromClause, FromClauseType, JoinType, JoinConditionType};
 
 use super::ColumnName;
 use super::storage::TupleError;

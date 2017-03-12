@@ -4,12 +4,12 @@
 pub mod simple_planner;
 pub mod plan_nodes;
 
-pub use self::plan_nodes::{PlanNode, FileScanNode, ProjectNode};
+pub use self::plan_nodes::{PlanNode, FileScanNode, ProjectNode, NestedLoopJoinNode};
 pub use self::simple_planner::SimplePlanner;
 
 use super::super::expressions::{Expression, ExpressionError, SelectClause};
 use super::super::storage::{PinError, file_manager, table_manager, FileManager, TableManager};
-use ::ColumnName;
+use ::{ColumnName, schema};
 
 /// An error that could occur during planning.
 #[derive(Clone, Debug, PartialEq)]
@@ -18,6 +18,8 @@ pub enum Error {
     FileManagerError(file_manager::Error),
     /// A table manager error occurred.
     TableManagerError(table_manager::Error),
+    /// A schema error occurred.
+    SchemaError(schema::Error),
     /// A pin error occurred.
     PinError(PinError),
     /// The operation is unimplemented.
@@ -41,6 +43,12 @@ impl From<file_manager::Error> for Error {
 impl From<table_manager::Error> for Error {
     fn from(e: table_manager::Error) -> Error {
         Error::TableManagerError(e)
+    }
+}
+
+impl From<schema::Error> for Error {
+    fn from(e: schema::Error) -> Error {
+        Error::SchemaError(e)
     }
 }
 

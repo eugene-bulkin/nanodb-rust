@@ -1,7 +1,7 @@
 //! This module contains the classes and functions needed for a simple query planner.
 
-use super::{Planner, NodeResult, make_simple_select, ProjectNode};
-use super::super::super::expressions::{FromClause, JoinType, SelectClause};
+use super::{Planner, NodeResult, make_simple_select, ProjectNode, NestedLoopJoinNode};
+use super::super::super::expressions::{FromClause, FromClauseType, JoinType, SelectClause};
 use super::super::super::parser::select::Value;
 use super::super::super::storage::{FileManager, TableManager};
 
@@ -23,16 +23,23 @@ impl<'a> SimplePlanner<'a> {
     }
 
     fn make_join_tree(&self, clause: FromClause) -> NodeResult {
-        match clause {
-            FromClause::BaseTable { table, alias } => {
-                let cur_node = make_simple_select(self.file_manager, self.table_manager, table, None);
-                if let Some(name) = alias {
+        match *clause {
+            FromClauseType::BaseTable { ref table, ref alias } => {
+                let cur_node = make_simple_select(self.file_manager, self.table_manager, table.clone(), None);
+                if let Some(name) = alias.clone() {
                     // TODO: RenameNode
                 }
                 cur_node
             },
-            FromClause::JoinExpression { left, right, join_type } => {
-                unimplemented!()
+            FromClauseType::JoinExpression { ref left, ref right, ref join_type, ref condition_type } => {
+                let left_child = try!(self.make_join_tree(*left.clone()));
+                let right_child = try!(self.make_join_tree(*right.clone()));
+
+                let cur_node = NestedLoopJoinNode::new(left_child, right_child, join_type.clone(), condition_type.clone(), clause.get_computed_join_expr());
+
+                // TODO: Project
+
+                Ok(Box::new(cur_node))
             }
         }
     }
@@ -41,9 +48,14 @@ impl<'a> SimplePlanner<'a> {
 impl<'a> Planner for SimplePlanner<'a> {
     fn make_plan(&mut self, clause: SelectClause) -> NodeResult {
         let mut cur_node = try!(self.make_join_tree(clause.from_clause));
-//        let mut cur_node = try!(make_simple_select(self.file_manager, self.table_manager, clause.table.clone(), clause.where_expr.clone()));
-//        try!(cur_node.prepare());
-//
+        try!(cur_node.prepare());
+
+        if cur_node.has_predicate() {
+            if let Some(expr) = clause.where_expr {
+                try!(cur_node.as_mut().set_predicate(expr));
+            }
+        }
+
         if let Value::Values(values) = clause.value {
             cur_node = Box::new(ProjectNode::new(cur_node, values));
             try!(cur_node.prepare());

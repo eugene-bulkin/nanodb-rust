@@ -1,7 +1,9 @@
 //! A module handling the parsing of select clauses.
 
+use std::default::Default;
+
 use super::super::commands::SelectCommand;
-use super::super::expressions::{Expression, SelectClause, FromClause};
+use ::expressions::{Expression, SelectClause, FromClause, JoinType, JoinConditionType};
 use super::expression::expression;
 use super::utils::*;
 
@@ -52,10 +54,98 @@ named!(offset (&[u8]) -> Option<i32>, do_parse!(
     })
 ));
 
-named!(from_clause (&[u8]) -> FromClause, do_parse!(
-    table_name: ws!(dbobj_ident) >>
+named!(from_expr (&[u8]) -> FromClause, alt!(
+    do_parse!(
+        name: dbobj_ident >>
+        alias: opt!(complete!(preceded!(ws!(tag_no_case!("AS")), dbobj_ident))) >>
+        (FromClause::base_table(name, alias))
+    ) |
+    do_parse!(
+        ws!(tag!("(")) >>
+        fc: from_clause >>
+        ws!(tag!(")")) >>
+        (fc)
+    )
+)
+);
+
+named!(join_type (&[u8]) -> (JoinType, Option<JoinConditionType>), alt_complete!(
+        map!(tag_no_case!("CROSS"), |_| (JoinType::Cross, None)) |
+        do_parse!(
+            natural: opt!(complete!(ws!(tag_no_case!("NATURAL")))) >>
+            join: alt_complete!(
+                map!(tag_no_case!("INNER"), |_| JoinType::Inner) |
+                do_parse!(
+                    direction: alt_complete!(
+                        map!(tag_no_case!("LEFT"), |_| JoinType::LeftOuter) |
+                        map!(tag_no_case!("RIGHT"), |_| JoinType::RightOuter) |
+                        map!(tag_no_case!("FULL"), |_| JoinType::FullOuter)
+                    ) >>
+                    opt!(complete!(ws!(tag_no_case!("OUTER")))) >>
+                    (direction)
+                ) |
+                map!(tag!(""), |_| JoinType::Cross)
+            ) >>
+            ({
+                let mut cond_type: Option<JoinConditionType> = None;
+                if let Some(_) = natural {
+                    cond_type = Some(JoinConditionType::NaturalJoin);
+                }
+                (join, cond_type)
+            })
+        )
+    )
+);
+
+named!(join_expr (&[u8]) -> FromClause, complete!(do_parse!(
+    fc: from_expr >>
+    joins: many0!(do_parse!(
+        join: opt!(ws!(join_type)) >>
+        ws!(tag_no_case!("JOIN")) >>
+        right: from_expr >>
+        on_expr: opt!(preceded!(ws!(tag_no_case!("ON")), expression)) >>
+        ({
+            let mut jt = JoinType::Cross;
+            let mut ct: JoinConditionType = Default::default();
+            if let Some((t, cond_type)) = join {
+                jt = t;
+                if let Some(cond) = cond_type {
+                    ct = cond;
+                }
+            }
+            if let Some(expr) = on_expr {
+                ct = JoinConditionType::OnExpr(expr);
+            }
+            (right, jt, ct)
+        })
+    )) >>
     ({
-        FromClause::BaseTable { table: table_name, alias: None }
+        let mut result = fc;
+        for &(ref next, ref join, ref cond) in joins.iter() {
+            result = FromClause::join_expression(
+                Box::new(result),
+                Box::new(next.clone()),
+                join.clone(),
+                cond.clone()
+            );
+        }
+        result
+    })
+)));
+
+named!(from_clause (&[u8]) -> FromClause, do_parse!(
+    exprs: separated_nonempty_list!(ws!(tag!(",")), join_expr) >>
+    ({
+        let mut result = exprs[0].clone();
+        for next in exprs.iter().skip(1) {
+            result = FromClause::join_expression(
+                Box::new(result),
+                Box::new(next.clone()),
+                JoinType::Cross,
+                Default::default()
+            );
+        }
+        result
     })
 ));
 
@@ -93,9 +183,31 @@ named!(pub parse (&[u8]) -> Box<SelectCommand>, do_parse!(
 #[cfg(test)]
 mod tests {
     use nom::IResult::*;
-    use ::expressions::{Expression, SelectClause};
-    use super::{Value, limit, parse, select_value, select_values};
-    use super::super::super::commands::SelectCommand;
+    use ::commands::SelectCommand;
+    use ::expressions::{Expression, SelectClause, FromClause, JoinConditionType, JoinType};
+    use super::*;
+
+    #[test]
+    fn test_from_expr() {
+        assert_eq!(Done(&b""[..], FromClause::base_table("FOO".into(), None)), from_expr(b"foo"));
+        assert_eq!(Done(&b""[..], FromClause::base_table("FOO".into(), Some("BAR".into()))), from_expr(b"foo as bar"));
+        assert_eq!(Done(&b" JOIN"[..], FromClause::base_table("FOO".into(), None)), from_expr(b"foo JOIN"));
+    }
+
+    #[test]
+    fn test_join_type() {
+        assert_eq!(Done(&b""[..], (JoinType::Cross, None)), join_type(b""));
+        assert_eq!(Done(&b""[..], (JoinType::Cross, None)), join_type(b"CROSS"));
+        assert_eq!(Done(&b""[..], (JoinType::Cross, Some(JoinConditionType::NaturalJoin))), join_type(b"NATURAL"));
+        assert_eq!(Done(&b""[..], (JoinType::Inner, Some(JoinConditionType::NaturalJoin))), join_type(b"NATURAL INNER"));
+        assert_eq!(Done(&b""[..], (JoinType::Inner, None)), join_type(b"INNER"));
+        assert_eq!(Done(&b""[..], (JoinType::LeftOuter, Some(JoinConditionType::NaturalJoin))), join_type(b"NATURAL LEFT"));
+        assert_eq!(Done(&b""[..], (JoinType::LeftOuter, None)), join_type(b"LEFT OUTER"));
+        assert_eq!(Done(&b""[..], (JoinType::RightOuter, Some(JoinConditionType::NaturalJoin))), join_type(b"NATURAL RIGHT"));
+        assert_eq!(Done(&b""[..], (JoinType::RightOuter, None)), join_type(b"RIGHT OUTER"));
+        assert_eq!(Done(&b""[..], (JoinType::FullOuter, None)), join_type(b"FULL"));
+        assert_eq!(Done(&b""[..], (JoinType::FullOuter, None)), join_type(b"FULL OUTER"));
+    }
 
     #[test]
     fn test_limit() {
@@ -131,8 +243,11 @@ mod tests {
         let kw1 = String::from("FOO");
         let kw2 = String::from("BAR");
 
-        let result1 = SelectCommand::new(SelectClause::new(kw1, false, Value::All, None, None, None));
-        let result2 = SelectCommand::new(SelectClause::new(kw2, false, Value::All, None, None, None));
+        let fc1 = FromClause::base_table(kw1, None);
+        let fc2 = FromClause::base_table(kw2, None);
+
+        let result1 = SelectCommand::new(SelectClause::new(fc1, false, Value::All, None, None, None));
+        let result2 = SelectCommand::new(SelectClause::new(fc2, false, Value::All, None, None, None));
         //        let result3 = Statement::Select {
         //            value: Value::All,
         //            distinct: false,

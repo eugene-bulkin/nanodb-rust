@@ -4,4 +4,4 @@
 mod evaluation;
 mod planning;
 
-pub use self::planning::{PlanError, Planner, PlanNode, SimplePlanner};
+pub use self::planning::{PlanError, Planner, PlanNode, SimplePlanner, NodeResult, PlanResult};

@@ -42,7 +42,7 @@ pub struct FileScanNode {
     table: Table,
     jump_to_marked: bool,
     done: bool,
-    predicate: Option<Expression>,
+    pub predicate: Option<Expression>,
     current_tuple: Option<Box<HeapFilePageTuple>>,
 }
 
@@ -116,6 +116,11 @@ impl PlanNode for FileScanNode {
         Ok(())
     }
 
+    fn initialize(&mut self) {
+        self.current_tuple = None;
+        self.done = false;
+    }
+
     fn get_next_tuple(&mut self) -> PlanResult<Option<&mut Tuple>> {
         try!(self.get_next_tuple_helper());
 
@@ -125,5 +130,16 @@ impl PlanNode for FileScanNode {
             },
             _ => { None }
         })
+    }
+
+    #[inline]
+    fn has_predicate(&self) -> bool { true }
+
+    #[inline]
+    fn get_predicate(&self) -> Option<Expression> { self.predicate.clone() }
+
+    fn set_predicate(&mut self, predicate: Expression) -> PlanResult<()> {
+        self.predicate = Some(predicate);
+        Ok(())
     }
 }

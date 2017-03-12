@@ -66,6 +66,8 @@ use super::queries::PlanError;
 pub enum ExecutionError {
     /// Unable to construct a schema given the column information provided.
     CouldNotCreateSchema(schema::Error),
+    /// The command was unable to compute a schema.
+    CouldNotComputeSchema(table_manager::Error),
     /// The command tried to open a given table and was unable to.
     CouldNotOpenTable(String, table_manager::Error),
     /// The command was unable to create the table.
@@ -121,6 +123,9 @@ impl ::std::fmt::Display for ExecutionError {
             },
             ExecutionError::CouldNotCreateSchema(ref e) => {
                 write!(f, "Unable to create schema. {}", e)
+            },
+            ExecutionError::CouldNotComputeSchema(ref e) => {
+                write!(f, "Unable to compute schema. {}", e)
             },
             ExecutionError::CouldNotCreateTable(ref e) => {
                 write!(f, "Unable to create table. {}", e)
