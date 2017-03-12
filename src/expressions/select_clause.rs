@@ -66,7 +66,7 @@ impl ::std::fmt::Display for SelectClause {
         if let select::Value::Values(ref values) = self.value {
             try!(write!(f, "\tvalues={:?}\n", values));
         }
-        try!(write!(f, "\tfrom={:?}\n", self.from_clause));
+        try!(write!(f, "\tfrom={}\n", self.from_clause));
 
         if let Some(ref expr) = self.where_expr {
             try!(write!(f, "\twhere={}\n", expr));

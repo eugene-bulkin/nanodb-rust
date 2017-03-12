@@ -27,6 +27,16 @@ impl Default for JoinConditionType {
     }
 }
 
+impl ::std::fmt::Display for JoinConditionType {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            JoinConditionType::NaturalJoin => write!(f, "NaturalJoin"),
+            JoinConditionType::OnExpr(_) => write!(f, "JoinOnExpression"),
+            JoinConditionType::Using(_) => write!(f, "JoinUsing"),
+        }
+    }
+}
+
 /// An enumeration specifying the different types of join operation.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum JoinType {
@@ -47,6 +57,20 @@ pub enum JoinType {
     /// Antijoin (aka anti-semijoin), where the left table's rows are included when they match none
     /// of the rows from the right table.
     Antijoin,
+}
+
+impl ::std::fmt::Display for JoinType {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            JoinType::Inner => write!(f, "Inner"),
+            JoinType::LeftOuter => write!(f, "Left Outer"),
+            JoinType::RightOuter => write!(f, "Right Outer"),
+            JoinType::FullOuter => write!(f, "Full Outer"),
+            JoinType::Cross => write!(f, "Cross"),
+            JoinType::Semijoin => write!(f, "Semijoin"),
+            JoinType::Antijoin => write!(f, "Antijoin"),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -88,6 +112,16 @@ pub enum FromClauseType {
         condition_type: JoinConditionType,
     }
 }
+
+impl ::std::fmt::Display for FromClauseType {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            FromClauseType::BaseTable { .. } => write!(f, "BaseTable"),
+            FromClauseType::JoinExpression { .. } => write!(f, "JoinExpression"),
+        }
+    }
+}
+
 
 impl FromClause {
     /// Instantiate a FROM clause that is a base table.
@@ -166,5 +200,42 @@ impl FromClause {
             }
         };
         Ok(result)
+    }
+}
+
+impl ::std::fmt::Display for FromClause {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        try!(write!(f, "JoinClause[type={}", self.clause_type));
+        match self.clause_type {
+            FromClauseType::BaseTable { ref table, ref alias } => {
+                try!(write!(f, ", table={}", table));
+                if let Some(ref name) = *alias {
+                    try!(write!(f, " AS {}", name));
+                }
+            },
+            FromClauseType::JoinExpression { ref left, ref right, ref join_type, ref condition_type } => {
+                try!(write!(f, ", join_type={}", join_type));
+                try!(write!(f, ", cond_type={}", condition_type));
+
+                match *condition_type {
+                    JoinConditionType::NaturalJoin => {
+                        try!(write!(f, ", computed_join_expr={}", self.computed_join_expr.clone().unwrap()));
+                    },
+                    JoinConditionType::Using(ref names) => {
+                        try!(write!(f, ", using_names={:?}", names));
+                        try!(write!(f, ", computed_join_expr={}", self.computed_join_expr.clone().unwrap()));
+                    },
+                    JoinConditionType::OnExpr(ref expr) => {
+                        if *expr != Expression::True {
+                            try!(write!(f, ", on_expr={}", expr));
+
+                        }
+                    }
+                }
+                try!(write!(f, ", left_child={}", left));
+                try!(write!(f, ", right_child={}", right));
+            }
+        }
+        write!(f, "]")
     }
 }
