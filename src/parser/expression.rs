@@ -135,6 +135,7 @@ mod tests {
         assert_eq!(Done(&[][..], Expression::Int(234)), base_expr(b"234"));
         assert_eq!(Done(&[][..], Expression::ColumnValue((None, Some("A".into())))), base_expr(b"a"));
         assert_eq!(Done(&[][..], Expression::ColumnValue((Some("B".into()), Some("A".into())))), base_expr(b"b.a"));
+        assert_eq!(Done(&[][..], Expression::ColumnValue((Some("B".into()), None))), base_expr(b"b.*"));
     }
 
     #[test]

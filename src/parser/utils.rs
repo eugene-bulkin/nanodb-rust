@@ -41,14 +41,12 @@ named!(pub dbobj_ident (&[u8]) -> String, alt_complete!(ident | quoted_ident));
 
 named!(pub column_name (&[u8]) -> ColumnName, do_parse!(
     n1: dbobj_ident >>
-    n2: opt!(complete!(do_parse!(
-        tag!(".") >>
-        n: dbobj_ident >>
-        (n)
-    ))) >>
+    n2: opt!(complete!(preceded!(tag!("."), alt!(map!(dbobj_ident, |i| Some(i)) |
+                                                 map!(tag!("*"), |_| None)
+                                                )))) >>
     ({
         match n2 {
-            Some(col_name) => (Some(n1), Some(col_name)),
+            Some(col_name) => (Some(n1), col_name),
             None => (None, Some(n1))
         }
     })
