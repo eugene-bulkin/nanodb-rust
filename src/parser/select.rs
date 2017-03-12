@@ -96,7 +96,7 @@ named!(join_type (&[u8]) -> (JoinType, Option<JoinConditionType>), alt_complete!
                     opt!(complete!(ws!(tag_no_case!("OUTER")))) >>
                     (direction)
                 ) |
-                map!(tag!(""), |_| JoinType::Cross)
+                map!(tag!(""), |_| JoinType::Inner)
             ) >>
             ({
                 let mut cond_type: Option<JoinConditionType> = None;
@@ -208,9 +208,9 @@ mod tests {
 
     #[test]
     fn test_join_type() {
-        assert_eq!(Done(&b""[..], (JoinType::Cross, None)), join_type(b""));
+        assert_eq!(Done(&b""[..], (JoinType::Inner, None)), join_type(b""));
         assert_eq!(Done(&b""[..], (JoinType::Cross, None)), join_type(b"CROSS"));
-        assert_eq!(Done(&b""[..], (JoinType::Cross, Some(JoinConditionType::NaturalJoin))), join_type(b"NATURAL"));
+        assert_eq!(Done(&b""[..], (JoinType::Inner, Some(JoinConditionType::NaturalJoin))), join_type(b"NATURAL"));
         assert_eq!(Done(&b""[..], (JoinType::Inner, Some(JoinConditionType::NaturalJoin))), join_type(b"NATURAL INNER"));
         assert_eq!(Done(&b""[..], (JoinType::Inner, None)), join_type(b"INNER"));
         assert_eq!(Done(&b""[..], (JoinType::LeftOuter, Some(JoinConditionType::NaturalJoin))), join_type(b"NATURAL LEFT"));
