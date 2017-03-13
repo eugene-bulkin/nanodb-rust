@@ -1,5 +1,5 @@
-use super::super::commands::DropCommand;
-use super::utils::*;
+use ::commands::DropCommand;
+use ::parser::utils::*;
 
 named!(pub parse (&[u8]) -> Box<DropCommand>, do_parse!(
     ws!(tag_no_case!("DROP")) >>
@@ -11,9 +11,9 @@ named!(pub parse (&[u8]) -> Box<DropCommand>, do_parse!(
 
 #[cfg(test)]
 mod tests {
-
     use nom::IResult::*;
     use nom::Needed;
+
     use super::*;
 
     #[test]

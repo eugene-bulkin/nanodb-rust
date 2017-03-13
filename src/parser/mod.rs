@@ -16,7 +16,7 @@ use self::insert::parse as insert_parse;
 use self::select::parse as select_parse;
 use self::show::parse as show_parse;
 
-use super::commands::Command;
+use ::commands::Command;
 
 fn as_boxed_command(c: Box<Command>) -> Box<Command> {
     c as Box<Command>
@@ -35,9 +35,9 @@ named!(pub statements (&[u8]) -> Vec<Box<Command>>, separated_nonempty_list!(
 mod tests {
     use std::any::Any;
 
-    use super::statements;
-    use super::super::commands::SelectCommand;
-    use super::super::expressions::{FromClause, SelectClause, SelectValue};
+    use super::*;
+    use ::commands::SelectCommand;
+    use ::expressions::{FromClause, SelectClause, SelectValue};
 
     #[test]
     fn test_multiple_stmts() {

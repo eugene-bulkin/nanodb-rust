@@ -1,4 +1,4 @@
-use super::super::commands::ShowCommand;
+use ::commands::ShowCommand;
 
 named!(pub parse (&[u8]) -> Box<ShowCommand>, do_parse!(
     ws!(tag_no_case!("SHOW")) >>
@@ -13,10 +13,10 @@ named!(pub parse (&[u8]) -> Box<ShowCommand>, do_parse!(
 #[cfg(test)]
 mod tests {
     use nom::ErrorKind;
-
     use nom::IResult::*;
-    use super::parse;
-    use super::super::super::commands::ShowCommand;
+
+    use super::*;
+    use ::commands::ShowCommand;
 
     #[test]
     fn test_show() {

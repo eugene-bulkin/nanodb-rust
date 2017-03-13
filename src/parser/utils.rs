@@ -1,8 +1,8 @@
-use nom::{alpha, digit};
-
 use std::str::{self, FromStr};
 
-use super::super::column::ColumnName;
+use nom::{alpha, digit};
+
+use ::column::ColumnName;
 
 #[derive(Debug, Clone, PartialEq)]
 /// An enum representing a SQL literal.
@@ -123,8 +123,8 @@ named!(pub literal (&[u8]) -> Literal, alt_complete!(
 
 #[cfg(test)]
 mod tests {
-
     use nom::IResult::*;
+
     use super::*;
 
     #[test]
