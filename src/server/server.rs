@@ -2,8 +2,9 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use super::super::commands::Command;
-use super::super::storage::{FileManager, TableManager};
+
+use ::commands::Command;
+use ::storage::{FileManager, TableManager};
 
 /// This class provides the entry-point operations for managing the database server, and executing
 /// commands against it. While it is certainly possible to implement these operations outside of
