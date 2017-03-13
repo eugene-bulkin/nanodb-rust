@@ -10,6 +10,7 @@ pub use self::simple_planner::SimplePlanner;
 use super::super::expressions::{Expression, ExpressionError, SelectClause};
 use super::super::storage::{PinError, file_manager, table_manager, FileManager, TableManager};
 use ::{ColumnName, schema};
+use ::column::column_name_to_string;
 
 /// An error that could occur during planning.
 #[derive(Clone, Debug, PartialEq)]
@@ -55,6 +56,40 @@ impl From<schema::Error> for Error {
 impl From<PinError> for Error {
     fn from(e: PinError) -> Error {
         Error::PinError(e)
+    }
+}
+
+impl ::std::fmt::Display for Error {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            Error::FileManagerError(ref e) => {
+                write!(f, "{}", e)
+            },
+            Error::TableManagerError(ref e) => {
+                write!(f, "{}", e)
+            },
+            Error::SchemaError(ref e) => {
+                write!(f, "{}", e)
+            },
+            Error::PinError(ref e) => {
+                write!(f, "{}", e)
+            },
+            Error::Unimplemented => {
+                write!(f, "The requested operation is not yet implemented.")
+            },
+            Error::InvalidPredicate => {
+                write!(f, "The predicate is invalid.")
+            },
+            Error::CouldNotApplyPredicate(ref e) => {
+                write!(f, "The predicate could not be applied: {}", e)
+            },
+            Error::ColumnDoesNotExist(ref col_name) => {
+                write!(f, "The column {} does not exist.", column_name_to_string(col_name))
+            },
+            Error::NodeNotPrepared => {
+                write!(f, "A node was not prepared.")
+            },
+        }
     }
 }
 

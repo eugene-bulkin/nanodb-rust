@@ -171,12 +171,10 @@ impl ::std::fmt::Display for ExecutionError {
                 write!(f, "Unable to open table {}. {}", name, e)
             },
             ExecutionError::CouldNotGetNextTuple(ref e) => {
-                // TODO: Display for PlanError.
-                write!(f, "Unable to retrieve another tuple. {:?}", e)
+                write!(f, "Unable to retrieve another tuple. {}", e)
             },
             ExecutionError::CouldNotExecutePlan(ref e) => {
-                // TODO: Display for PlanError.
-                write!(f, "Unable to execute plan. {:?}", e)
+                write!(f, "Unable to execute plan. {}", e)
             },
             ExecutionError::Unimplemented => {
                 write!(f, "The requested command is not yet implemented.")
