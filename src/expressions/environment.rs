@@ -50,6 +50,9 @@ pub struct Environment {
 }
 
 impl Environment {
+    /// Instantiate a new environment.
+    pub fn new() -> Environment { Default::default() }
+
     /// Reset the environment.
     pub fn clear(&mut self) {
         self.current_schemas.clear();
@@ -108,7 +111,9 @@ impl Environment {
                 continue;
             }
 
-            if found || columns.len() > 1 && !is_col_wildcard {
+            if found || columns.len() > 1 {
+                // The original code has an !is_col_wildcard mentioning COUNT(*) expressions... but
+                // I don't see how that's relevant?
                 return Err(ExpressionError::AmbiguousColumnName(col_name.clone()));
             }
 
@@ -142,5 +147,99 @@ impl Default for Environment {
             current_tuples: vec![],
             parent_envs: vec![],
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ::{Schema, ColumnType, ColumnInfo, ColumnName};
+    use ::expressions::ExpressionError::*;
+    use ::expressions::Literal::*;
+    use ::storage::TupleLiteral;
+
+    #[test]
+    fn test_get_column_value() {
+        let sch1 = Schema::with_columns(vec![
+            ColumnInfo::with_table_name(ColumnType::Integer, "A", "FOO"),
+            ColumnInfo::with_table_name(ColumnType::Double, "B", "FOO"),
+        ]).unwrap();
+        let sch2 = Schema::with_columns(vec![
+            ColumnInfo::with_table_name(ColumnType::Integer, "A", "BAR"),
+            ColumnInfo::with_table_name(ColumnType::Double, "C", "BAR"),
+        ]).unwrap();
+        let sch3 = Schema::with_columns(vec![
+            ColumnInfo::with_table_name(ColumnType::Integer, "A", "FOO"),
+        ]).unwrap();
+        let sch4 = Schema::with_columns(vec![
+            ColumnInfo::with_table_name(ColumnType::Integer, "A", "BAR"),
+        ]).unwrap();
+        let sch5 = Schema::with_columns(vec![
+            ColumnInfo::with_table_name(ColumnType::Integer, "C", "BAR"),
+        ]).unwrap();
+
+        let mut tup1 = TupleLiteral::from_iter(vec![Int(1), Double(1.5)]);
+        let mut tup2 = TupleLiteral::from_iter(vec![Int(3), Double(2.5)]);
+        let mut tup3 = TupleLiteral::from_iter(vec![Int(2)]);
+        let mut tup4 = TupleLiteral::from_iter(vec![Int(4)]);
+        let mut tup5 = TupleLiteral::from_iter(vec![Int(6)]);
+
+        let mut env1 = {
+            let mut env = Environment::new();
+            env.add_tuple_ref(sch1.clone(), &mut tup1);
+
+            env
+        };
+        let mut env2 = {
+            let mut env = Environment::new();
+            env.add_tuple_ref(sch1.clone(), &mut tup1);
+            env.add_tuple_ref(sch2.clone(), &mut tup2);
+
+            env
+        };
+        let mut env3 = {
+            let mut env = Environment::new();
+            env.add_tuple_ref(sch3.clone(), &mut tup3);
+            env.add_tuple_ref(sch4.clone(), &mut tup4);
+            env.add_tuple_ref(sch5.clone(), &mut tup5);
+
+            env
+        };
+
+        let col_a: ColumnName = (None, Some("A".into()));
+        let col_b: ColumnName = (None, Some("B".into()));
+        let col_c: ColumnName = (None, Some("C".into()));
+        let foo_a: ColumnName = (Some("FOO".into()), Some("A".into()));
+        let foo_b: ColumnName = (Some("FOO".into()), Some("B".into()));
+        let foo_w: ColumnName = (Some("FOO".into()), None);
+        let bar_a: ColumnName = (Some("BAR".into()), Some("A".into()));
+        let bar_c: ColumnName = (Some("BAR".into()), Some("C".into()));
+        let bar_w: ColumnName = (Some("BAR".into()), None);
+
+        assert_eq!(Ok(Int(1)), env1.get_column_value(&foo_a));
+        assert_eq!(Ok(Double(1.5)), env1.get_column_value(&foo_b));
+        assert_eq!(Err(CouldNotResolve(bar_a.clone())), env1.get_column_value(&bar_a));
+        assert_eq!(Err(CouldNotResolve(bar_c.clone())), env1.get_column_value(&bar_c));
+        assert_eq!(Ok(Double(1.5)), env1.get_column_value(&foo_b));
+        assert_eq!(Ok(Int(1)), env1.get_column_value(&col_a));
+        assert_eq!(Ok(Double(1.5)), env1.get_column_value(&col_b));
+        assert_eq!(Err(AmbiguousColumnName(foo_w.clone())), env2.get_column_value(&foo_w));
+
+        assert_eq!(Ok(Int(1)), env2.get_column_value(&foo_a));
+        assert_eq!(Ok(Double(1.5)), env2.get_column_value(&foo_b));
+        assert_eq!(Ok(Int(3)), env2.get_column_value(&bar_a));
+        assert_eq!(Ok(Double(2.5)), env2.get_column_value(&bar_c));
+        assert_eq!(Err(AmbiguousColumnName(col_a.clone())), env2.get_column_value(&col_a));
+        assert_eq!(Ok(Double(1.5)), env2.get_column_value(&col_b));
+        assert_eq!(Ok(Double(2.5)), env2.get_column_value(&col_c));
+
+        assert_eq!(Ok(Int(2)), env3.get_column_value(&foo_a));
+        assert_eq!(Ok(Int(4)), env3.get_column_value(&bar_a));
+        assert_eq!(Ok(Int(6)), env3.get_column_value(&bar_c));
+        assert_eq!(Err(AmbiguousColumnName(col_a.clone())), env3.get_column_value(&col_a));
+        assert_eq!(Err(CouldNotResolve(col_b.clone())), env3.get_column_value(&col_b));
+        assert_eq!(Ok(Int(6)), env3.get_column_value(&col_c));
+        assert_eq!(Ok(Int(2)), env3.get_column_value(&foo_w));
+        assert_eq!(Err(AmbiguousColumnName(bar_w.clone())), env3.get_column_value(&bar_w));
     }
 }

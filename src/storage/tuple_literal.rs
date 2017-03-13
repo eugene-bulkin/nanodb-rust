@@ -18,6 +18,13 @@ impl TupleLiteral {
         TupleLiteral { values: vec![] }
     }
 
+    /// Construct a new tuple-literal from an iterator of literals.
+    pub fn from_iter<I: IntoIterator<Item=Literal>>(literals: I) -> TupleLiteral {
+        TupleLiteral {
+            values: literals.into_iter().collect()
+        }
+    }
+
     /// Appends the specified value to the end of the tuple-literal.
     ///
     /// # Arguments

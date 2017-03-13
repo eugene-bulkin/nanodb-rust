@@ -3,7 +3,6 @@ use ::Schema;
 
 use ::expressions::{Environment, Expression, ExpressionError, JoinConditionType, JoinType, Literal};
 use ::queries::{PlanError, PlanNode, PlanResult};
-use std::default::Default;
 use ::storage::{Pinnable, Tuple, TupleLiteral};
 
 /// This plan node implements a nested-loops join operation, which can support arbitrary join
@@ -99,7 +98,7 @@ impl<'a> NestedLoopJoinNode<'a> {
             return Ok(true);
         }
         let predicate = self.predicate.clone().unwrap();
-        let mut env: Environment = Default::default();
+        let mut env = Environment::new();
 
         assert!(self.left_tuple.is_some());
         assert!(self.right_tuple.is_some());

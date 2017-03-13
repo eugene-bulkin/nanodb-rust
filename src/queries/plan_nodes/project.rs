@@ -2,7 +2,6 @@
 
 use ::{ColumnInfo, Schema};
 use ::expressions::{Environment, Expression, SelectValue};
-use std::default::Default;
 use ::storage::{Tuple, TupleLiteral};
 use super::PlanNode;
 
@@ -54,7 +53,7 @@ impl<'a> ProjectNode<'a> {
                         let value = tuple.get_column_value(*idx).unwrap();
                         result.add_value(value);
                     } else {
-                        let mut env: Environment = Default::default();
+                        let mut env = Environment::new();
                         env.add_tuple_ref(self.input_schema.clone(), tuple);
                         // TODO: Propagate error
                         let value = expression.evaluate(&mut Some(&mut env)).unwrap();
@@ -121,7 +120,7 @@ impl<'a> PlanNode for ProjectNode<'a> {
 
     fn prepare(&mut self) -> PlanResult<()> {
         let mut default_env = {
-            let mut env: Environment = Default::default();
+            let mut env = Environment::new();
             let default_tuple = self.input_schema.default_tuple();
             env.add_tuple(self.input_schema.clone(), default_tuple);
             env

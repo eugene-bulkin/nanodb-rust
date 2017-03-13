@@ -1,6 +1,5 @@
 //! This module provides the file scan plan node.
 
-use std::default::Default;
 use super::PlanNode;
 
 use super::super::{PlanError, PlanResult};
@@ -20,7 +19,7 @@ fn is_tuple_selected(predicate: Option<&Expression>,
                      -> PlanResult<bool> {
     match predicate {
         Some(ref expr) => {
-            let mut env: Environment = Default::default();
+            let mut env = Environment::new();
             env.add_tuple(schema, tuple);
             match expr.evaluate(&mut Some(&mut env)) {
                 Ok(Literal::True) => Ok(true),
