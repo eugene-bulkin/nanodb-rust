@@ -70,8 +70,9 @@ impl Tuple for TupleLiteral {
     }
 
     fn is_null_value(&self, col_index: usize) -> Result<bool, TupleError> {
-        if col_index >= self.values.len() {
-            Err(TupleError::InvalidColumnIndex)
+        let num_values = self.values.len();
+        if col_index >= num_values {
+            Err(TupleError::InvalidColumnIndex(col_index, num_values))
         } else {
             Ok(self.values[col_index] != Literal::Null)
         }

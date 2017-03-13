@@ -45,6 +45,7 @@ pub use self::tuple_literal::TupleLiteral;
 use std::io;
 
 use super::expressions::Literal;
+use ::ColumnType;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 /// An error that may occur while pinning or unpinning a page in some file.
@@ -230,10 +231,10 @@ pub enum TupleError {
     /// For when a DBPage error occurs.
     DBPageError(dbpage::Error),
     /// For when a column type is not supported for storage.
-    UnsupportedColumnType,
+    UnsupportedColumnType(ColumnType),
     /// For when the column index provided is out of range.
-    InvalidColumnIndex,
-    /// The tuple size is too large for the page.
+    InvalidColumnIndex(usize, usize),
+    /// The tuple size is too large for the page. Format is (tuple_size, page_size).
     TupleTooBig(u16, u32),
 }
 
