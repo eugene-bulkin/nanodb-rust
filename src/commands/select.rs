@@ -1,9 +1,9 @@
-use super::{Command, ExecutionError};
-use super::super::Server;
-use super::super::expressions::SelectClause;
-use super::super::queries::{Planner, SimplePlanner};
-use super::super::storage::TupleLiteral;
-use super::utils::print_table;
+use ::Server;
+use ::commands::{Command, ExecutionError};
+use ::commands::utils::print_table;
+use ::expressions::SelectClause;
+use ::queries::{Planner, SimplePlanner};
+use ::storage::TupleLiteral;
 
 #[derive(Debug, Clone, PartialEq)]
 /// A command for selecting rows from a table.

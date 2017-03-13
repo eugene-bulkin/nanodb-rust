@@ -39,10 +39,6 @@
 //! - `EXPLAIN ...` - [`ExplainCommand`]()
 //! - `EXIT` | `QUIT` - [`ExitCommand`]()
 
-use std::any::Any;
-
-use super::Server;
-
 mod select;
 mod show;
 mod create;
@@ -56,10 +52,12 @@ pub use self::insert::InsertCommand;
 pub use self::select::SelectCommand;
 pub use self::show::ShowCommand;
 
-use super::expressions::{Expression, ExpressionError};
-use super::queries::PlanError;
-use super::schema;
-use super::storage::{PinError, file_manager, table_manager};
+use std::any::Any;
+
+use ::{Server, schema};
+use ::expressions::{Expression, ExpressionError};
+use ::queries::PlanError;
+use ::storage::{PinError, file_manager, table_manager};
 
 /// An invalid schema error that occurred during execution.
 #[derive(Debug, Clone, PartialEq)]

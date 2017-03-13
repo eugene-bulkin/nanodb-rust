@@ -1,6 +1,6 @@
-use super::{Command, ExecutionError};
-use super::super::Server;
-use super::utils::print_table;
+use ::Server;
+use ::commands::{Command, ExecutionError};
+use ::commands::utils::print_table;
 
 #[derive(Debug, Clone, PartialEq)]
 /// A command for showing database information.
