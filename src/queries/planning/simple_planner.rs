@@ -1,6 +1,6 @@
 //! This module contains the classes and functions needed for a simple query planner.
 
-use super::{Planner, NodeResult, make_simple_select, ProjectNode, NestedLoopJoinNode};
+use super::{Planner, NodeResult, make_simple_select, ProjectNode, NestedLoopJoinNode, PlanNode};
 use super::super::super::expressions::{FromClause, FromClauseType, JoinType, SelectClause};
 use super::super::super::storage::{FileManager, TableManager};
 
@@ -34,11 +34,15 @@ impl<'a> SimplePlanner<'a> {
                 let left_child = try!(self.make_join_tree(*left.clone()));
                 let right_child = try!(self.make_join_tree(*right.clone()));
 
-                let cur_node = NestedLoopJoinNode::new(left_child, right_child, join_type.clone(), condition_type.clone(), clause.get_computed_join_expr());
+                let mut cur_node: Box<PlanNode> = Box::new(NestedLoopJoinNode::new(left_child, right_child, join_type.clone(), condition_type.clone(), clause.get_computed_join_expr()));
+                cur_node.prepare();
 
-                // TODO: Project
+                if let Some(values) = clause.get_computed_select_values() {
+                    cur_node = Box::new(ProjectNode::new(cur_node, values));
+                    cur_node.prepare();
+                }
 
-                Ok(Box::new(cur_node))
+                Ok(cur_node)
             }
         }
     }
