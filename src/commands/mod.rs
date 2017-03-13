@@ -61,9 +61,37 @@ use super::schema;
 use super::storage::{PinError, file_manager, table_manager};
 use super::queries::PlanError;
 
+/// An invalid schema error that occurred during execution.
+#[derive(Debug, Clone, PartialEq)]
+pub enum InvalidSchemaError {
+    /// The left schema has ambiguous column names.
+    LeftSchemaDuplicates,
+    /// The right schema has ambiguous column names.
+    RightSchemaDuplicates,
+    /// The schemas for a NATURAL JOIN don't share column names.
+    NoShared,
+}
+impl ::std::fmt::Display for InvalidSchemaError {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            InvalidSchemaError::LeftSchemaDuplicates => {
+                write!(f, "left child table has multiple columns with same column name")
+            },
+            InvalidSchemaError::RightSchemaDuplicates => {
+                write!(f, "right child table has multiple columns with same column name")
+            },
+            InvalidSchemaError::NoShared => {
+                write!(f, "child tables share no common column names")
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 /// An error that occurred while attempting to execute a command.
 pub enum ExecutionError {
+    /// One or more schemas passed in are not valid.
+    InvalidSchema(InvalidSchemaError),
     /// Unable to construct a schema given the column information provided.
     CouldNotCreateSchema(schema::Error),
     /// The command was unable to compute a schema.
@@ -115,6 +143,9 @@ impl From<ExpressionError> for ExecutionError {
 impl ::std::fmt::Display for ExecutionError {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
+            ExecutionError::InvalidSchema(ref e) => {
+                write!(f, "Invalid schema error: {}", e)
+            }
             ExecutionError::CannotStoreExpression(ref column, ref expr) => {
                 write!(f, "The expression {} cannot be stored in column {}.", expr, column)
             }

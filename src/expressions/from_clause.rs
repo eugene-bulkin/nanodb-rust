@@ -1,11 +1,12 @@
 //! This module contains `FROM` clause information.
 
+use std::collections::HashSet;
 use std::default::Default;
 
-use ::Schema;
-use ::expressions::Expression;
+use ::{ColumnInfo, Schema};
+use ::expressions::{CompareType, Expression, SelectValue};
 use ::storage::{TableManager, FileManager};
-use ::commands::ExecutionError;
+use ::commands::{ExecutionError, InvalidSchemaError};
 
 /// For FROM clauses that contain join expressions, this enumeration specifies the kind of
 /// join-condition for each join expression.
@@ -81,6 +82,7 @@ pub struct FromClause {
     pub clause_type: FromClauseType,
     computed_join_expr: Option<Expression>,
     computed_schema: Option<Schema>,
+    computed_select_values: Option<Vec<SelectValue>>,
 }
 
 impl ::std::ops::Deref for FromClause {
@@ -88,6 +90,94 @@ impl ::std::ops::Deref for FromClause {
     fn deref(&self) -> &Self::Target {
         &self.clause_type
     }
+}
+
+fn build_join_schema(left: Schema, right: Schema, common: HashSet<String>, result: &mut Schema, join_type: JoinType) -> Result<(Option<Expression>, Option<Vec<SelectValue>>), ExecutionError> {
+    let mut join_expr = None;
+    let mut select_values = Vec::new();
+
+    if !common.is_empty() {
+        // We will need to generate a join expression using the common
+        // columns.  We will also need a project-spec that will project down
+        // to only one copy of the common columns.
+
+        let mut and_clauses: Vec<Expression> = Vec::new();
+
+        // Handle the shared columns.  We need to check that the
+        // names aren't ambiguous on one or the other side.
+        for name in common.iter() {
+            let left_count = left.num_columns_with_name(name.as_ref());
+            let right_count = right.num_columns_with_name(name.as_ref());
+
+            if left_count != 1 || right_count != 1 {
+                // TODO: Make this an invalid schema error
+                return Err(ExecutionError::Unimplemented);
+            }
+
+            let left_info = left.get_column(name.as_ref()).unwrap();
+            let right_info = right.get_column(name.as_ref()).unwrap();
+
+            try!(result.add_column(ColumnInfo::with_name(left_info.column_type, name.as_ref())).map_err(ExecutionError::CouldNotCreateSchema));
+
+            let compare_expr = Expression::Compare(Box::new(Expression::ColumnValue(left_info.get_column_name())),
+                                                   CompareType::Equals,
+                                                   Box::new(Expression::ColumnValue(right_info.get_column_name())));
+
+            and_clauses.push(compare_expr);
+
+            // Add a select-value that projects the appropriate source column down to the common
+            // column.
+            match join_type {
+                JoinType::Inner | JoinType::LeftOuter => {
+                    // We can use the left column in the result, as it will always be non-NULL.
+                    select_values.push(SelectValue::Expression {
+                        expression: Expression::ColumnValue(left_info.get_column_name()),
+                        alias: Some(name.clone()),
+                    });
+                },
+                JoinType::RightOuter => {
+                    // We can use the right column in the result, as it will always be non-NULL.
+                    select_values.push(SelectValue::Expression {
+                        expression: Expression::ColumnValue(right_info.get_column_name()),
+                        alias: Some(name.clone()),
+                    });
+                },
+                JoinType::FullOuter => {
+                    // TODO: Need function calls here to use COALESCE.
+                    return Err(ExecutionError::Unimplemented);
+                },
+                _ => {
+                    // Do nothing...?
+                }
+            }
+        }
+
+        join_expr = Some(Expression::AND(and_clauses));
+    }
+
+    // Handle the non-shared columns
+    for col_info in left.iter().chain(right.iter()) {
+        let col_name = col_info.get_column_name();
+        match col_name {
+            (_, Some(ref name)) => {
+                if !common.contains(name) {
+                    try!(result.add_column(col_info.clone()).map_err(ExecutionError::CouldNotCreateSchema));
+
+                    select_values.push(SelectValue::Expression {
+                        expression: Expression::ColumnValue(col_name.clone()),
+                        alias: None,
+                    });
+                }
+            },
+            _ => {}
+        }
+    }
+
+    Ok((join_expr, if select_values.is_empty() {
+        None
+    } else {
+        Some(select_values)
+    }))
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -133,6 +223,7 @@ impl FromClause {
             },
             computed_schema: None,
             computed_join_expr: None,
+            computed_select_values: None,
         }
     }
 
@@ -148,12 +239,18 @@ impl FromClause {
             },
             computed_schema: None,
             computed_join_expr: None,
+            computed_select_values: None,
         }
     }
 
     /// Retrieve the computed join expression.
     pub fn get_computed_join_expr(&self) -> Option<Expression> {
         self.computed_join_expr.clone()
+    }
+
+    /// Retrieve the computed select values.
+    pub fn get_computed_select_values(&self) -> Option<Vec<SelectValue>> {
+        self.computed_select_values.clone()
     }
 
     /// Calculate the schema and computed join expression for the FROM clause.
@@ -172,7 +269,7 @@ impl FromClause {
                 self.computed_schema = Some(schema.clone());
                 schema.clone()
             },
-            FromClauseType::JoinExpression { ref mut left, ref mut right, ref condition_type, .. } => {
+            FromClauseType::JoinExpression { ref mut left, ref mut right, ref condition_type, ref join_type } => {
                 debug!("Preparing JOIN_EXPR from-clause.  Condition type = {:?}", condition_type);
 
                 let mut schema = Schema::new();
@@ -182,10 +279,25 @@ impl FromClause {
 
                 match *condition_type {
                     JoinConditionType::NaturalJoin => {
-                        unimplemented!()
+                        if left_schema.has_multiple_columns_with_same_name() {
+                            return Err(ExecutionError::InvalidSchema(InvalidSchemaError::LeftSchemaDuplicates));
+                        }
+                        if right_schema.has_multiple_columns_with_same_name() {
+                            return Err(ExecutionError::InvalidSchema(InvalidSchemaError::RightSchemaDuplicates));
+                        }
+                        let common_cols = left_schema.get_common_column_names(&right_schema);
+                        if common_cols.is_empty() {
+                            return Err(ExecutionError::InvalidSchema(InvalidSchemaError::NoShared));
+                        }
+
+                        println!("{}", schema);
+                        let built = try!(build_join_schema(left_schema, right_schema, common_cols, &mut schema, *join_type));
+                        println!("{}", schema);
+                        self.computed_join_expr = built.0;
+                        self.computed_select_values = built.1;
                     },
                     JoinConditionType::Using(ref names) => {
-                        unimplemented!()
+                        return Err(ExecutionError::Unimplemented);
                     },
                     JoinConditionType::OnExpr(ref expr) => {
                         try!(schema.add_columns(left_schema));
