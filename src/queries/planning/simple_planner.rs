@@ -1,8 +1,8 @@
 //! This module contains the classes and functions needed for a simple query planner.
 
+use ::expressions::{FromClause, FromClauseType, JoinType, SelectClause};
 use ::queries::{NestedLoopJoinNode, NodeResult, PlanNode, Planner, ProjectNode, make_simple_select};
-use super::super::super::expressions::{FromClause, FromClauseType, JoinType, SelectClause};
-use super::super::super::storage::{FileManager, TableManager};
+use ::storage::{FileManager, TableManager};
 
 /// This class generates execution plannodes for performing SQL queries. The primary responsibility
 /// is to generate plannodes for SQL `SELECT` statements, but `UPDATE` and `DELETE` expressions will

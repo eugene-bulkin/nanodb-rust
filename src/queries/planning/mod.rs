@@ -3,13 +3,13 @@
 
 pub mod simple_planner;
 
-use ::{ColumnName, schema};
-use ::column::column_name_to_string;
 pub use self::simple_planner::SimplePlanner;
 
-use super::super::expressions::{Expression, ExpressionError, SelectClause};
-use super::super::storage::{FileManager, PinError, TableManager, file_manager, table_manager};
+use ::{ColumnName, schema};
+use ::column::column_name_to_string;
+use ::expressions::{Expression, ExpressionError, SelectClause};
 use ::queries::{FileScanNode, NodeResult, PlanNode};
+use ::storage::{FileManager, PinError, TableManager, file_manager, table_manager};
 
 /// An error that could occur during planning.
 #[derive(Clone, Debug, PartialEq)]

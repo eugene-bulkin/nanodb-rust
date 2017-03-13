@@ -2,10 +2,9 @@
 
 use ::{ColumnInfo, Schema};
 use ::expressions::{Environment, Expression, SelectValue};
+use ::queries::plan_nodes::PlanNode;
+use ::queries::planning::{PlanError, PlanResult};
 use ::storage::{Tuple, TupleLiteral};
-use super::PlanNode;
-
-use super::super::{PlanError, PlanResult};
 
 /// PlanNode representing the `SELECT` clause in a SQL query. This is the relational algebra Project
 /// operator.

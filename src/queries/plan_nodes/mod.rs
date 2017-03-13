@@ -4,13 +4,13 @@ mod file_scan;
 mod project;
 mod nested_loop_join;
 
-use ::expressions::Expression;
 pub use self::file_scan::FileScanNode;
 pub use self::nested_loop_join::NestedLoopJoinNode;
 pub use self::project::ProjectNode;
-use super::{PlanResult, PlanError};
-use ::Schema;
 
+use ::Schema;
+use ::expressions::Expression;
+use ::queries::planning::{PlanResult, PlanError};
 use ::storage::Tuple;
 
 /// A result that returns a plan node.

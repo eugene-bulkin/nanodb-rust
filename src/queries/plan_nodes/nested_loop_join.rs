@@ -1,6 +1,6 @@
+//! This module provides the nested-loops join plan node.
 
 use ::Schema;
-
 use ::expressions::{Environment, Expression, ExpressionError, JoinConditionType, JoinType, Literal};
 use ::queries::{PlanError, PlanNode, PlanResult};
 use ::storage::{Pinnable, Tuple, TupleLiteral};

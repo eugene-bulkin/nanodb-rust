@@ -1,10 +1,9 @@
 //! This module provides the file scan plan node.
 
-use super::PlanNode;
-
-use super::super::{PlanError, PlanResult};
 use ::Schema;
 use ::expressions::{Environment, Expression, Literal};
+use ::queries::plan_nodes::PlanNode;
+use ::queries::planning::{PlanError, PlanResult};
 use ::storage::{Pinnable, Tuple};
 use ::storage::table_manager::Table;
 use ::storage::tuple_files::HeapFilePageTuple;
