@@ -295,5 +295,5 @@ pub trait Tuple: Pinnable {
     ///
     /// # Arguments
     /// * col_index - The index of the column
-    fn get_column_value(&mut self, col_index: usize) -> Result<Literal, TupleError>;
+    fn get_column_value(&mut self, col_index: usize) -> Result<Literal, TupleError>
 }
