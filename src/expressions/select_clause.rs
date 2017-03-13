@@ -22,6 +22,7 @@ pub struct SelectClause {
     pub offset: Option<u32>,
     /// The optional where clause.
     pub where_expr: Option<Expression>,
+    from_schema: Option<Schema>,
 }
 
 impl SelectClause {
@@ -48,6 +49,7 @@ impl SelectClause {
             limit: limit,
             offset: offset,
             where_expr: where_expr,
+            from_schema: None,
         }
     }
 
@@ -67,7 +69,9 @@ impl SelectClause {
     pub fn compute_schema(&mut self, file_manager: &FileManager, table_manager: &TableManager) -> Result<Schema, ExecutionError> {
         // TODO
         // For now, just return the from clause schema.
-        self.from_clause.compute_schema(file_manager, table_manager)
+        let schema = try!(self.from_clause.compute_schema(file_manager, table_manager));
+        self.from_schema = Some(schema.clone());
+        Ok(schema)
     }
 }
 
