@@ -1,8 +1,7 @@
 //! A module which stores utilities for a tuple literal.
 
-
-use super::{PinError, Pinnable, Tuple, TupleError};
-use super::super::expressions::Literal;
+use ::expressions::Literal;
+use ::storage::{PinError, Pinnable, Tuple, TupleError};
 
 /// A simple implementation of the {@link Tuple} interface for storing literal tuple values.
 #[derive(Clone, Debug, PartialEq)]

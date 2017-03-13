@@ -291,7 +291,7 @@ impl<F> PartialEq for DBFile<F>
 
 #[cfg(test)]
 mod tests {
-    use super::{Error, decode_pagesize, encode_pagesize, is_valid_pagesize};
+    use super::*;
 
     #[test]
     fn test_is_valid_pagesize() {

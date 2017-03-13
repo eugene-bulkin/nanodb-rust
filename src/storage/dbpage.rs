@@ -1,14 +1,14 @@
 //! This module contains utilities to handle pages within database files for NanoDB.
 
-
-use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::io::{self, ErrorKind, SeekFrom};
 use std::io::prelude::*;
 
-use super::{DBFileInfo, PinError, Pinnable, Tuple, TupleError, WriteNanoDBExt};
-use super::page_tuple::get_null_flags_size;
-use super::super::{ColumnType, Schema};
-use super::super::expressions::Literal;
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+
+use ::{ColumnType, Schema};
+use ::expressions::Literal;
+use ::storage::{DBFileInfo, PinError, Pinnable, Tuple, TupleError, WriteNanoDBExt};
+use ::storage::page_tuple::get_null_flags_size;
 
 /// The offset in the data page where the number of slots in the slot table is stored.
 const OFFSET_NUM_SLOTS: u16 = 0;
@@ -679,7 +679,7 @@ mod tests {
     use std::io::Cursor;
 
     use super::*;
-    use super::super::{DBFile, DBFileType, PinError, Pinnable};
+    use ::storage::{DBFile, DBFileType, PinError, Pinnable};
 
     #[test]
     fn test_pinning() {

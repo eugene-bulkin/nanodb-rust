@@ -3,13 +3,13 @@
 
 use std::fs::File;
 
-use super::super::{DBFile, DBPage, PinError, Pinnable, Tuple, TupleError};
-use super::super::dbpage::EMPTY_SLOT;
-use super::super::file_manager;
-use super::super::page_tuple::{PageTuple, get_tuple_storage_size};
-use super::super::storage_manager::load_dbpage;
-use super::super::super::Schema;
-use super::super::super::expressions::Literal;
+use ::Schema;
+use ::expressions::Literal;
+use ::storage::{DBFile, DBPage, PinError, Pinnable, Tuple, TupleError};
+use ::storage::dbpage::EMPTY_SLOT;
+use ::storage::file_manager;
+use ::storage::page_tuple::{PageTuple, get_tuple_storage_size};
+use ::storage::storage_manager::load_dbpage;
 
 /// A page tuple stored in a heap file, so it has an associated slot.
 pub struct HeapFilePageTuple {

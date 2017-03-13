@@ -1,13 +1,13 @@
 //! This module contains utility functions for handling the first page of a `DBPage`, the header
 //! page.
 
-use byteorder::{BigEndian, ReadBytesExt};
 use std::io::{self, SeekFrom};
-
 use std::io::prelude::*;
 use std::ops::Deref;
 
-use super::DBPage;
+use byteorder::{BigEndian, ReadBytesExt};
+
+use ::storage::DBPage;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 /// Errors that can occur while using the header page of a [`DBFile`](../struct.DBFile.html).
@@ -111,10 +111,11 @@ mod tests {
     use std::fs::File;
     use std::io::Write;
     use std::path::PathBuf;
-    use super::*;
-    use super::super::{DBFile, storage_manager};
 
     use tempdir::TempDir;
+
+    use super::*;
+    use ::storage::{DBFile, storage_manager};
 
     lazy_static! {
         static ref DIR: TempDir = {

@@ -1,15 +1,14 @@
 //! This module contains utilities to handle NanoDB's database files.
 
-use nom::{IResult, be_u8};
-
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
-use super::PinError;
-use super::dbfile::{self, DBFile, DBFileType};
-use super::dbpage;
-use super::super::schema;
+use nom::{IResult, be_u8};
+
+use ::schema;
+use ::storage::{dbpage, PinError};
+use ::storage::dbfile::{self, DBFile, DBFileType};
 
 named!(parse_header (&[u8]) -> (u8, Result<u32, dbfile::Error>), do_parse!(
     type_id: be_u8 >>
@@ -462,10 +461,11 @@ mod tests {
     use std::io::{Cursor, Write};
     use std::path::{Path, PathBuf};
 
-    use super::{Error, FileManager, get_page_start, load_page, save_page};
-    use super::super::dbfile::{DBFile, DBFileType};
-
     use tempdir::TempDir;
+
+    use super::*;
+    use ::storage::dbfile::{DBFile, DBFileType};
+
 
     #[test]
     fn test_file_manager_creation() {

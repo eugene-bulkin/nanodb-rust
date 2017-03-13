@@ -33,9 +33,6 @@ pub mod tuple_files;
 pub mod tuple_literal;
 pub mod storage_manager;
 
-use ::ColumnType;
-use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-
 pub use self::dbfile::{DBFile, DBFileInfo, DBFileType};
 pub use self::dbpage::DBPage;
 pub use self::file_manager::FileManager;
@@ -45,7 +42,10 @@ pub use self::tuple_literal::TupleLiteral;
 
 use std::io;
 
-use super::expressions::Literal;
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+
+use ::ColumnType;
+use ::expressions::Literal;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 /// An error that may occur while pinning or unpinning a page in some file.

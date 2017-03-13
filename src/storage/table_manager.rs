@@ -4,10 +4,9 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use super::{DBFileType, FileManager, file_manager};
-use super::{Tuple, TupleError};
-use super::super::Schema;
-use super::tuple_files::{HeapFilePageTuple, HeapTupleFile};
+use ::Schema;
+use ::storage::{DBFileType, FileManager, file_manager, Tuple, TupleError};
+use ::storage::tuple_files::{HeapFilePageTuple, HeapTupleFile};
 
 /// This class represents a single table in the database, including the table's name, and the tuple
 /// file that holds the table's data.
@@ -173,11 +172,11 @@ impl TableManager {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use super::super::FileManager;
-    use super::super::super::{ColumnInfo, ColumnType, Schema};
-
     use tempdir::TempDir;
+
+    use super::*;
+    use ::{ColumnInfo, ColumnType, Schema};
+    use ::storage::FileManager;
 
     #[test]
     fn test_create_table() {

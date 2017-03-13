@@ -1,12 +1,12 @@
 //! A module which stores utilities for a basic page tuple.
 
+use std::io::{Seek, SeekFrom};
 
 use byteorder::{BigEndian, ReadBytesExt};
 
-use std::io::{Seek, SeekFrom};
-use super::{DBPage, PinError, Pinnable, ReadNanoDBExt, Tuple, TupleError};
-use super::super::{ColumnType, Schema};
-use super::super::expressions::Literal;
+use ::{ColumnType, Schema};
+use ::expressions::Literal;
+use ::storage::{DBPage, PinError, Pinnable, ReadNanoDBExt, Tuple, TupleError};
 
 /// This value is used in [`valueOffsets`](#) when a column value is set to `NULL`.
 pub static NULL_OFFSET: u16 = 0;

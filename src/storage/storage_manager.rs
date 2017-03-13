@@ -2,7 +2,7 @@
 
 use std::fs::File;
 
-use super::{DBFile, DBPage, Pinnable, file_manager};
+use ::storage::{DBFile, DBPage, Pinnable, file_manager};
 
 /// This method returns a database page to use, retrieving it from the buffer manager if it is
 /// already loaded, or reading it from the specified data file if it is not already loaded. If the
