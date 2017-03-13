@@ -141,6 +141,10 @@ impl<'a> PlanNode for NestedLoopJoinNode<'a> {
     }
 
     fn get_next_tuple(&mut self) -> PlanResult<Option<&mut Tuple>> {
+        if self.output_schema.is_none() {
+            return Err(PlanError::NodeNotPrepared);
+        }
+
         if self.done {
             return Ok(None);
         }

@@ -129,6 +129,10 @@ impl<'a> PlanNode for ProjectNode<'a> {
             env
         };
 
+        if self.input_schema.is_empty() {
+            return Err(PlanError::NodeNotPrepared);
+        }
+
         let mut result = Schema::new();
         for select_value in self.values.iter() {
             match *select_value {

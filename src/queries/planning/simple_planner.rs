@@ -35,11 +35,11 @@ impl<'a> SimplePlanner<'a> {
                 let right_child = try!(self.make_join_tree(*right.clone()));
 
                 let mut cur_node: Box<PlanNode> = Box::new(NestedLoopJoinNode::new(left_child, right_child, join_type.clone(), condition_type.clone(), clause.get_computed_join_expr()));
-                cur_node.prepare();
+                try!(cur_node.prepare());
 
                 if let Some(values) = clause.get_computed_select_values() {
                     cur_node = Box::new(ProjectNode::new(cur_node, values));
-                    cur_node.prepare();
+                    try!(cur_node.prepare());
                 }
 
                 Ok(cur_node)
