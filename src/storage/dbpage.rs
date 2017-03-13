@@ -45,8 +45,7 @@ impl ::std::fmt::Display for Error {
                 write!(f, "An IO error occurred.")
             },
             Error::TupleError(ref e) => {
-                // TODO: Make this use Display trait
-                write!(f, "{:?}", e)
+                write!(f, "{}", e)
             },
             Error::InvalidSlot(num_slots, slot) => {
                 write!(f, "Valid slots are in range [0, {}). Got {}.", num_slots, slot)

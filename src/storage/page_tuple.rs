@@ -71,7 +71,7 @@ fn get_storage_size(col_type: ColumnType, data_length: u16) -> Result<u16, Tuple
         // two-byte offset in the page.
         ColumnType::FilePointer => Ok(4),
         // Unsupported types have no size.
-        _ => Err(TupleError::UnsupportedColumnType),
+        _ => Err(TupleError::UnsupportedColumnType(col_type)),
     }
 }
 
@@ -125,10 +125,11 @@ impl PageTuple {
     }
 
     fn check_column_index(&self, col_index: usize) -> Result<(), TupleError> {
-        if col_index < self.schema.num_columns() {
+        let num_columns = self.schema.num_columns();
+        if col_index < num_columns {
             Ok(())
         } else {
-            Err(TupleError::InvalidColumnIndex)
+            Err(TupleError::InvalidColumnIndex(col_index, num_columns))
         }
     }
 
@@ -280,10 +281,10 @@ impl Tuple for PageTuple {
                 let _page_no = try!(self.db_page.read_u16::<BigEndian>());
                 let _offset = try!(self.db_page.read_u16::<BigEndian>());
                 // TODO
-                Err(TupleError::UnsupportedColumnType)
+                Err(TupleError::UnsupportedColumnType(ColumnType::FilePointer))
             }
             _ => {
-                Err(TupleError::UnsupportedColumnType)
+                Err(TupleError::UnsupportedColumnType(col_type))
             }
         }
     }

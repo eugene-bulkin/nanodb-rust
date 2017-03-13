@@ -151,8 +151,7 @@ impl ::std::fmt::Display for Error {
                 write!(f, "The expression was expecting a set of clauses and got none.")
             },
             Error::CouldNotRead(ref e) => {
-                // TODO: Display for TupleError
-                write!(f, "Could not read a value from a tuple: {:?}", e)
+                write!(f, "Could not read a value from a tuple: {}", e)
             },
             Error::Unimplemented => {
                 write!(f, "The expression's evaluation has not yet been implemented.")

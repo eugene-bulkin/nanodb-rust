@@ -45,6 +45,7 @@ pub use self::tuple_literal::TupleLiteral;
 use std::io;
 
 use super::expressions::Literal;
+use ::ColumnType;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 /// An error that may occur while pinning or unpinning a page in some file.
@@ -230,10 +231,10 @@ pub enum TupleError {
     /// For when a DBPage error occurs.
     DBPageError(dbpage::Error),
     /// For when a column type is not supported for storage.
-    UnsupportedColumnType,
+    UnsupportedColumnType(ColumnType),
     /// For when the column index provided is out of range.
-    InvalidColumnIndex,
-    /// The tuple size is too large for the page.
+    InvalidColumnIndex(usize, usize),
+    /// The tuple size is too large for the page. Format is (tuple_size, page_size).
     TupleTooBig(u16, u32),
 }
 
@@ -258,6 +259,35 @@ impl From<dbpage::Error> for TupleError {
 impl From<PinError> for TupleError {
     fn from(error: PinError) -> Self {
         TupleError::PinError(error)
+    }
+}
+
+impl ::std::fmt::Display for TupleError {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            TupleError::IOError => {
+                // TODO: What's the error?
+                write!(f, "An IO error occurred.")
+            },
+            TupleError::PinError(ref e) => {
+                write!(f, "{}", e)
+            },
+            TupleError::FileManagerError(ref e) => {
+                write!(f, "{}", e)
+            },
+            TupleError::DBPageError(ref e) => {
+                write!(f, "{}", e)
+            },
+            TupleError::UnsupportedColumnType(col_type) => {
+                write!(f, "The column type {} is unsupported for storage.", col_type)
+            },
+            TupleError::InvalidColumnIndex(index, num_cols) => {
+                write!(f, "Column index must be in range [0, {}], got {}.", num_cols - 1, index)
+            },
+            TupleError::TupleTooBig(tuple_size, page_size) => {
+                write!(f, "Tuple size {} is larger than page size {}.", tuple_size, page_size)
+            },
+        }
     }
 }
 
