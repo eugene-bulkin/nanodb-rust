@@ -8,10 +8,13 @@ use ::expressions::Expression;
 pub use self::file_scan::FileScanNode;
 pub use self::nested_loop_join::NestedLoopJoinNode;
 pub use self::project::ProjectNode;
-use super::PlanResult;
-use super::super::super::Schema;
+use super::{PlanResult, PlanError};
+use ::Schema;
 
-use super::super::super::storage::Tuple;
+use ::storage::Tuple;
+
+/// A result that returns a plan node.
+pub type NodeResult<'a> = Result<Box<PlanNode + 'a>, PlanError>;
 
 /// Represents a query plan node in its most abstract form.
 pub trait PlanNode {

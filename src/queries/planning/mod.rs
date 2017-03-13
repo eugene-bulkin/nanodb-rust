@@ -2,15 +2,14 @@
 //! costs.
 
 pub mod simple_planner;
-pub mod plan_nodes;
 
 use ::{ColumnName, schema};
 use ::column::column_name_to_string;
-pub use self::plan_nodes::{FileScanNode, NestedLoopJoinNode, PlanNode, ProjectNode};
 pub use self::simple_planner::SimplePlanner;
 
 use super::super::expressions::{Expression, ExpressionError, SelectClause};
 use super::super::storage::{FileManager, PinError, TableManager, file_manager, table_manager};
+use ::queries::{FileScanNode, NodeResult, PlanNode};
 
 /// An error that could occur during planning.
 #[derive(Clone, Debug, PartialEq)]
@@ -83,9 +82,6 @@ pub use self::Error as PlanError;
 
 /// A result that returns something and has a plan error.
 pub type PlanResult<T> = Result<T, Error>;
-
-/// A result that returns a plan node.
-pub type NodeResult<'a> = Result<Box<PlanNode + 'a>, Error>;
 
 /// Returns a plan tree for executing a simple select against a single table, whose tuples can
 /// also be used for updating and deletion.

@@ -1,6 +1,6 @@
 //! This module contains the classes and functions needed for a simple query planner.
 
-use super::{NestedLoopJoinNode, NodeResult, PlanNode, Planner, ProjectNode, make_simple_select};
+use ::queries::{NestedLoopJoinNode, NodeResult, PlanNode, Planner, ProjectNode, make_simple_select};
 use super::super::super::expressions::{FromClause, FromClauseType, JoinType, SelectClause};
 use super::super::super::storage::{FileManager, TableManager};
 

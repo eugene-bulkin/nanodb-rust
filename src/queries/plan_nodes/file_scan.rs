@@ -4,11 +4,11 @@ use std::default::Default;
 use super::PlanNode;
 
 use super::super::{PlanError, PlanResult};
-use super::super::super::super::Schema;
-use super::super::super::super::expressions::{Environment, Expression, Literal};
-use super::super::super::super::storage::{Pinnable, Tuple};
-use super::super::super::super::storage::table_manager::Table;
-use super::super::super::super::storage::tuple_files::HeapFilePageTuple;
+use ::Schema;
+use ::expressions::{Environment, Expression, Literal};
+use ::storage::{Pinnable, Tuple};
+use ::storage::table_manager::Table;
+use ::storage::tuple_files::HeapFilePageTuple;
 
 /// Checks whether the tuple fits the predicate.
 ///
@@ -45,6 +45,7 @@ pub struct FileScanNode {
     table: Table,
     jump_to_marked: bool,
     done: bool,
+    /// The predicate to filter the node with.
     pub predicate: Option<Expression>,
     current_tuple: Option<Box<HeapFilePageTuple>>,
 }
