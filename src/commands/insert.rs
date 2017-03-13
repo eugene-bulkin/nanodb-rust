@@ -1,7 +1,7 @@
-use super::{Command, ExecutionError};
-use super::super::Server;
-use super::super::expressions::Expression;
-use super::super::storage::TupleLiteral;
+use ::Server;
+use ::commands::{Command, ExecutionError};
+use ::expressions::Expression;
+use ::storage::TupleLiteral;
 
 #[derive(Debug, Clone, PartialEq)]
 /// A command for inserting rows into a table.
@@ -68,9 +68,7 @@ impl Command for InsertCommand {
                     }
                 }
             }
-            Err(e) => {
-                Err(ExecutionError::CouldNotOpenTable(self.table_name.clone(), e))
-            }
+            Err(e) => Err(ExecutionError::CouldNotOpenTable(self.table_name.clone(), e)),
         }
     }
 

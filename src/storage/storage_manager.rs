@@ -2,7 +2,7 @@
 
 use std::fs::File;
 
-use super::{DBFile, DBPage, file_manager, Pinnable};
+use ::storage::{DBFile, DBPage, Pinnable, file_manager};
 
 /// This method returns a database page to use, retrieving it from the buffer manager if it is
 /// already loaded, or reading it from the specified data file if it is not already loaded. If the
@@ -25,7 +25,7 @@ pub fn load_dbpage(dbfile: &mut DBFile<File>, page_no: u32, create: bool) -> Res
         Ok(()) => {
             page.pin();
             Ok(page)
-        },
+        }
         Err(e) => {
             page.invalidate();
             Err(e)

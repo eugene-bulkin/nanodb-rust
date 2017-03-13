@@ -11,14 +11,14 @@ pub mod select_value;
 pub use self::Error as ExpressionError;
 pub use self::environment::Environment;
 pub use self::expression::Expression;
+pub use self::from_clause::{FromClause, FromClauseType, JoinConditionType, JoinType};
 pub use self::literal::Literal;
 pub use self::processor::Processor as ExpressionProcessor;
 pub use self::select_clause::SelectClause;
-pub use self::from_clause::{FromClause, FromClauseType, JoinType, JoinConditionType};
 pub use self::select_value::SelectValue;
 
-use super::ColumnName;
-use super::storage::TupleError;
+use ::ColumnName;
+use ::storage::TupleError;
 
 fn col_name_to_string(col_name: &ColumnName) -> String {
     match *col_name {
@@ -134,28 +134,34 @@ impl ::std::fmt::Display for Error {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
             Error::AmbiguousColumnName(ref col_name) => {
-                write!(f, "The column {} is ambiguous.", col_name_to_string(col_name))
-            },
+                write!(f,
+                       "The column {} is ambiguous.",
+                       col_name_to_string(col_name))
+            }
             Error::CouldNotResolve(ref col_name) => {
-                write!(f, "The column {} could not be resolved.", col_name_to_string(col_name))
-            },
+                write!(f,
+                       "The column {} could not be resolved.",
+                       col_name_to_string(col_name))
+            }
             Error::NotNumeric(ref literal) => {
-                write!(f, "The expression was expected to evaluate to a numeric literal, got {}.",
+                write!(f,
+                       "The expression was expected to evaluate to a numeric literal, got {}.",
                        literal)
-            },
+            }
             Error::NotBoolean(ref literal) => {
-                write!(f, "The expression was expected to evaluate to a boolean literal, got {}.",
+                write!(f,
+                       "The expression was expected to evaluate to a boolean literal, got {}.",
                        literal)
-            },
+            }
             Error::EmptyExpression => {
-                write!(f, "The expression was expecting a set of clauses and got none.")
-            },
-            Error::CouldNotRead(ref e) => {
-                write!(f, "Could not read a value from a tuple: {}", e)
-            },
+                write!(f,
+                       "The expression was expecting a set of clauses and got none.")
+            }
+            Error::CouldNotRead(ref e) => write!(f, "Could not read a value from a tuple: {}", e),
             Error::Unimplemented => {
-                write!(f, "The expression's evaluation has not yet been implemented.")
-            },
+                write!(f,
+                       "The expression's evaluation has not yet been implemented.")
+            }
         }
     }
 }

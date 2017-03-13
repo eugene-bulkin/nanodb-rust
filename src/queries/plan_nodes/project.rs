@@ -1,11 +1,9 @@
 //! This module provides the project plan node.
 
-use std::default::Default;
-
-use super::super::{PlanResult, PlanError};
-use super::PlanNode;
-use ::expressions::{Expression, Environment, SelectValue};
-use ::{Schema, ColumnInfo};
+use ::{ColumnInfo, Schema};
+use ::expressions::{Environment, Expression, SelectValue};
+use ::queries::plan_nodes::PlanNode;
+use ::queries::planning::{PlanError, PlanResult};
 use ::storage::{Tuple, TupleLiteral};
 
 /// PlanNode representing the `SELECT` clause in a SQL query. This is the relational algebra Project
@@ -54,13 +52,13 @@ impl<'a> ProjectNode<'a> {
                         let value = tuple.get_column_value(*idx).unwrap();
                         result.add_value(value);
                     } else {
-                        let mut env: Environment = Default::default();
+                        let mut env = Environment::new();
                         env.add_tuple_ref(self.input_schema.clone(), tuple);
                         // TODO: Propagate error
                         let value = expression.evaluate(&mut Some(&mut env)).unwrap();
                         result.add_value(value);
                     }
-                },
+                }
                 SelectValue::WildcardColumn { ref table } => {
                     // This value is a wildcard.  Find the columns that match the
                     // wildcard, then add their values one by one.
@@ -76,7 +74,7 @@ impl<'a> ProjectNode<'a> {
                                 let value = tuple.get_column_value(idx).unwrap();
                                 result.add_value(value);
                             }
-                        },
+                        }
                         None => {
                             // No table is specified, so this is all columns in the child schema.
                             result.append_tuple(tuple);
@@ -114,16 +112,14 @@ impl<'a> PlanNode for ProjectNode<'a> {
         try!(self.get_next_tuple_helper());
 
         Ok(match self.current_tuple.as_mut() {
-            Some(mut boxed_tuple) => {
-                Some(&mut **boxed_tuple)
-            },
-            _ => { None }
+            Some(mut boxed_tuple) => Some(&mut **boxed_tuple),
+            _ => None,
         })
     }
 
     fn prepare(&mut self) -> PlanResult<()> {
         let mut default_env = {
-            let mut env: Environment = Default::default();
+            let mut env = Environment::new();
             let default_tuple = self.input_schema.default_tuple();
             env.add_tuple(self.input_schema.clone(), default_tuple);
             env
@@ -153,32 +149,38 @@ impl<'a> PlanNode for ProjectNode<'a> {
                             return Err(PlanError::Unimplemented);
                         }
                         let (ref idx, _) = matches[0];
-                        try!(result.add_column(ColumnInfo::with_name(self.input_schema[*idx].column_type, match *alias {
-                            Some(ref name) => name.clone(),
-                            None => column_name.1.clone().unwrap(),
-                        })).map_err(|_| PlanError::Unimplemented)); // TODO: Return a real error here
+                        try!(result.add_column(ColumnInfo::with_name(self.input_schema[*idx].column_type,
+                                                              match *alias {
+                                                                  Some(ref name) => name.clone(),
+                                                                  None => column_name.1.clone().unwrap(),
+                                                              }))
+                            .map_err(|_| PlanError::Unimplemented)); // TODO: Return a real error here
                     } else {
                         // First, see if we can just figure out what it is without a tuple (e.g. it's a
                         // constant expression).
                         // TODO: Return real errors here, and maybe find a way to combine the two cases.
                         if let Ok(literal) = expression.evaluate(&mut None) {
                             let col_type = literal.get_column_type();
-                            try!(result.add_column(ColumnInfo::with_name(col_type, match *alias {
-                                Some(ref name) => name.clone(),
-                                None => format!("{}", literal),
-                            })).map_err(|_| PlanError::Unimplemented));
+                            try!(result.add_column(ColumnInfo::with_name(col_type,
+                                                                  match *alias {
+                                                                      Some(ref name) => name.clone(),
+                                                                      None => format!("{}", literal),
+                                                                  }))
+                                .map_err(|_| PlanError::Unimplemented));
                         } else if let Ok(literal) = expression.evaluate(&mut Some(&mut default_env)) {
                             let col_type = literal.get_column_type();
-                            try!(result.add_column(ColumnInfo::with_name(col_type, match *alias {
-                                Some(ref name) => name.clone(),
-                                None => format!("{}", expression),
-                            })).map_err(|_| PlanError::Unimplemented));
+                            try!(result.add_column(ColumnInfo::with_name(col_type,
+                                                                  match *alias {
+                                                                      Some(ref name) => name.clone(),
+                                                                      None => format!("{}", expression),
+                                                                  }))
+                                .map_err(|_| PlanError::Unimplemented));
                         } else {
                             return Err(PlanError::Unimplemented);
                         }
                     }
                 }
-                SelectValue::WildcardColumn {ref table } => {
+                SelectValue::WildcardColumn { ref table } => {
                     // This value is a wildcard.  Find the columns that match the
                     // wildcard, then add their values one by one.
 
@@ -193,7 +195,7 @@ impl<'a> PlanNode for ProjectNode<'a> {
                                 // TODO: Return a real error here
                                 try!(result.add_column(info).map_err(|_| PlanError::Unimplemented));
                             }
-                        },
+                        }
                         None => {
                             // No table is specified, so this is all columns in the child schema.
                             try!(result.add_columns(self.input_schema.clone()).map_err(|_| PlanError::Unimplemented));

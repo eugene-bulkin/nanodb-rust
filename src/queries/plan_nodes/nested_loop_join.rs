@@ -1,9 +1,9 @@
-use std::default::Default;
+//! This module provides the nested-loops join plan node.
 
-use ::expressions::{Expression, JoinType, JoinConditionType, Environment, ExpressionError, Literal};
-use ::queries::{PlanNode, PlanResult, PlanError};
-use ::storage::{Tuple, TupleLiteral, Pinnable};
-use ::{Schema};
+use ::Schema;
+use ::expressions::{Environment, Expression, ExpressionError, JoinConditionType, JoinType, Literal};
+use ::queries::{PlanError, PlanNode, PlanResult};
+use ::storage::{Pinnable, Tuple, TupleLiteral};
 
 /// This plan node implements a nested-loops join operation, which can support arbitrary join
 /// conditions but is also the slowest join implementation.
@@ -34,7 +34,12 @@ pub struct NestedLoopJoinNode<'a> {
 
 impl<'a> NestedLoopJoinNode<'a> {
     /// Instantiate a new nested-loops join node.
-    pub fn new(left: Box<PlanNode + 'a>, right: Box<PlanNode + 'a>, join_type: JoinType, condition_type: JoinConditionType, predicate: Option<Expression>) -> NestedLoopJoinNode<'a> {
+    pub fn new(left: Box<PlanNode + 'a>,
+               right: Box<PlanNode + 'a>,
+               join_type: JoinType,
+               condition_type: JoinConditionType,
+               predicate: Option<Expression>)
+               -> NestedLoopJoinNode<'a> {
         NestedLoopJoinNode {
             left: left,
             right: right,
@@ -46,7 +51,7 @@ impl<'a> NestedLoopJoinNode<'a> {
             right_tuple: None,
             current_tuple: None,
             output_schema: None,
-            predicate: predicate
+            predicate: predicate,
         }
     }
 
@@ -72,7 +77,7 @@ impl<'a> NestedLoopJoinNode<'a> {
                 try!(left.unpin());
             }
             self.left_tuple = try!(self.left.get_next_tuple()).map(|t| TupleLiteral::from_tuple(t));
-//            self.matched = true;
+            //            self.matched = true;
 
             if self.left_tuple.is_none() {
                 self.done = true;
@@ -93,7 +98,7 @@ impl<'a> NestedLoopJoinNode<'a> {
             return Ok(true);
         }
         let predicate = self.predicate.clone().unwrap();
-        let mut env: Environment = Default::default();
+        let mut env = Environment::new();
 
         assert!(self.left_tuple.is_some());
         assert!(self.right_tuple.is_some());
@@ -110,16 +115,14 @@ impl<'a> NestedLoopJoinNode<'a> {
                 match l {
                     Literal::True => Ok(true),
                     Literal::False => Ok(false),
-                    _ => Err(PlanError::CouldNotApplyPredicate(ExpressionError::NotBoolean(l)))
+                    _ => Err(PlanError::CouldNotApplyPredicate(ExpressionError::NotBoolean(l))),
                 }
-            },
-            Err(e) => {
-                Err(PlanError::CouldNotApplyPredicate(e))
             }
+            Err(e) => Err(PlanError::CouldNotApplyPredicate(e)),
         }
     }
 
-    fn join_tuples<T1: Tuple + ?Sized, T2: Tuple + ?Sized>(&mut self, left: &mut T1, right: &mut T2)  {
+    fn join_tuples<T1: Tuple + ?Sized, T2: Tuple + ?Sized>(&mut self, left: &mut T1, right: &mut T2) {
         let mut result = TupleLiteral::new();
 
         if !self.schema_swapped {
@@ -160,10 +163,8 @@ impl<'a> PlanNode for NestedLoopJoinNode<'a> {
         }
 
         Ok(match self.current_tuple.as_mut() {
-            Some(mut boxed_tuple) => {
-                Some(&mut **boxed_tuple)
-            },
-            _ => { None }
+            Some(mut boxed_tuple) => Some(&mut **boxed_tuple),
+            _ => None,
         })
     }
 

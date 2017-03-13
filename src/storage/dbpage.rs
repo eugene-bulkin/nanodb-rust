@@ -1,14 +1,14 @@
 //! This module contains utilities to handle pages within database files for NanoDB.
 
-
-use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::io::{self, ErrorKind, SeekFrom};
 use std::io::prelude::*;
 
-use super::{DBFileInfo, PinError, Pinnable, Tuple, TupleError, WriteNanoDBExt};
-use super::page_tuple::get_null_flags_size;
-use super::super::{ColumnType, Schema};
-use super::super::expressions::Literal;
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+
+use ::{ColumnType, Schema};
+use ::expressions::Literal;
+use ::storage::{DBFileInfo, PinError, Pinnable, Tuple, TupleError, WriteNanoDBExt};
+use ::storage::page_tuple::get_null_flags_size;
 
 /// The offset in the data page where the number of slots in the slot table is stored.
 const OFFSET_NUM_SLOTS: u16 = 0;
@@ -43,21 +43,19 @@ impl ::std::fmt::Display for Error {
             Error::IOError => {
                 // TODO: What's the error?
                 write!(f, "An IO error occurred.")
-            },
-            Error::TupleError(ref e) => {
-                write!(f, "{}", e)
-            },
+            }
+            Error::TupleError(ref e) => write!(f, "{}", e),
             Error::InvalidSlot(num_slots, slot) => {
                 write!(f, "Valid slots are in range [0, {}). Got {}.", num_slots, slot)
-            },
+            }
             Error::NotEnoughFreeSpace(needed, free) => {
                 write!(f, "Requested {} bytes, but not enough free space in the page ({} bytes).",
                        needed, free)
-            },
+            }
             Error::OffsetNotInTuplePortion(offset, tuple_data_start) => {
                 write!(f, "Specified offset {} is not actually in the tuple data portion of this \
                 page (data starts at offset {}).", offset, tuple_data_start)
-            },
+            }
             Error::WrongArity(tup_size, schema_size) => {
                 write!(f, "Tuple has different arity ({} columns) than target schema ({} columns).",
                        tup_size, schema_size)
@@ -681,7 +679,7 @@ mod tests {
     use std::io::Cursor;
 
     use super::*;
-    use super::super::{DBFile, DBFileType, Pinnable, PinError};
+    use ::storage::{DBFile, DBFileType, PinError, Pinnable};
 
     #[test]
     fn test_pinning() {

@@ -1,6 +1,5 @@
-use super::{Command, ExecutionError};
-
-use super::super::{ColumnInfo, ColumnType, Schema, Server};
+use ::{ColumnInfo, ColumnType, Schema, Server};
+use ::commands::{Command, ExecutionError};
 
 #[derive(Debug, Clone, PartialEq)]
 /// A command for creating a new database object.
@@ -36,9 +35,7 @@ impl Command for CreateCommand {
                         println!("Created table {}.", &name);
                         Ok(())
                     }
-                    Err(e) => {
-                        Err(ExecutionError::CouldNotCreateTable(e))
-                    }
+                    Err(e) => Err(ExecutionError::CouldNotCreateTable(e)),
                 }
             }
             CreateCommand::View => Err(ExecutionError::Unimplemented),
@@ -52,12 +49,11 @@ impl Command for CreateCommand {
 
 #[cfg(test)]
 mod tests {
-    use super::CreateCommand;
-    use super::super::Command;
-    use super::super::super::Server;
-    use super::super::super::column::ColumnType;
-
     use tempdir::TempDir;
+
+    use super::*;
+    use ::{Server, ColumnType};
+    use ::commands::Command;
 
     #[test]
     fn test_table() {

@@ -1,7 +1,6 @@
-use super::{Command, ExecutionError};
-
-use super::super::Server;
-use super::super::storage::table_manager::get_table_file_name;
+use ::Server;
+use ::commands::{Command, ExecutionError};
+use ::storage::table_manager::get_table_file_name;
 
 #[derive(Debug, Clone, PartialEq)]
 /// A command for destroying a database object.
@@ -33,12 +32,12 @@ impl Command for DropCommand {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use super::super::{Command, CreateCommand, ExecutionError};
-    use super::super::super::Server;
-    use super::super::super::column::ColumnType;
-
     use tempdir::TempDir;
+
+    use super::*;
+    use ::{Server, ColumnType};
+    use ::commands::{Command, CreateCommand, ExecutionError};
+
 
     #[test]
     fn test_table() {

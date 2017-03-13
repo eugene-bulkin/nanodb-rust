@@ -2,10 +2,10 @@
 
 use nom::IResult::*;
 use rustyline::Editor;
-
 use rustyline::error::ReadlineError;
-use super::Server;
-use super::super::parser::statements;
+
+use ::parser::statements;
+use ::server::Server;
 
 const PROMPT: &'static str = "CMD> ";
 

@@ -1,18 +1,18 @@
 //! This module contains utilities and classes for handling table schemas.
 
-use byteorder::{BigEndian, ReadBytesExt};
-
 use std::collections::{HashMap, HashSet};
 use std::default::Default;
 use std::io;
 use std::io::{Seek, SeekFrom};
-use std::iter::{IntoIterator, FromIterator};
-use std::slice::Iter;
+use std::iter::{FromIterator, IntoIterator};
 use std::ops::Index;
+use std::slice::Iter;
 
-use super::column::{ColumnInfo, ColumnName, ColumnType, EMPTY_CHAR, EMPTY_NUMERIC, EMPTY_VARCHAR};
-use super::storage::{DBPage, ReadNanoDBExt, WriteNanoDBExt, TupleLiteral};
-use super::storage::header_page::OFFSET_SCHEMA_START;
+use byteorder::{BigEndian, ReadBytesExt};
+
+use ::column::{ColumnInfo, ColumnName, ColumnType, EMPTY_CHAR, EMPTY_NUMERIC, EMPTY_VARCHAR};
+use ::storage::{DBPage, ReadNanoDBExt, TupleLiteral, WriteNanoDBExt};
+use ::storage::header_page::OFFSET_SCHEMA_START;
 
 #[derive(Debug, Clone, PartialEq)]
 /// An error that occurs when the name of a column results in an invalid schema state.
@@ -30,17 +30,10 @@ pub enum NameError {
 impl ::std::fmt::Display for NameError {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
-            NameError::Ambiguous(ref ci) => {
-                write!(f, "The column info {} is ambiguous.", ci)
-            },
-            NameError::NoName(ref ci) => {
-                write!(f, "No columns with a name matching {} exist.", ci)
-            },
-            NameError::Duplicate(ref ci) =>
-                write!(f, "The column info {} is a duplicate of an existing one.", ci),
-            NameError::MultipleNames(ref ci) => {
-                write!(f, "Multiple columns with the same name as {} exist.", ci)
-            },
+            NameError::Ambiguous(ref ci) => write!(f, "The column info {} is ambiguous.", ci),
+            NameError::NoName(ref ci) => write!(f, "No columns with a name matching {} exist.", ci),
+            NameError::Duplicate(ref ci) => write!(f, "The column info {} is a duplicate of an existing one.", ci),
+            NameError::MultipleNames(ref ci) => write!(f, "Multiple columns with the same name as {} exist.", ci),
         }
     }
 }
@@ -66,20 +59,14 @@ impl ::std::fmt::Display for Error {
             Error::IOError => {
                 // TODO: What was the IO error?
                 write!(f, "An IO error occurred.")
-            },
+            }
             Error::ParseError => {
                 // TODO: What was the parsing error?
                 write!(f, "A parsing error occurred.")
-            },
-            Error::Name(ref e) => {
-                write!(f, "{}", e)
-            },
-            Error::NoColumns => {
-                write!(f, "All schemas must have at least one column.")
-            },
-            Error::EmptyColumnName(idx) => {
-                write!(f, "The column name at index {} does not have a name.", idx)
             }
+            Error::Name(ref e) => write!(f, "{}", e),
+            Error::NoColumns => write!(f, "All schemas must have at least one column."),
+            Error::EmptyColumnName(idx) => write!(f, "The column name at index {} does not have a name.", idx),
         }
     }
 }
@@ -131,7 +118,9 @@ impl Schema {
     }
 
     /// Checks if the schema is empty.
-    pub fn is_empty(&self) -> bool { self.column_infos.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.column_infos.is_empty()
+    }
 
     /// Creates a new schema by reading a header page.
     pub fn from_header_page(page: &mut DBPage) -> Result<Schema, Error> {
@@ -268,7 +257,7 @@ impl Schema {
     ///
     /// # Errors
     /// This constructor will fail if adding a column would fail at any point.
-    pub fn with_columns<I: IntoIterator<Item=ColumnInfo>>(column_infos: I) -> Result<Schema, Error> {
+    pub fn with_columns<I: IntoIterator<Item = ColumnInfo>>(column_infos: I) -> Result<Schema, Error> {
         let mut result = Schema::new();
         result.add_columns(column_infos).map(|_| result)
     }
@@ -316,7 +305,7 @@ impl Schema {
     ///
     /// # Errors
     /// This method will fail if adding a column would fail at any point.
-    pub fn add_columns<T: IntoIterator<Item=ColumnInfo>>(&mut self, schema: T) -> Result<(), Error> {
+    pub fn add_columns<T: IntoIterator<Item = ColumnInfo>>(&mut self, schema: T) -> Result<(), Error> {
         let result: Result<Vec<()>, Error> = schema.into_iter().map(|column| self.add_column(column)).collect();
         result.map(|_| ())
     }
@@ -460,8 +449,8 @@ impl ::std::fmt::Display for Schema {
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
-    use super::Schema;
-    use super::super::column::{ColumnInfo, ColumnType};
+
+    use ::{ColumnInfo, ColumnType, Schema};
 
     #[test]
     fn test_index() {
@@ -494,7 +483,7 @@ mod tests {
         let buffer = vec![0x00; 512];
         let mut expected = vec![0x00; 6];
         expected.extend_from_slice(&[0x01, 0x03, 0x46, 0x4F, 0x4F, 0x03, 0x01, 0x00, 0x01, 0x41, 0x16, 0x00, 0x14, 0x00,
-            0x01, 0x42, 0x01, 0x00, 0x01, 0x43]);
+                                 0x01, 0x42, 0x01, 0x00, 0x01, 0x43]);
         expected.extend_from_slice(&[0x00; 486]);
 
         let mut cursor = Cursor::new(buffer);

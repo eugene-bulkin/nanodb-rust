@@ -34,9 +34,7 @@ pub enum Error {
 impl ::std::fmt::Display for Error {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
-            Error::InvalidPageSize(size) => {
-                write!(f, "The page size {} is not valid for a DB file.", size)
-            },
+            Error::InvalidPageSize(size) => write!(f, "The page size {} is not valid for a DB file.", size),
         }
     }
 }
@@ -293,7 +291,7 @@ impl<F> PartialEq for DBFile<F>
 
 #[cfg(test)]
 mod tests {
-    use super::{Error, decode_pagesize, encode_pagesize, is_valid_pagesize};
+    use super::*;
 
     #[test]
     fn test_is_valid_pagesize() {

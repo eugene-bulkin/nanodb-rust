@@ -1,7 +1,8 @@
 //! This package contains modules that handle all query processing, including planning and
 //! evaluation.
 
-mod evaluation;
+mod plan_nodes;
 mod planning;
 
-pub use self::planning::{PlanError, Planner, PlanNode, SimplePlanner, NodeResult, PlanResult};
+pub use self::plan_nodes::{NodeResult, FileScanNode, NestedLoopJoinNode, PlanNode, ProjectNode};
+pub use self::planning::{PlanError, PlanResult, Planner, SimplePlanner, make_simple_select};

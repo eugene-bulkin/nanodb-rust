@@ -1,8 +1,7 @@
 //! A module which stores utilities for a tuple literal.
 
-
-use super::{PinError, Pinnable, Tuple, TupleError};
-use super::super::expressions::Literal;
+use ::expressions::Literal;
+use ::storage::{PinError, Pinnable, Tuple, TupleError};
 
 /// A simple implementation of the {@link Tuple} interface for storing literal tuple values.
 #[derive(Clone, Debug, PartialEq)]
@@ -16,6 +15,13 @@ impl TupleLiteral {
     /// {@link #appendTuple} method.
     pub fn new() -> TupleLiteral {
         TupleLiteral { values: vec![] }
+    }
+
+    /// Construct a new tuple-literal from an iterator of literals.
+    pub fn from_iter<I: IntoIterator<Item=Literal>>(literals: I) -> TupleLiteral {
+        TupleLiteral {
+            values: literals.into_iter().collect()
+        }
     }
 
     /// Appends the specified value to the end of the tuple-literal.
@@ -109,7 +115,7 @@ impl From<TupleLiteral> for Vec<String> {
             match tl.values[i] {
                 Literal::String(ref s) => {
                     result.push(s.clone());
-                },
+                }
                 _ => {
                     result.push(format!("{}", tl.values[i]));
                 }

@@ -1,9 +1,9 @@
-use super::{Command, ExecutionError};
-use super::utils::print_table;
-use super::super::Server;
-use super::super::expressions::SelectClause;
-use super::super::storage::{TupleLiteral};
-use super::super::queries::{Planner, SimplePlanner};
+use ::Server;
+use ::commands::{Command, ExecutionError};
+use ::commands::utils::print_table;
+use ::expressions::SelectClause;
+use ::queries::{Planner, SimplePlanner};
+use ::storage::TupleLiteral;
 
 #[derive(Debug, Clone, PartialEq)]
 /// A command for selecting rows from a table.
@@ -23,9 +23,7 @@ impl SelectCommand {
     /// * limit - Optionally, how many rows to return.
     /// * offset - Optionally, the index at which to start returning rows.
     pub fn new(select_clause: SelectClause) -> SelectCommand {
-        SelectCommand {
-            clause: select_clause,
-        }
+        SelectCommand { clause: select_clause }
     }
 }
 

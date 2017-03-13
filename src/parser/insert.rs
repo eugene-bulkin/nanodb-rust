@@ -1,8 +1,7 @@
-
-use super::expression::expression;
-use super::super::commands::InsertCommand;
-use super::super::expressions::Expression;
-use super::utils::*;
+use ::commands::InsertCommand;
+use ::expressions::Expression;
+use ::parser::expression::expression;
+use ::parser::utils::*;
 
 named!(insert_cols (&[u8]) -> Vec<String>, do_parse!(
     ws!(tag!("(")) >>
@@ -36,12 +35,12 @@ named!(pub parse (&[u8]) -> Box<InsertCommand>, do_parse!(
 
 #[cfg(test)]
 mod tests {
-
     use nom::IResult::*;
     use nom::Needed;
+
     use super::*;
-    use super::super::super::commands::InsertCommand;
-    use super::super::super::expressions::Expression;
+    use ::commands::InsertCommand;
+    use ::expressions::Expression;
 
     #[test]
     fn test_insert_cols() {

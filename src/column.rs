@@ -2,6 +2,8 @@
 
 use std::fmt;
 
+use ::expressions::Literal;
+
 /// A shorthand type for storing a column name in (table_name, column_name) form.
 pub type ColumnName = (Option<String>, Option<String>);
 
@@ -14,8 +16,6 @@ pub fn column_name_to_string(name: &ColumnName) -> String {
         (None, None) => format!("*"),
     }
 }
-
-use super::expressions::Literal;
 
 /// An empty Char column type. Useful for comparing type IDs.
 pub static EMPTY_CHAR: ColumnType = ColumnType::Char { length: 0 };
@@ -199,7 +199,9 @@ impl ColumnType {
             ColumnType::BigInt => Literal::Long(0),
             ColumnType::Float => Literal::Float(0.0),
             ColumnType::Double => Literal::Double(0.0),
-            ColumnType::Char { .. } | ColumnType::VarChar { .. } | ColumnType::Text => Literal::String("".into()),
+            ColumnType::Char { .. } |
+            ColumnType::VarChar { .. } |
+            ColumnType::Text => Literal::String("".into()),
             // TODO
             _ => Literal::Null,
         }
@@ -292,7 +294,7 @@ impl fmt::Display for ColumnInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::{ColumnInfo, ColumnType};
+    use super::*;
 
     #[test]
     fn test_column_type_display() {

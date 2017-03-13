@@ -1,6 +1,6 @@
-use super::super::column::ColumnType;
-use super::super::commands::CreateCommand;
-use super::utils::*;
+use ::column::ColumnType;
+use ::commands::CreateCommand;
+use ::parser::utils::*;
 
 named!(col_type_len (&[u8]) -> u16, do_parse!(
     ws!(tag!("(")) >>
@@ -111,9 +111,10 @@ named!(pub parse (&[u8]) -> Box<CreateCommand>, alt_complete!(create_table | cre
 #[cfg(test)]
 mod tests {
     use nom::IResult::*;
-    use super::{col_type, column_col_decl, create_table, table_col_decls};
-    use super::super::super::column::ColumnType;
-    use super::super::super::commands::CreateCommand;
+
+    use super::*;
+    use ::column::ColumnType;
+    use ::commands::CreateCommand;
 
     #[test]
     fn test_col_type() {

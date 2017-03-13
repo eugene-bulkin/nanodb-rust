@@ -1,6 +1,6 @@
 //! This module contains utilities for processing expressions.
 
-use super::Expression;
+use ::expressions::Expression;
 
 /// This trait is used to implement scans or transformations of expression trees by specifying what
 /// to do when entering or leaving each expression node. When leaving an expression node, a

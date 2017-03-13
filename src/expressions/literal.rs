@@ -26,14 +26,14 @@ pub enum Literal {
 impl ::std::fmt::Display for Literal {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
-            Literal::True => { write!(f, "TRUE") },
-            Literal::False => { write!(f, "FALSE") },
-            Literal::Null => { write!(f, "NULL") },
-            Literal::Int(num) => { write!(f, "{}", num) },
-            Literal::Long(num) => { write!(f, "{}", num) },
-            Literal::Float(num) => { write!(f, "{}", num) },
-            Literal::Double(num) => { write!(f, "{}", num) },
-            Literal::String(ref s) => { write!(f, "\'{}\'", s) },
+            Literal::True => write!(f, "TRUE"),
+            Literal::False => write!(f, "FALSE"),
+            Literal::Null => write!(f, "NULL"),
+            Literal::Int(num) => write!(f, "{}", num),
+            Literal::Long(num) => write!(f, "{}", num),
+            Literal::Float(num) => write!(f, "{}", num),
+            Literal::Double(num) => write!(f, "{}", num),
+            Literal::String(ref s) => write!(f, "\'{}\'", s),
         }
     }
 }
@@ -131,7 +131,7 @@ impl Literal {
             Literal::Long(_) => ColumnType::BigInt,
             Literal::Float(_) => ColumnType::Float,
             Literal::Double(_) => ColumnType::Double,
-            Literal::String(ref s) => ColumnType::VarChar { length : s.len() as u16 },
+            Literal::String(ref s) => ColumnType::VarChar { length: s.len() as u16 },
             Literal::Null => ColumnType::Null,
             Literal::True | Literal::False => ColumnType::TinyInt,
         }

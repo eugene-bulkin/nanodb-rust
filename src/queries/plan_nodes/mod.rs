@@ -4,14 +4,17 @@ mod file_scan;
 mod project;
 mod nested_loop_join;
 
-pub use self::project::ProjectNode;
 pub use self::file_scan::FileScanNode;
 pub use self::nested_loop_join::NestedLoopJoinNode;
+pub use self::project::ProjectNode;
 
-use super::super::super::storage::{Tuple};
-use super::super::super::Schema;
-use super::PlanResult;
+use ::Schema;
 use ::expressions::Expression;
+use ::queries::planning::{PlanResult, PlanError};
+use ::storage::Tuple;
+
+/// A result that returns a plan node.
+pub type NodeResult<'a> = Result<Box<PlanNode + 'a>, PlanError>;
 
 /// Represents a query plan node in its most abstract form.
 pub trait PlanNode {
@@ -32,11 +35,15 @@ pub trait PlanNode {
     /// Check whether the node has a predicate wrapping it. This is basically a static method for a
     /// class, defaulting to false.
     #[inline]
-    fn has_predicate(&self) -> bool { false }
+    fn has_predicate(&self) -> bool {
+        false
+    }
 
     /// Retrieve the node's wrapping predicate. Defaults to None.
     #[inline]
-    fn get_predicate(&self) -> Option<Expression> { None }
+    fn get_predicate(&self) -> Option<Expression> {
+        None
+    }
 
     /// Set the wrapping predicate if there is one.
     #[inline]

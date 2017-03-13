@@ -2,7 +2,7 @@
 
 use ::ColumnName;
 use ::column::column_name_to_string;
-use super::{ArithmeticType, CompareType, Environment, ExpressionError, Literal};
+use ::expressions::{ArithmeticType, CompareType, Environment, ExpressionError, Literal};
 
 fn coerce_literals(left: Literal, right: Literal) -> (Literal, Literal) {
     // WE ASSUME THAT BOTH LITERALS ARE ARITHMETIC HERE.
@@ -120,7 +120,7 @@ impl Expression {
         match *self {
             Expression::Arithmetic(ref left, op, ref right) => {
                 self.evaluate_arithmetic(&mut env, left.clone(), right.clone(), op)
-            },
+            }
             Expression::Compare(ref left, op, ref right) => self.evaluate_compare(env, left.clone(), right.clone(), op),
             Expression::OR(ref exprs) => {
                 if exprs.is_empty() {
@@ -179,7 +179,7 @@ impl Expression {
                 } else {
                     Literal::False
                 })
-            },
+            }
             Expression::ColumnValue(ref name) => {
                 if let Some(ref mut inner) = *env {
                     inner.get_column_value(&name)
@@ -344,41 +344,41 @@ fn wrap_expr_parens(expr: &Expression) -> String {
 impl ::std::fmt::Display for Expression {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
-            Expression::True => { write!(f, "TRUE") },
-            Expression::False => { write!(f, "FALSE") },
-            Expression::Null => { write!(f, "NULL") },
-            Expression::Int(num) => { write!(f, "{}", num) },
-            Expression::Long(num) => { write!(f, "{}", num) },
-            Expression::Float(num) => { write!(f, "{}", num) },
-            Expression::Double(num) => { write!(f, "{}", num) },
-            Expression::String(ref s) => { write!(f, "\'{}\'", s) },
+            Expression::True => write!(f, "TRUE"),
+            Expression::False => write!(f, "FALSE"),
+            Expression::Null => write!(f, "NULL"),
+            Expression::Int(num) => write!(f, "{}", num),
+            Expression::Long(num) => write!(f, "{}", num),
+            Expression::Float(num) => write!(f, "{}", num),
+            Expression::Double(num) => write!(f, "{}", num),
+            Expression::String(ref s) => write!(f, "\'{}\'", s),
             Expression::ColumnValue(ref name) => write!(f, "{}", column_name_to_string(name)),
             Expression::OR(ref exprs) => {
                 let r: Vec<_> = exprs.iter().map(|e| wrap_expr_parens(e)).collect();
                 write!(f, "{}", r.join(" OR "))
-            },
+            }
             Expression::AND(ref exprs) => {
                 let r: Vec<_> = exprs.iter().map(|e| wrap_expr_parens(e)).collect();
                 write!(f, "{}", r.join(" AND "))
-            },
+            }
             Expression::NOT(ref e) => {
                 try!(write!(f, "!"));
                 write_expr_parens(f, e)
-            },
+            }
             Expression::IsNull(ref e) => {
                 try!(write_expr_parens(f, e));
                 write!(f, " IS NULL")
-            },
+            }
             Expression::Compare(ref l, op, ref r) => {
                 try!(write_expr_parens(f, l));
                 try!(write!(f, " {} ", op));
                 write_expr_parens(f, r)
-            },
+            }
             Expression::Arithmetic(ref l, op, ref r) => {
                 try!(write_expr_parens(f, l));
                 try!(write!(f, " {} ", op));
                 write_expr_parens(f, r)
-            },
+            }
         }
     }
 }
@@ -386,7 +386,7 @@ impl ::std::fmt::Display for Expression {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::{ArithmeticType, CompareType, ExpressionError, Literal};
+    use ::expressions::{ArithmeticType, CompareType, ExpressionError, Literal};
 
     #[test]
     fn test_arithmetic() {

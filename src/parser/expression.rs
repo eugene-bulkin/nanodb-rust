@@ -1,6 +1,6 @@
-use super::literal::literal;
-use super::super::expressions::{ArithmeticType, Expression};
-use super::utils::*;
+use ::expressions::{ArithmeticType, Expression};
+use ::parser::literal::literal;
+use ::parser::utils::*;
 
 named!(base_expr (&[u8]) -> Expression, alt_complete!(
     literal_expr |
@@ -82,7 +82,7 @@ named!(relational_expr (&[u8]) -> Expression, alt_complete!(
             }
         })
     ) |
-    // TODO: LIKE, etc.
+// TODO: LIKE, etc.
     additive_expr
 ));
 
@@ -127,8 +127,9 @@ named!(pub expression (&[u8]) -> Expression, ws!(logical_or_expr));
 #[cfg(test)]
 mod tests {
     use nom::IResult::*;
+
     use super::*;
-    use super::super::super::expressions::{ArithmeticType, CompareType, Expression};
+    use ::expressions::{ArithmeticType, CompareType, Expression};
 
     #[test]
     fn test_base_expr() {

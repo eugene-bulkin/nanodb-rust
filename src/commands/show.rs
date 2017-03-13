@@ -1,6 +1,6 @@
-use super::{Command, ExecutionError};
-use super::super::Server;
-use super::utils::print_table;
+use ::Server;
+use ::commands::{Command, ExecutionError};
+use ::commands::utils::print_table;
 
 #[derive(Debug, Clone, PartialEq)]
 /// A command for showing database information.
@@ -27,11 +27,11 @@ impl Command for ShowCommand {
                         } else {
                             Ok(())
                         }
-                    },
-                    Err(e) => Err(ExecutionError::CouldNotListTables(e))
+                    }
+                    Err(e) => Err(ExecutionError::CouldNotListTables(e)),
                 }
             }
-            ShowCommand::Variables => Err(ExecutionError::Unimplemented)
+            ShowCommand::Variables => Err(ExecutionError::Unimplemented),
         }
     }
 

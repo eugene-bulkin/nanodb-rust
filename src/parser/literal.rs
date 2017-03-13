@@ -1,9 +1,8 @@
-
-
-use nom::digit;
 use std::str::{self, FromStr};
 
-use super::super::expressions::Literal;
+use nom::digit;
+
+use ::expressions::Literal;
 
 named!(string_literal (&[u8]) -> Literal, do_parse!(
     tag!("'") >>
@@ -60,6 +59,7 @@ named!(pub literal (&[u8]) -> Literal, alt_complete!(
 #[cfg(test)]
 mod tests {
     use nom::IResult::*;
+
     use super::*;
 
     #[test]
