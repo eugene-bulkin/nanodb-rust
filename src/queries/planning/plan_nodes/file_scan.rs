@@ -1,20 +1,23 @@
 //! This module provides the file scan plan node.
 
 use std::default::Default;
+use super::PlanNode;
 
 use super::super::{PlanError, PlanResult};
-use super::PlanNode;
 use super::super::super::super::Schema;
-use super::super::super::super::expressions::{Expression, Environment, Literal};
-use super::super::super::super::storage::tuple_files::HeapFilePageTuple;
-use super::super::super::super::storage::table_manager::Table;
+use super::super::super::super::expressions::{Environment, Expression, Literal};
 use super::super::super::super::storage::{Pinnable, Tuple};
+use super::super::super::super::storage::table_manager::Table;
+use super::super::super::super::storage::tuple_files::HeapFilePageTuple;
 
 /// Checks whether the tuple fits the predicate.
-    ///
-    /// # Arguments
-    /// * tuple - The tuple to verify.
-fn is_tuple_selected(predicate: Option<&Expression>, schema: Schema, tuple: &mut HeapFilePageTuple) -> PlanResult<bool> {
+///
+/// # Arguments
+/// * tuple - The tuple to verify.
+fn is_tuple_selected(predicate: Option<&Expression>,
+                     schema: Schema,
+                     tuple: &mut HeapFilePageTuple)
+                     -> PlanResult<bool> {
     match predicate {
         Some(ref expr) => {
             let mut env: Environment = Default::default();
@@ -25,8 +28,8 @@ fn is_tuple_selected(predicate: Option<&Expression>, schema: Schema, tuple: &mut
                 Ok(_) => Err(PlanError::InvalidPredicate),
                 Err(e) => Err(PlanError::CouldNotApplyPredicate(e)),
             }
-        },
-        None => Ok(true)
+        }
+        None => Ok(true),
     }
 }
 
@@ -68,13 +71,10 @@ impl FileScanNode {
             unimplemented!()
         } else {
             self.current_tuple = (match self.current_tuple {
-                Some(ref tuple) => {
-                    try!(self.table.get_next_tuple(tuple))
-                },
-                None => {
-                    try!(self.table.get_first_tuple())
-                }
-            }).map(Box::new);
+                    Some(ref tuple) => try!(self.table.get_next_tuple(tuple)),
+                    None => try!(self.table.get_first_tuple()),
+                })
+                .map(Box::new);
         }
         Ok(())
     }
@@ -95,7 +95,9 @@ impl FileScanNode {
             }
 
             let mut boxed_tuple = self.current_tuple.as_mut().unwrap();
-            let is_selected = is_tuple_selected(self.predicate.as_ref(), self.table.get_schema().clone(), &mut *boxed_tuple);
+            let is_selected = is_tuple_selected(self.predicate.as_ref(),
+                                                self.table.get_schema().clone(),
+                                                &mut *boxed_tuple);
             // If we found a tuple that satisfies the predicate, break out of the loop!
             if try!(is_selected) {
                 return Ok(());
@@ -125,18 +127,20 @@ impl PlanNode for FileScanNode {
         try!(self.get_next_tuple_helper());
 
         Ok(match self.current_tuple.as_mut() {
-            Some(mut boxed_tuple) => {
-                Some(&mut **boxed_tuple)
-            },
-            _ => { None }
+            Some(mut boxed_tuple) => Some(&mut **boxed_tuple),
+            _ => None,
         })
     }
 
     #[inline]
-    fn has_predicate(&self) -> bool { true }
+    fn has_predicate(&self) -> bool {
+        true
+    }
 
     #[inline]
-    fn get_predicate(&self) -> Option<Expression> { self.predicate.clone() }
+    fn get_predicate(&self) -> Option<Expression> {
+        self.predicate.clone()
+    }
 
     fn set_predicate(&mut self, predicate: Expression) -> PlanResult<()> {
         self.predicate = Some(predicate);

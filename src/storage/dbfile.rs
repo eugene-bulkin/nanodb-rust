@@ -34,9 +34,7 @@ pub enum Error {
 impl ::std::fmt::Display for Error {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
-            Error::InvalidPageSize(size) => {
-                write!(f, "The page size {} is not valid for a DB file.", size)
-            },
+            Error::InvalidPageSize(size) => write!(f, "The page size {} is not valid for a DB file.", size),
         }
     }
 }

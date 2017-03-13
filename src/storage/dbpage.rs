@@ -43,21 +43,19 @@ impl ::std::fmt::Display for Error {
             Error::IOError => {
                 // TODO: What's the error?
                 write!(f, "An IO error occurred.")
-            },
-            Error::TupleError(ref e) => {
-                write!(f, "{}", e)
-            },
+            }
+            Error::TupleError(ref e) => write!(f, "{}", e),
             Error::InvalidSlot(num_slots, slot) => {
                 write!(f, "Valid slots are in range [0, {}). Got {}.", num_slots, slot)
-            },
+            }
             Error::NotEnoughFreeSpace(needed, free) => {
                 write!(f, "Requested {} bytes, but not enough free space in the page ({} bytes).",
                        needed, free)
-            },
+            }
             Error::OffsetNotInTuplePortion(offset, tuple_data_start) => {
                 write!(f, "Specified offset {} is not actually in the tuple data portion of this \
                 page (data starts at offset {}).", offset, tuple_data_start)
-            },
+            }
             Error::WrongArity(tup_size, schema_size) => {
                 write!(f, "Tuple has different arity ({} columns) than target schema ({} columns).",
                        tup_size, schema_size)
@@ -681,7 +679,7 @@ mod tests {
     use std::io::Cursor;
 
     use super::*;
-    use super::super::{DBFile, DBFileType, Pinnable, PinError};
+    use super::super::{DBFile, DBFileType, PinError, Pinnable};
 
     #[test]
     fn test_pinning() {

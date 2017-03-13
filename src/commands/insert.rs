@@ -68,9 +68,7 @@ impl Command for InsertCommand {
                     }
                 }
             }
-            Err(e) => {
-                Err(ExecutionError::CouldNotOpenTable(self.table_name.clone(), e))
-            }
+            Err(e) => Err(ExecutionError::CouldNotOpenTable(self.table_name.clone(), e)),
         }
     }
 

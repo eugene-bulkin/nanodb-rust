@@ -1,13 +1,13 @@
 //! This module contains utilities to handle tables themselves, including indexing and constraints.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::cell::RefCell;
 
 use super::{DBFileType, FileManager, file_manager};
+use super::{Tuple, TupleError};
 use super::super::Schema;
-use super::tuple_files::{HeapTupleFile, HeapFilePageTuple};
-use super::{TupleError, Tuple};
+use super::tuple_files::{HeapFilePageTuple, HeapTupleFile};
 
 /// This class represents a single table in the database, including the table's name, and the tuple
 /// file that holds the table's data.
@@ -40,7 +40,9 @@ impl Table {
 
 
     /// Wrapper around the tuple file's `get_next_tuple` method.
-    pub fn get_next_tuple(&self, cur_tuple: &HeapFilePageTuple) -> Result<Option<HeapFilePageTuple>, file_manager::Error> {
+    pub fn get_next_tuple(&self,
+                          cur_tuple: &HeapFilePageTuple)
+                          -> Result<Option<HeapFilePageTuple>, file_manager::Error> {
         let mut borrowed = self.tuple_file.borrow_mut();
         let result = borrowed.get_next_tuple(cur_tuple);
         result
@@ -67,9 +69,7 @@ pub enum Error {
 impl ::std::fmt::Display for Error {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
-            Error::FileManagerError(ref e) => {
-                write!(f, "{}", e)
-            }
+            Error::FileManagerError(ref e) => write!(f, "{}", e),
         }
     }
 }
@@ -110,9 +110,7 @@ impl TableManager {
                         Err(e) => Err(Error::FileManagerError(e.into())),
                     }
                 }
-                Err(e) => {
-                    Err(e.into())
-                }
+                Err(e) => Err(e.into()),
             }
         } else {
             Ok(())

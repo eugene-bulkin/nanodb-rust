@@ -3,13 +3,13 @@
 
 use std::fs::File;
 
-use super::super::{DBFile, DBPage, Pinnable, Tuple, TupleError, PinError};
+use super::super::{DBFile, DBPage, PinError, Pinnable, Tuple, TupleError};
+use super::super::dbpage::EMPTY_SLOT;
 use super::super::file_manager;
 use super::super::page_tuple::{PageTuple, get_tuple_storage_size};
 use super::super::storage_manager::load_dbpage;
-use super::super::super::expressions::Literal;
 use super::super::super::Schema;
-use super::super::dbpage::EMPTY_SLOT;
+use super::super::super::expressions::Literal;
 
 /// A page tuple stored in a heap file, so it has an associated slot.
 pub struct HeapFilePageTuple {
@@ -27,39 +27,67 @@ impl ::std::ops::Deref for HeapFilePageTuple {
 }
 
 impl Pinnable for HeapFilePageTuple {
-    fn pin(&mut self) { self.page_tuple.pin() }
+    fn pin(&mut self) {
+        self.page_tuple.pin()
+    }
 
-    fn unpin(&mut self) -> Result<(), PinError> { self.page_tuple.unpin() }
+    fn unpin(&mut self) -> Result<(), PinError> {
+        self.page_tuple.unpin()
+    }
 
-    fn get_pin_count(&self) -> u32 { self.page_tuple.get_pin_count() }
+    fn get_pin_count(&self) -> u32 {
+        self.page_tuple.get_pin_count()
+    }
 }
 
 impl<'a> Pinnable for &'a mut HeapFilePageTuple {
-    fn pin(&mut self) { self.page_tuple.pin() }
+    fn pin(&mut self) {
+        self.page_tuple.pin()
+    }
 
-    fn unpin(&mut self) -> Result<(), PinError> { self.page_tuple.unpin() }
+    fn unpin(&mut self) -> Result<(), PinError> {
+        self.page_tuple.unpin()
+    }
 
-    fn get_pin_count(&self) -> u32 { self.page_tuple.get_pin_count() }
+    fn get_pin_count(&self) -> u32 {
+        self.page_tuple.get_pin_count()
+    }
 }
 
 impl Tuple for HeapFilePageTuple {
-    fn is_disk_backed(&self) -> bool { self.page_tuple.is_disk_backed() }
+    fn is_disk_backed(&self) -> bool {
+        self.page_tuple.is_disk_backed()
+    }
 
-    fn is_null_value(&self, col_index: usize) -> Result<bool, TupleError> { self.page_tuple.is_null_value(col_index) }
+    fn is_null_value(&self, col_index: usize) -> Result<bool, TupleError> {
+        self.page_tuple.is_null_value(col_index)
+    }
 
-    fn get_column_count(&self) -> usize { self.page_tuple.get_column_count() }
+    fn get_column_count(&self) -> usize {
+        self.page_tuple.get_column_count()
+    }
 
-    fn get_column_value(&mut self, col_index: usize) -> Result<Literal, TupleError> { self.page_tuple.get_column_value(col_index) }
+    fn get_column_value(&mut self, col_index: usize) -> Result<Literal, TupleError> {
+        self.page_tuple.get_column_value(col_index)
+    }
 }
 
 impl<'a> Tuple for &'a mut HeapFilePageTuple {
-    fn is_disk_backed(&self) -> bool { self.page_tuple.is_disk_backed() }
+    fn is_disk_backed(&self) -> bool {
+        self.page_tuple.is_disk_backed()
+    }
 
-    fn is_null_value(&self, col_index: usize) -> Result<bool, TupleError> { self.page_tuple.is_null_value(col_index) }
+    fn is_null_value(&self, col_index: usize) -> Result<bool, TupleError> {
+        self.page_tuple.is_null_value(col_index)
+    }
 
-    fn get_column_count(&self) -> usize { self.page_tuple.get_column_count() }
+    fn get_column_count(&self) -> usize {
+        self.page_tuple.get_column_count()
+    }
 
-    fn get_column_value(&mut self, col_index: usize) -> Result<Literal, TupleError> { self.page_tuple.get_column_value(col_index) }
+    fn get_column_value(&mut self, col_index: usize) -> Result<Literal, TupleError> {
+        self.page_tuple.get_column_value(col_index)
+    }
 }
 
 /// This class implements tuple file processing for heap files.
@@ -205,7 +233,7 @@ impl HeapTupleFile {
                 match e {
                     file_manager::Error::NotFullyRead => {
                         break;
-                    },
+                    }
                     _ => {
                         return Err(e);
                     }
@@ -229,7 +257,10 @@ impl HeapTupleFile {
                 // TODO: Fix error handling here
                 let mut tuple = try!(PageTuple::new(db_page, offset, self.schema.clone()).map_err(|_| file_manager::Error::IOError));
                 tuple.pin();
-                return Ok(Some(HeapFilePageTuple { page_tuple: tuple, slot: slot }));
+                return Ok(Some(HeapFilePageTuple {
+                    page_tuple: tuple,
+                    slot: slot,
+                }));
             }
 
             page_no += 1;
@@ -240,15 +271,17 @@ impl HeapTupleFile {
     /// Returns the tuple that follows the specified tuple, or `None` if there are no more tuples in
     /// the file. This method must operate correctly regardless of whether the input tuple is pinned
     /// or unpinned.
-    pub fn get_next_tuple(&mut self, cur_tuple: &HeapFilePageTuple) -> Result<Option<HeapFilePageTuple>, file_manager::Error> {
-        /* Procedure:
-         *   1)  Get slot index of current tuple.
-         *   2)  If there are more slots in the current page, find the next
-         *       non-empty slot.
-         *   3)  If we get to the end of this page, go to the next page
-         *       and try again.
-         *   4)  If we get to the end of the file, we return None.
-         */
+    pub fn get_next_tuple(&mut self,
+                          cur_tuple: &HeapFilePageTuple)
+                          -> Result<Option<HeapFilePageTuple>, file_manager::Error> {
+        // Procedure:
+        //   1)  Get slot index of current tuple.
+        //   2)  If there are more slots in the current page, find the next
+        //       non-empty slot.
+        //   3)  If we get to the end of this page, go to the next page
+        //       and try again.
+        //   4)  If we get to the end of the file, we return None.
+        //
 
         // Retrieve the location info from the previous tuple.  Since the
         // tuple (and/or its backing page) may already have a pin-count of 0,
@@ -278,7 +311,10 @@ impl HeapTupleFile {
                     // TODO: Fix error handling here
                     let mut tuple = try!(PageTuple::new(db_page, next_offset, self.schema.clone()).map_err(|_| file_manager::Error::IOError));
                     tuple.pin();
-                    return Ok(Some(HeapFilePageTuple { page_tuple: tuple, slot: next_slot }));
+                    return Ok(Some(HeapFilePageTuple {
+                        page_tuple: tuple,
+                        slot: next_slot,
+                    }));
                 }
                 next_slot += 1;
             }
@@ -291,12 +327,12 @@ impl HeapTupleFile {
                 Ok(page) => {
                     db_page = page;
                     next_slot = 0;
-                },
+                }
                 Err(e) => {
                     match e {
                         file_manager::Error::NotFullyRead => {
                             break;
-                        },
+                        }
                         _ => {
                             return Err(e);
                         }

@@ -36,9 +36,7 @@ impl Command for CreateCommand {
                         println!("Created table {}.", &name);
                         Ok(())
                     }
-                    Err(e) => {
-                        Err(ExecutionError::CouldNotCreateTable(e))
-                    }
+                    Err(e) => Err(ExecutionError::CouldNotCreateTable(e)),
                 }
             }
             CreateCommand::View => Err(ExecutionError::Unimplemented),

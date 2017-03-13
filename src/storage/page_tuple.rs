@@ -4,7 +4,7 @@
 use byteorder::{BigEndian, ReadBytesExt};
 
 use std::io::{Seek, SeekFrom};
-use super::{DBPage, PinError, Pinnable, Tuple, TupleError, ReadNanoDBExt};
+use super::{DBPage, PinError, Pinnable, ReadNanoDBExt, Tuple, TupleError};
 use super::super::{ColumnType, Schema};
 use super::super::expressions::Literal;
 
@@ -248,44 +248,42 @@ impl Tuple for PageTuple {
             ColumnType::TinyInt => {
                 let value = try!(self.db_page.read_i8());
                 Ok(Literal::Int(value as i32))
-            },
+            }
             ColumnType::SmallInt => {
                 let value = try!(self.db_page.read_i16::<BigEndian>());
                 Ok(Literal::Int(value as i32))
-            },
+            }
             ColumnType::Integer => {
                 let value = try!(self.db_page.read_i32::<BigEndian>());
                 Ok(Literal::Int(value))
-            },
+            }
             ColumnType::BigInt => {
                 let value = try!(self.db_page.read_i64::<BigEndian>());
                 Ok(Literal::Long(value))
-            },
+            }
             ColumnType::Float => {
                 let value = try!(self.db_page.read_f32::<BigEndian>());
                 Ok(Literal::Float(value))
-            },
+            }
             ColumnType::Double => {
                 let value = try!(self.db_page.read_f64::<BigEndian>());
                 Ok(Literal::Double(value))
-            },
+            }
             ColumnType::Char { length } => {
                 let value = try!(self.db_page.read_fixed_size_string(length));
                 Ok(Literal::String(value))
-            },
+            }
             ColumnType::VarChar { length: _ } => {
                 let value = try!(self.db_page.read_varchar65535());
                 Ok(Literal::String(value))
-            },
+            }
             ColumnType::FilePointer => {
                 let _page_no = try!(self.db_page.read_u16::<BigEndian>());
                 let _offset = try!(self.db_page.read_u16::<BigEndian>());
                 // TODO
                 Err(TupleError::UnsupportedColumnType(ColumnType::FilePointer))
             }
-            _ => {
-                Err(TupleError::UnsupportedColumnType(col_type))
-            }
+            _ => Err(TupleError::UnsupportedColumnType(col_type)),
         }
     }
 }

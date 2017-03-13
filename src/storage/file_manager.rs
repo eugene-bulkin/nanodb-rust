@@ -93,62 +93,32 @@ impl ::std::fmt::Display for Error {
             Error::IOError => {
                 // TODO: What's the error?
                 write!(f, "An IO error occurred.")
-            },
-            Error::CantCreateFile(ref filename) => {
-                write!(f, "Unable to create file {}", filename)
-            },
-            Error::CantOpenFile(ref filename) => {
-                write!(f, "Unable to open file {}", filename)
-            },
-            Error::CantExtendDBFile => {
-                write!(f, "Unable to extend a DB file.")
-            },
-            Error::DBFileExists(ref filename) => {
-                write!(f, "The DB file with filename {} already exists.", filename)
-            },
+            }
+            Error::CantCreateFile(ref filename) => write!(f, "Unable to create file {}", filename),
+            Error::CantOpenFile(ref filename) => write!(f, "Unable to open file {}", filename),
+            Error::CantExtendDBFile => write!(f, "Unable to extend a DB file."),
+            Error::DBFileExists(ref filename) => write!(f, "The DB file with filename {} already exists.", filename),
             Error::DBFileDoesNotExist(ref filename) => {
                 write!(f, "The DB file with filename {} does not exist.", filename)
-            },
-            Error::NotFullyWritten => {
-                write!(f, "A buffer could not be fully written.")
-            },
-            Error::NotFullyRead => {
-                write!(f, "A buffer could not be fully read.")
-            },
-            Error::PageSaveError => {
-                write!(f, "A page could not be saved properly.")
-            },
+            }
+            Error::NotFullyWritten => write!(f, "A buffer could not be fully written."),
+            Error::NotFullyRead => write!(f, "A buffer could not be fully read."),
+            Error::PageSaveError => write!(f, "A page could not be saved properly."),
             Error::IncorrectBufferSize(expected, actual) => {
                 write!(f, "Expected a buffer of size {}, got one of size {}.", expected, actual)
-            },
-            Error::InvalidDBFilePageSize(size) => {
-                write!(f, "The page size {} is not valid for a DB file.", size)
-            },
-            Error::InvalidDBFileType(type_id) => {
-                write!(f, "The file type {} is not valid for a DB file.", type_id)
-            },
-            Error::InvalidBaseDir(ref dir) => {
-                write!(f, "The base directory {} is not valid.", dir)
-            },
-            Error::FilePathsError => {
-                write!(f, "Unable to list file paths in a directory.")
-            },
+            }
+            Error::InvalidDBFilePageSize(size) => write!(f, "The page size {} is not valid for a DB file.", size),
+            Error::InvalidDBFileType(type_id) => write!(f, "The file type {} is not valid for a DB file.", type_id),
+            Error::InvalidBaseDir(ref dir) => write!(f, "The base directory {} is not valid.", dir),
+            Error::FilePathsError => write!(f, "Unable to list file paths in a directory."),
             Error::DBFileParseError => {
                 // TODO: What's the error?
                 write!(f, "An error occurred while parsing a DBFile.")
             }
-            Error::DBFileError(ref e) => {
-                write!(f, "{}", e)
-            },
-            Error::DBPageError(ref e) => {
-                write!(f, "{}", e)
-            },
-            Error::SchemaError(ref e) => {
-                write!(f, "{}", e)
-            },
-            Error::PinError(ref e) => {
-                write!(f, "{}", e)
-            }
+            Error::DBFileError(ref e) => write!(f, "{}", e),
+            Error::DBPageError(ref e) => write!(f, "{}", e),
+            Error::SchemaError(ref e) => write!(f, "{}", e),
+            Error::PinError(ref e) => write!(f, "{}", e),
         }
     }
 }
@@ -280,9 +250,7 @@ pub fn load_page(dbfile: &mut DBFile<File>, page_no: u32, mut buffer: &mut [u8],
 
                 match dbfile.set_file_length(new_length).and_then(|_| dbfile.flush()) {
                     Ok(_) => Ok(()),
-                    Err(_) => {
-                        Err(Error::CantExtendDBFile)
-                    }
+                    Err(_) => Err(Error::CantExtendDBFile),
                 }
             } else {
                 Err(Error::NotFullyRead)
@@ -405,9 +373,7 @@ impl FileManager {
                     Err(e) => Err(e.into()),
                 }
             }
-            Err(_) => {
-                Err(Error::CantCreateFile(filename.as_ref().to_string_lossy().into()))
-            },
+            Err(_) => Err(Error::CantCreateFile(filename.as_ref().to_string_lossy().into())),
         }
     }
 

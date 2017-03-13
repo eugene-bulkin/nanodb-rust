@@ -5,7 +5,7 @@ use std::default::Default;
 
 use super::{ExpressionError, Literal};
 use super::super::{ColumnName, Schema};
-use super::super::storage::{Tuple, TupleLiteral, TupleError};
+use super::super::storage::{Tuple, TupleError, TupleLiteral};
 
 /// This class holds the environment for evaluating expressions that include symbols. For example,
 /// in the SQL command:

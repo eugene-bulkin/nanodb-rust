@@ -1,9 +1,9 @@
 //! This module contains tools for using select clauses.
 
-use ::expressions::{FromClause, Expression, SelectValue};
-use ::storage::{FileManager, TableManager};
 use ::Schema;
 use ::commands::ExecutionError;
+use ::expressions::{Expression, FromClause, SelectValue};
+use ::storage::{FileManager, TableManager};
 
 /// This class represents a single `SELECT ...` statement or clause. `SELECT` statements can appear
 /// as clauses within other expressions, so the class is written to be used easily within other
@@ -66,7 +66,10 @@ impl SelectClause {
     }
 
     /// Compute the schema for this select clause.
-    pub fn compute_schema(&mut self, file_manager: &FileManager, table_manager: &TableManager) -> Result<Schema, ExecutionError> {
+    pub fn compute_schema(&mut self,
+                          file_manager: &FileManager,
+                          table_manager: &TableManager)
+                          -> Result<Schema, ExecutionError> {
         // TODO
         // For now, just return the from clause schema.
         let schema = try!(self.from_clause.compute_schema(file_manager, table_manager));

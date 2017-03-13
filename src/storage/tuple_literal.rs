@@ -109,7 +109,7 @@ impl From<TupleLiteral> for Vec<String> {
             match tl.values[i] {
                 Literal::String(ref s) => {
                     result.push(s.clone());
-                },
+                }
                 _ => {
                     result.push(format!("{}", tl.values[i]));
                 }

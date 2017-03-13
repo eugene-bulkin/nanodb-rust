@@ -82,7 +82,7 @@ named!(relational_expr (&[u8]) -> Expression, alt_complete!(
             }
         })
     ) |
-    // TODO: LIKE, etc.
+// TODO: LIKE, etc.
     additive_expr
 ));
 

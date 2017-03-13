@@ -10,14 +10,13 @@ pub enum SelectValue {
         /// The expression in the value.
         expression: Expression,
         /// An optional alias for the value.
-        alias: Option<String>
+        alias: Option<String>,
     },
     /// A wildcard expression like "`*`" or "`loan.*`" that evaluates to a set of column values
     WildcardColumn {
         /// An optional table for the wildcard.
-        table: Option<String>
-    },
-    // TODO: A scalar subquery (often correlated) that evaluates to a single column and row
+        table: Option<String>,
+    }, // TODO: A scalar subquery (often correlated) that evaluates to a single column and row
 }
 
 impl ::std::fmt::Display for SelectValue {
@@ -25,22 +24,14 @@ impl ::std::fmt::Display for SelectValue {
         match *self {
             SelectValue::Expression { ref expression, ref alias } => {
                 match *alias {
-                    Some(ref name) => {
-                        write!(f, "({}) AS {}", expression, name)
-                    },
-                    None => {
-                        write!(f, "{}", expression)
-                    }
+                    Some(ref name) => write!(f, "({}) AS {}", expression, name),
+                    None => write!(f, "{}", expression),
                 }
-            },
+            }
             SelectValue::WildcardColumn { ref table } => {
                 match *table {
-                    Some(ref name) => {
-                        write!(f, "{}.*", name)
-                    },
-                    None => {
-                        write!(f, "*")
-                    }
+                    Some(ref name) => write!(f, "{}.*", name),
+                    None => write!(f, "*"),
                 }
             }
         }

@@ -11,10 +11,10 @@ named!(pub parse (&[u8]) -> Box<DropCommand>, do_parse!(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     use nom::IResult::*;
     use nom::Needed;
+    use super::*;
 
     #[test]
     fn test_drop_parse() {

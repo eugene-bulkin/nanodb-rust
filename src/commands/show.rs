@@ -27,11 +27,11 @@ impl Command for ShowCommand {
                         } else {
                             Ok(())
                         }
-                    },
-                    Err(e) => Err(ExecutionError::CouldNotListTables(e))
+                    }
+                    Err(e) => Err(ExecutionError::CouldNotListTables(e)),
                 }
             }
-            ShowCommand::Variables => Err(ExecutionError::Unimplemented)
+            ShowCommand::Variables => Err(ExecutionError::Unimplemented),
         }
     }
 

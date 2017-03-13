@@ -1,12 +1,12 @@
 //! This module contains `FROM` clause information.
 
-use std::collections::HashSet;
-use std::default::Default;
 
 use ::{ColumnInfo, Schema};
-use ::expressions::{CompareType, Expression, SelectValue};
-use ::storage::{TableManager, FileManager};
 use ::commands::{ExecutionError, InvalidSchemaError};
+use ::expressions::{CompareType, Expression, SelectValue};
+use std::collections::HashSet;
+use std::default::Default;
+use ::storage::{FileManager, TableManager};
 
 /// For FROM clauses that contain join expressions, this enumeration specifies the kind of
 /// join-condition for each join expression.
@@ -92,7 +92,12 @@ impl ::std::ops::Deref for FromClause {
     }
 }
 
-fn build_join_schema(left: Schema, right: Schema, common: HashSet<String>, result: &mut Schema, join_type: JoinType) -> Result<(Option<Expression>, Option<Vec<SelectValue>>), ExecutionError> {
+fn build_join_schema(left: Schema,
+                     right: Schema,
+                     common: HashSet<String>,
+                     result: &mut Schema,
+                     join_type: JoinType)
+                     -> Result<(Option<Expression>, Option<Vec<SelectValue>>), ExecutionError> {
     let mut join_expr = None;
     let mut select_values = Vec::new();
 
@@ -134,18 +139,18 @@ fn build_join_schema(left: Schema, right: Schema, common: HashSet<String>, resul
                         expression: Expression::ColumnValue(left_info.get_column_name()),
                         alias: Some(name.clone()),
                     });
-                },
+                }
                 JoinType::RightOuter => {
                     // We can use the right column in the result, as it will always be non-NULL.
                     select_values.push(SelectValue::Expression {
                         expression: Expression::ColumnValue(right_info.get_column_name()),
                         alias: Some(name.clone()),
                     });
-                },
+                }
                 JoinType::FullOuter => {
                     // TODO: Need function calls here to use COALESCE.
                     return Err(ExecutionError::Unimplemented);
-                },
+                }
                 _ => {
                     // Do nothing...?
                 }
@@ -168,12 +173,13 @@ fn build_join_schema(left: Schema, right: Schema, common: HashSet<String>, resul
                         alias: None,
                     });
                 }
-            },
+            }
             _ => {}
         }
     }
 
-    Ok((join_expr, if select_values.is_empty() {
+    Ok((join_expr,
+        if select_values.is_empty() {
         None
     } else {
         Some(select_values)
@@ -200,7 +206,7 @@ pub enum FromClauseType {
         join_type: JoinType,
         /// The join condition type.
         condition_type: JoinConditionType,
-    }
+    },
 }
 
 impl ::std::fmt::Display for FromClauseType {
@@ -228,14 +234,17 @@ impl FromClause {
     }
 
     /// Instantiate a FROM clause that is a join expression.
-    pub fn join_expression(left: Box<FromClause>, right: Box<FromClause>, join_type: JoinType,
-    condition_type: JoinConditionType) -> FromClause {
+    pub fn join_expression(left: Box<FromClause>,
+                           right: Box<FromClause>,
+                           join_type: JoinType,
+                           condition_type: JoinConditionType)
+                           -> FromClause {
         FromClause {
             clause_type: FromClauseType::JoinExpression {
                 left: left,
                 right: right,
                 join_type: join_type,
-                condition_type: condition_type
+                condition_type: condition_type,
             },
             computed_schema: None,
             computed_join_expr: None,
@@ -254,7 +263,10 @@ impl FromClause {
     }
 
     /// Calculate the schema and computed join expression for the FROM clause.
-    pub fn compute_schema(&mut self, file_manager: &FileManager, table_manager: &TableManager) -> Result<Schema, ExecutionError> {
+    pub fn compute_schema(&mut self,
+                          file_manager: &FileManager,
+                          table_manager: &TableManager)
+                          -> Result<Schema, ExecutionError> {
         let result = match self.clause_type {
             FromClauseType::BaseTable { ref table, ref alias } => {
                 debug!("Preparing BASE_TABLE from-clause.");
@@ -268,7 +280,7 @@ impl FromClause {
 
                 self.computed_schema = Some(schema.clone());
                 schema.clone()
-            },
+            }
             FromClauseType::JoinExpression { ref mut left, ref mut right, ref condition_type, ref join_type } => {
                 debug!("Preparing JOIN_EXPR from-clause.  Condition type = {:?}", condition_type);
 
@@ -291,14 +303,15 @@ impl FromClause {
                         }
 
                         println!("{}", schema);
-                        let built = try!(build_join_schema(left_schema, right_schema, common_cols, &mut schema, *join_type));
+                        let built =
+                            try!(build_join_schema(left_schema, right_schema, common_cols, &mut schema, *join_type));
                         println!("{}", schema);
                         self.computed_join_expr = built.0;
                         self.computed_select_values = built.1;
-                    },
+                    }
                     JoinConditionType::Using(ref names) => {
                         return Err(ExecutionError::Unimplemented);
-                    },
+                    }
                     JoinConditionType::OnExpr(ref expr) => {
                         try!(schema.add_columns(left_schema));
                         try!(schema.add_columns(right_schema));
@@ -324,7 +337,7 @@ impl ::std::fmt::Display for FromClause {
                 if let Some(ref name) = *alias {
                     try!(write!(f, " AS {}", name));
                 }
-            },
+            }
             FromClauseType::JoinExpression { ref left, ref right, ref join_type, ref condition_type } => {
                 try!(write!(f, ", join_type={}", join_type));
                 try!(write!(f, ", cond_type={}", condition_type));
@@ -332,11 +345,11 @@ impl ::std::fmt::Display for FromClause {
                 match *condition_type {
                     JoinConditionType::NaturalJoin => {
                         try!(write!(f, ", computed_join_expr={}", self.computed_join_expr.clone().unwrap()));
-                    },
+                    }
                     JoinConditionType::Using(ref names) => {
                         try!(write!(f, ", using_names={:?}", names));
                         try!(write!(f, ", computed_join_expr={}", self.computed_join_expr.clone().unwrap()));
-                    },
+                    }
                     JoinConditionType::OnExpr(ref expr) => {
                         if *expr != Expression::True {
                             try!(write!(f, ", on_expr={}", expr));

@@ -1,10 +1,10 @@
 //! A module handling the parsing of select clauses.
 
+use ::expressions::{Expression, FromClause, JoinConditionType, JoinType, SelectClause, SelectValue};
 use std::default::Default;
+use super::expression::expression;
 
 use super::super::commands::SelectCommand;
-use ::expressions::{Expression, SelectClause, FromClause, JoinType, JoinConditionType, SelectValue};
-use super::expression::expression;
 use super::utils::*;
 
 named!(select_value (&[u8]) -> SelectValue, alt_complete!(
@@ -194,9 +194,9 @@ named!(pub parse (&[u8]) -> Box<SelectCommand>, do_parse!(
 
 #[cfg(test)]
 mod tests {
-    use nom::IResult::*;
     use ::commands::SelectCommand;
-    use ::expressions::{Expression, SelectClause, FromClause, JoinConditionType, JoinType, SelectValue};
+    use ::expressions::{Expression, FromClause, JoinConditionType, JoinType, SelectClause, SelectValue};
+    use nom::IResult::*;
     use super::*;
 
     #[test]
@@ -265,8 +265,18 @@ mod tests {
         let fc1 = FromClause::base_table(kw1, None);
         let fc2 = FromClause::base_table(kw2, None);
 
-        let result1 = SelectCommand::new(SelectClause::new(fc1, false, vec![SelectValue::WildcardColumn { table: None }], None, None, None));
-        let result2 = SelectCommand::new(SelectClause::new(fc2, false, vec![SelectValue::WildcardColumn { table: None }], None, None, None));
+        let result1 = SelectCommand::new(SelectClause::new(fc1,
+                                                           false,
+                                                           vec![SelectValue::WildcardColumn { table: None }],
+                                                           None,
+                                                           None,
+                                                           None));
+        let result2 = SelectCommand::new(SelectClause::new(fc2,
+                                                           false,
+                                                           vec![SelectValue::WildcardColumn { table: None }],
+                                                           None,
+                                                           None,
+                                                           None));
         //        let result3 = Statement::Select {
         //            value: Value::All,
         //            distinct: false,

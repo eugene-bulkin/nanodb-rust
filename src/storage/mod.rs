@@ -33,6 +33,7 @@ pub mod tuple_files;
 pub mod tuple_literal;
 pub mod storage_manager;
 
+use ::ColumnType;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 pub use self::dbfile::{DBFile, DBFileInfo, DBFileType};
@@ -45,7 +46,6 @@ pub use self::tuple_literal::TupleLiteral;
 use std::io;
 
 use super::expressions::Literal;
-use ::ColumnType;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 /// An error that may occur while pinning or unpinning a page in some file.
@@ -58,9 +58,7 @@ pub enum PinError {
 impl ::std::fmt::Display for PinError {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
-            PinError::PinCountNotPositive(count) => {
-                write!(f, "pinCount is not positive (value is {})", count)
-            }
+            PinError::PinCountNotPositive(count) => write!(f, "pinCount is not positive (value is {})", count),
         }
     }
 }
@@ -268,25 +266,19 @@ impl ::std::fmt::Display for TupleError {
             TupleError::IOError => {
                 // TODO: What's the error?
                 write!(f, "An IO error occurred.")
-            },
-            TupleError::PinError(ref e) => {
-                write!(f, "{}", e)
-            },
-            TupleError::FileManagerError(ref e) => {
-                write!(f, "{}", e)
-            },
-            TupleError::DBPageError(ref e) => {
-                write!(f, "{}", e)
-            },
+            }
+            TupleError::PinError(ref e) => write!(f, "{}", e),
+            TupleError::FileManagerError(ref e) => write!(f, "{}", e),
+            TupleError::DBPageError(ref e) => write!(f, "{}", e),
             TupleError::UnsupportedColumnType(col_type) => {
                 write!(f, "The column type {} is unsupported for storage.", col_type)
-            },
+            }
             TupleError::InvalidColumnIndex(index, num_cols) => {
                 write!(f, "Column index must be in range [0, {}], got {}.", num_cols - 1, index)
-            },
+            }
             TupleError::TupleTooBig(tuple_size, page_size) => {
                 write!(f, "Tuple size {} is larger than page size {}.", tuple_size, page_size)
-            },
+            }
         }
     }
 }

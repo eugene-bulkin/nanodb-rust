@@ -57,9 +57,9 @@ pub use self::select::SelectCommand;
 pub use self::show::ShowCommand;
 
 use super::expressions::{Expression, ExpressionError};
+use super::queries::PlanError;
 use super::schema;
 use super::storage::{PinError, file_manager, table_manager};
-use super::queries::PlanError;
 
 /// An invalid schema error that occurred during execution.
 #[derive(Debug, Clone, PartialEq)]
@@ -75,14 +75,14 @@ impl ::std::fmt::Display for InvalidSchemaError {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
             InvalidSchemaError::LeftSchemaDuplicates => {
-                write!(f, "left child table has multiple columns with same column name")
-            },
+                write!(f,
+                       "left child table has multiple columns with same column name")
+            }
             InvalidSchemaError::RightSchemaDuplicates => {
-                write!(f, "right child table has multiple columns with same column name")
-            },
-            InvalidSchemaError::NoShared => {
-                write!(f, "child tables share no common column names")
-            },
+                write!(f,
+                       "right child table has multiple columns with same column name")
+            }
+            InvalidSchemaError::NoShared => write!(f, "child tables share no common column names"),
         }
     }
 }
@@ -143,51 +143,30 @@ impl From<ExpressionError> for ExecutionError {
 impl ::std::fmt::Display for ExecutionError {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
-            ExecutionError::InvalidSchema(ref e) => {
-                write!(f, "Invalid schema error: {}", e)
-            }
+            ExecutionError::InvalidSchema(ref e) => write!(f, "Invalid schema error: {}", e),
             ExecutionError::CannotStoreExpression(ref column, ref expr) => {
-                write!(f, "The expression {} cannot be stored in column {}.", expr, column)
+                write!(f,
+                       "The expression {} cannot be stored in column {}.",
+                       expr,
+                       column)
             }
             ExecutionError::ColumnDoesNotExist(ref column) => {
-                write!(f, "The column {} does not exist in the schema of the table.", column)
-            },
-            ExecutionError::CouldNotCreateSchema(ref e) => {
-                write!(f, "Unable to create schema. {}", e)
-            },
-            ExecutionError::CouldNotComputeSchema(ref e) => {
-                write!(f, "Unable to compute schema. {}", e)
-            },
-            ExecutionError::CouldNotCreateTable(ref e) => {
-                write!(f, "Unable to create table. {}", e)
-            },
-            ExecutionError::CouldNotDeleteTable(ref e) => {
-                write!(f, "Unable to delete table. {}", e)
-            },
-            ExecutionError::CouldNotListTables(ref e) => {
-                write!(f, "Unable to list tables. {}", e)
-            },
-            ExecutionError::CouldNotOpenTable(ref name, ref e) => {
-                write!(f, "Unable to open table {}. {}", name, e)
-            },
-            ExecutionError::CouldNotGetNextTuple(ref e) => {
-                write!(f, "Unable to retrieve another tuple. {}", e)
-            },
-            ExecutionError::CouldNotExecutePlan(ref e) => {
-                write!(f, "Unable to execute plan. {}", e)
-            },
-            ExecutionError::Unimplemented => {
-                write!(f, "The requested command is not yet implemented.")
-            },
-            ExecutionError::TableDoesNotExist(ref name) => {
-                write!(f, "The table {} does not exist.", name)
-            },
-            ExecutionError::ExpressionError(ref e) => {
-                write!(f, "{}", e)
+                write!(f,
+                       "The column {} does not exist in the schema of the table.",
+                       column)
             }
-            ExecutionError::PinError(ref e) => {
-                write!(f, "{}", e)
-            }
+            ExecutionError::CouldNotCreateSchema(ref e) => write!(f, "Unable to create schema. {}", e),
+            ExecutionError::CouldNotComputeSchema(ref e) => write!(f, "Unable to compute schema. {}", e),
+            ExecutionError::CouldNotCreateTable(ref e) => write!(f, "Unable to create table. {}", e),
+            ExecutionError::CouldNotDeleteTable(ref e) => write!(f, "Unable to delete table. {}", e),
+            ExecutionError::CouldNotListTables(ref e) => write!(f, "Unable to list tables. {}", e),
+            ExecutionError::CouldNotOpenTable(ref name, ref e) => write!(f, "Unable to open table {}. {}", name, e),
+            ExecutionError::CouldNotGetNextTuple(ref e) => write!(f, "Unable to retrieve another tuple. {}", e),
+            ExecutionError::CouldNotExecutePlan(ref e) => write!(f, "Unable to execute plan. {}", e),
+            ExecutionError::Unimplemented => write!(f, "The requested command is not yet implemented."),
+            ExecutionError::TableDoesNotExist(ref name) => write!(f, "The table {} does not exist.", name),
+            ExecutionError::ExpressionError(ref e) => write!(f, "{}", e),
+            ExecutionError::PinError(ref e) => write!(f, "{}", e),
         }
     }
 }

@@ -199,7 +199,9 @@ impl ColumnType {
             ColumnType::BigInt => Literal::Long(0),
             ColumnType::Float => Literal::Float(0.0),
             ColumnType::Double => Literal::Double(0.0),
-            ColumnType::Char { .. } | ColumnType::VarChar { .. } | ColumnType::Text => Literal::String("".into()),
+            ColumnType::Char { .. } |
+            ColumnType::VarChar { .. } |
+            ColumnType::Text => Literal::String("".into()),
             // TODO
             _ => Literal::Null,
         }
