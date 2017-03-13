@@ -1,30 +1,49 @@
 //! This module contains utilities to handle tables themselves, including indexing and constraints.
 
 use std::collections::HashMap;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 use super::{DBFileType, FileManager, file_manager};
 use super::super::Schema;
-use super::tuple_files::HeapTupleFile;
+use super::tuple_files::{HeapTupleFile, HeapFilePageTuple};
+use super::{TupleError, Tuple};
 
 /// This class represents a single table in the database, including the table's name, and the tuple
 /// file that holds the table's data.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Table {
     /// The name of the table.
     pub name: Option<String>,
-    tuple_file: HeapTupleFile,
+    tuple_file: Rc<RefCell<HeapTupleFile>>,
 }
 
-impl ::std::ops::Deref for Table {
-    type Target = HeapTupleFile;
-    fn deref(&self) -> &Self::Target {
-        &self.tuple_file
+impl Table {
+    /// Retrieve the schema from the tuple file.
+    pub fn get_schema(&self) -> Schema {
+        self.tuple_file.borrow().schema.clone()
     }
-}
 
-impl ::std::ops::DerefMut for Table {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.tuple_file
+    /// Wrapper around the tuple file's `add_tuple` method.
+    pub fn add_tuple<'a, T: Tuple + 'a>(&self, tuple: T) -> Result<Box<Tuple + 'a>, TupleError> {
+        let mut borrowed = self.tuple_file.borrow_mut();
+        let result = borrowed.add_tuple(tuple);
+        result
+    }
+
+    /// Wrapper around the tuple file's `get_first_tuple` method.
+    pub fn get_first_tuple(&self) -> Result<Option<HeapFilePageTuple>, file_manager::Error> {
+        let mut borrowed = self.tuple_file.borrow_mut();
+        let result = borrowed.get_first_tuple();
+        result
+    }
+
+
+    /// Wrapper around the tuple file's `get_next_tuple` method.
+    pub fn get_next_tuple(&self, cur_tuple: &HeapFilePageTuple) -> Result<Option<HeapFilePageTuple>, file_manager::Error> {
+        let mut borrowed = self.tuple_file.borrow_mut();
+        let result = borrowed.get_next_tuple(cur_tuple);
+        result
     }
 }
 
@@ -63,51 +82,59 @@ impl From<file_manager::Error> for Error {
 
 /// This class provides utilities for tables that can have indexes and constraints on them.
 pub struct TableManager {
-    open_tables: HashMap<String, Table>,
+    open_tables: RefCell<HashMap<String, Table>>,
 }
 
 impl TableManager {
     /// Instantiates the table manager.
     pub fn new() -> TableManager {
-        TableManager { open_tables: HashMap::new() }
+        TableManager { open_tables: RefCell::new(HashMap::new()) }
     }
 
-    /// Return a reference to a table, if it exists, from the table manager.
-    ///
-    /// # Arguments
-    /// * name - The name of the table.
-    pub fn get_table<S: Into<String>>(&mut self, file_manager: &FileManager, name: S) -> Result<&mut Table, Error> {
+    fn insert_if_needed<S: Into<String>>(&self, file_manager: &FileManager, name: S) -> Result<(), Error> {
         let name = name.into();
 
-        if !self.open_tables.contains_key(&name) {
+        if !self.open_tables.borrow().contains_key(&name) {
             match file_manager.open_dbfile(get_table_file_name(name.as_ref())) {
                 Ok(db_file) => {
                     match HeapTupleFile::open(db_file) {
                         Ok(tuple_file) => {
                             let table = Table {
                                 name: name.clone().into(),
-                                tuple_file: tuple_file,
+                                tuple_file: Rc::new(RefCell::new(tuple_file)),
                             };
 
-                            self.open_tables.insert(name.clone(), table);
-                            Ok(self.open_tables.get_mut(&name).unwrap())
+                            self.open_tables.borrow_mut().insert(name.clone(), table);
+                            Ok(())
                         }
                         Err(e) => Err(Error::FileManagerError(e.into())),
                     }
                 }
                 Err(e) => {
-                    return Err(e.into());
+                    Err(e.into())
                 }
             }
         } else {
-            Ok(self.open_tables.get_mut(&name).unwrap())
+            Ok(())
         }
+    }
+
+    /// Return a reference to a table, if it exists, from the table manager.
+    ///
+    /// # Arguments
+    /// * name - The name of the table.
+    pub fn get_table<S: Into<String>>(&self, file_manager: &FileManager, name: S) -> Result<Table, Error> {
+        let name = name.into();
+
+        try!(self.insert_if_needed(file_manager, name.as_ref()));
+
+        Ok(self.open_tables.borrow().get(&name).unwrap().clone())
     }
 
     /// Checks if a table with the given name exists.
     pub fn table_exists<S: Into<String>>(&self, file_manager: &FileManager, name: S) -> bool {
         let name = name.into();
-        match self.open_tables.get(&name) {
+        match self.open_tables.borrow().get(&name) {
             Some(_) => true,
             _ => file_manager.dbfile_exists(get_table_file_name(name)),
         }
@@ -118,7 +145,7 @@ impl TableManager {
     /// [`Schema`](../schema/struct.Schema.html) object.
     ///
     /// TODO: Add properties
-    pub fn create_table<S: Into<String>>(&mut self,
+    pub fn create_table<S: Into<String>>(&self,
                                          file_manager: &FileManager,
                                          table_name: S,
                                          schema: Schema)
@@ -134,10 +161,10 @@ impl TableManager {
 
                 let table = Table {
                     name: table_name.clone().into(),
-                    tuple_file: tuple_file,
+                    tuple_file: Rc::new(RefCell::new(tuple_file)),
                 };
 
-                self.open_tables.insert(table_name, table);
+                self.open_tables.borrow_mut().insert(table_name, table);
 
                 Ok(())
             }
@@ -159,7 +186,7 @@ mod tests {
         const TABLE_NAME: &'static str = "foo";
         let dir = TempDir::new("test_dbfiles").expect("Unable to create test_dbfiles directory!");
         let file_manager = FileManager::with_directory(dir.path()).unwrap();
-        let mut table_manager = TableManager::new();
+        let table_manager = TableManager::new();
 
         let schema = Schema::with_columns(vec![
             ColumnInfo::with_name(ColumnType::Integer, "A"),
@@ -171,6 +198,6 @@ mod tests {
 
         let table = table_manager.get_table(&file_manager, TABLE_NAME).unwrap();
 
-        assert_eq!(table.tuple_file.schema, schema);
+        assert_eq!(table.get_schema(), schema);
     }
 }

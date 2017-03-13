@@ -1,8 +1,10 @@
 use super::literal::literal;
 use super::super::expressions::{ArithmeticType, Expression};
+use super::utils::*;
 
 named!(base_expr (&[u8]) -> Expression, alt_complete!(
     literal_expr |
+    column_name_expr |
     do_parse!(
         ws!(tag!("(")) >>
         e: logical_or_expr >>
@@ -12,6 +14,7 @@ named!(base_expr (&[u8]) -> Expression, alt_complete!(
 ));
 
 named!(literal_expr (&[u8]) -> Expression, map!(literal, Into::into));
+named!(column_name_expr (&[u8]) -> Expression, map!(column_name, Into::into));
 
 named!(unary_op_expr (&[u8]) -> Expression, alt_complete!(
     do_parse!(
@@ -128,8 +131,11 @@ mod tests {
     use super::super::super::expressions::{ArithmeticType, CompareType, Expression};
 
     #[test]
-    fn test_literal_exprs() {
-        assert_eq!(Done(&[][..], Expression::Int(234)), literal_expr(b"234"));
+    fn test_base_expr() {
+        assert_eq!(Done(&[][..], Expression::Int(234)), base_expr(b"234"));
+        assert_eq!(Done(&[][..], Expression::ColumnValue((None, Some("A".into())))), base_expr(b"a"));
+        assert_eq!(Done(&[][..], Expression::ColumnValue((Some("B".into()), Some("A".into())))), base_expr(b"b.a"));
+        assert_eq!(Done(&[][..], Expression::ColumnValue((Some("B".into()), None))), base_expr(b"b.*"));
     }
 
     #[test]
@@ -185,5 +191,8 @@ mod tests {
         assert_eq!(Done(&[][..], Expression::Compare(Box::new(Expression::Int(3)), CompareType::GreaterThanEqual, Box::new(Expression::Int(4)))), relational_expr(b"3 >= 4"));
         assert_eq!(Done(&[][..], Expression::IsNull(Box::new(Expression::Int(3)))), relational_expr(b"3 IS NULL"));
         assert_eq!(Done(&[][..], Expression::NOT(Box::new(Expression::IsNull(Box::new(Expression::Int(3)))))), relational_expr(b"3 IS NOT NULL"));
+
+        assert_eq!(Done(&[][..], Expression::Compare(Box::new(Expression::ColumnValue((None, Some("A".into())))), CompareType::LessThanEqual, Box::new(Expression::Int(4)))), relational_expr(b"a <= 4"));
+        assert_eq!(Done(&[][..], Expression::Compare(Box::new(Expression::ColumnValue((Some("B".into()), Some("A".into())))), CompareType::GreaterThan, Box::new(Expression::Int(4)))), relational_expr(b"b.a > 4"));
     }
 }

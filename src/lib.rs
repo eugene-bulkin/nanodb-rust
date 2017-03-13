@@ -20,6 +20,7 @@ pub mod schema;
 pub mod commands;
 pub mod server;
 pub mod expressions;
+pub mod queries;
 
 pub use column::{ColumnInfo, ColumnName, ColumnType};
 pub use schema::Schema;

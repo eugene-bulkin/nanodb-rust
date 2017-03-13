@@ -35,7 +35,7 @@ impl TupleLiteral {
     ///
     /// # Arguments
     /// * tuple - the tuple to make a copy of
-    pub fn from_tuple<T: Tuple>(tuple: &mut T) -> TupleLiteral {
+    pub fn from_tuple<T: Tuple + ?Sized>(tuple: &mut T) -> TupleLiteral {
         let mut result = TupleLiteral::new();
         result.append_tuple(tuple);
         result
@@ -45,7 +45,7 @@ impl TupleLiteral {
     ///
     /// # Arguments
     /// * tuple - the tuple data to copy into this tuple-literal
-    pub fn append_tuple<T: Tuple>(&mut self, tuple: &mut T) {
+    pub fn append_tuple<T: Tuple + ?Sized>(&mut self, tuple: &mut T) {
         for i in 0..tuple.get_column_count() {
             self.values.push(tuple.get_column_value(i).unwrap())
         }

@@ -59,18 +59,53 @@ pub use self::show::ShowCommand;
 use super::expressions::{Expression, ExpressionError};
 use super::schema;
 use super::storage::{PinError, file_manager, table_manager};
+use super::queries::PlanError;
+
+/// An invalid schema error that occurred during execution.
+#[derive(Debug, Clone, PartialEq)]
+pub enum InvalidSchemaError {
+    /// The left schema has ambiguous column names.
+    LeftSchemaDuplicates,
+    /// The right schema has ambiguous column names.
+    RightSchemaDuplicates,
+    /// The schemas for a NATURAL JOIN don't share column names.
+    NoShared,
+}
+impl ::std::fmt::Display for InvalidSchemaError {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            InvalidSchemaError::LeftSchemaDuplicates => {
+                write!(f, "left child table has multiple columns with same column name")
+            },
+            InvalidSchemaError::RightSchemaDuplicates => {
+                write!(f, "right child table has multiple columns with same column name")
+            },
+            InvalidSchemaError::NoShared => {
+                write!(f, "child tables share no common column names")
+            },
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 /// An error that occurred while attempting to execute a command.
 pub enum ExecutionError {
+    /// One or more schemas passed in are not valid.
+    InvalidSchema(InvalidSchemaError),
     /// Unable to construct a schema given the column information provided.
     CouldNotCreateSchema(schema::Error),
+    /// The command was unable to compute a schema.
+    CouldNotComputeSchema(table_manager::Error),
     /// The command tried to open a given table and was unable to.
     CouldNotOpenTable(String, table_manager::Error),
     /// The command was unable to create the table.
     CouldNotCreateTable(table_manager::Error),
     /// The command could not list tables successfully.
     CouldNotListTables(file_manager::Error),
+    /// Could not get another tuple in the plan.
+    CouldNotGetNextTuple(PlanError),
+    /// Could not execute a plan.
+    CouldNotExecutePlan(PlanError),
     /// The table requested does not exist.
     TableDoesNotExist(String),
     /// The column named does not exist.
@@ -108,6 +143,9 @@ impl From<ExpressionError> for ExecutionError {
 impl ::std::fmt::Display for ExecutionError {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
+            ExecutionError::InvalidSchema(ref e) => {
+                write!(f, "Invalid schema error: {}", e)
+            }
             ExecutionError::CannotStoreExpression(ref column, ref expr) => {
                 write!(f, "The expression {} cannot be stored in column {}.", expr, column)
             }
@@ -116,6 +154,9 @@ impl ::std::fmt::Display for ExecutionError {
             },
             ExecutionError::CouldNotCreateSchema(ref e) => {
                 write!(f, "Unable to create schema. {}", e)
+            },
+            ExecutionError::CouldNotComputeSchema(ref e) => {
+                write!(f, "Unable to compute schema. {}", e)
             },
             ExecutionError::CouldNotCreateTable(ref e) => {
                 write!(f, "Unable to create table. {}", e)
@@ -128,6 +169,14 @@ impl ::std::fmt::Display for ExecutionError {
             },
             ExecutionError::CouldNotOpenTable(ref name, ref e) => {
                 write!(f, "Unable to open table {}. {}", name, e)
+            },
+            ExecutionError::CouldNotGetNextTuple(ref e) => {
+                // TODO: Display for PlanError.
+                write!(f, "Unable to retrieve another tuple. {:?}", e)
+            },
+            ExecutionError::CouldNotExecutePlan(ref e) => {
+                // TODO: Display for PlanError.
+                write!(f, "Unable to execute plan. {:?}", e)
             },
             ExecutionError::Unimplemented => {
                 write!(f, "The requested command is not yet implemented.")

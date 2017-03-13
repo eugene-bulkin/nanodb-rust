@@ -21,5 +21,5 @@ fern = "0.3.5"
 log = "0.3.6"
 
 [dependencies.nom]
-version = "^2.0.1"
+version = "^2.1.0"
 features = ["verbose-errors"]

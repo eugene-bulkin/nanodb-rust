@@ -1,5 +1,7 @@
 //! This module contains utilities and classes for SQL literals.
 
+use ::ColumnType;
+
 /// An enum representing a SQL literal.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
@@ -119,6 +121,19 @@ impl Literal {
         match *self {
             Literal::String(ref s) => Some(s.clone()),
             _ => None,
+        }
+    }
+
+    /// A utility function for getting a column type based on the literal.
+    pub fn get_column_type(&self) -> ColumnType {
+        match *self {
+            Literal::Int(_) => ColumnType::Integer,
+            Literal::Long(_) => ColumnType::BigInt,
+            Literal::Float(_) => ColumnType::Float,
+            Literal::Double(_) => ColumnType::Double,
+            Literal::String(ref s) => ColumnType::VarChar { length : s.len() as u16 },
+            Literal::Null => ColumnType::Null,
+            Literal::True | Literal::False => ColumnType::TinyInt,
         }
     }
 }

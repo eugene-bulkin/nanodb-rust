@@ -2,16 +2,16 @@
 
 use byteorder::{BigEndian, ReadBytesExt};
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::default::Default;
 use std::io;
 use std::io::{Seek, SeekFrom};
-use std::iter::{IntoIterator};
+use std::iter::{IntoIterator, FromIterator};
 use std::slice::Iter;
 use std::ops::Index;
 
 use super::column::{ColumnInfo, ColumnName, ColumnType, EMPTY_CHAR, EMPTY_NUMERIC, EMPTY_VARCHAR};
-use super::storage::{DBPage, ReadNanoDBExt, WriteNanoDBExt};
+use super::storage::{DBPage, ReadNanoDBExt, WriteNanoDBExt, TupleLiteral};
 use super::storage::header_page::OFFSET_SCHEMA_START;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -130,6 +130,9 @@ impl Schema {
         }
     }
 
+    /// Checks if the schema is empty.
+    pub fn is_empty(&self) -> bool { self.column_infos.is_empty() }
+
     /// Creates a new schema by reading a header page.
     pub fn from_header_page(page: &mut DBPage) -> Result<Schema, Error> {
         let mut result = Schema::new();
@@ -198,6 +201,45 @@ impl Schema {
     /// * name - The desired column name.
     pub fn has_column<S: Into<String>>(&self, name: S) -> bool {
         self.get_column(name).is_some()
+    }
+
+
+    /// This helper method returns true if this schema contains any columns with the same column
+    /// name but different table names. If so, the schema is not valid for use on one side of a
+    /// `NATURAL` join.
+    pub fn has_multiple_columns_with_same_name(&self) -> bool {
+        for name in self.cols_hashed_by_column.keys() {
+            if let Some(names) = self.cols_hashed_by_column.get(name) {
+                if names.len() > 1 {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Returns the number of columns that have the specified column name. Note that multiple
+    /// columns can have the same column name but different table names.
+    pub fn num_columns_with_name<S: Into<String>>(&self, name: S) -> usize {
+        if let Some(names) = self.cols_hashed_by_column.get(&Some(name.into())) {
+            return names.len();
+        }
+        0
+    }
+
+    /// Returns the names of columns that are common between this schema and the specified schema.
+    /// This kind of operation is mainly used for resolving `NATURAL` joins.
+    pub fn get_common_column_names(&self, other: &Schema) -> HashSet<String> {
+        let left_names: HashSet<&Option<String>> = HashSet::from_iter(self.cols_hashed_by_column.keys());
+        let right_names = HashSet::from_iter(other.cols_hashed_by_column.keys());
+
+        let mut result = HashSet::new();
+        for common in left_names.intersection(&right_names) {
+            if let Some(ref name) = **common {
+                result.insert(name.clone());
+            }
+        }
+        result
     }
 
     /// If the schema has a column with the provided name, return that column.
@@ -395,6 +437,23 @@ impl Schema {
             }
         }
         Ok(())
+    }
+
+    /// Creates a tuple literal with default values (for getting a schema with an environment).
+    pub fn default_tuple(&self) -> TupleLiteral {
+        let mut result = TupleLiteral::new();
+        for info in self.column_infos.iter() {
+            let value = info.column_type.default_literal();
+            result.add_value(value);
+        }
+        result
+    }
+}
+
+impl ::std::fmt::Display for Schema {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        let infos: Vec<String> = self.column_infos.iter().map(|f| format!("{}", f)).collect();
+        write!(f, "Schema[cols={}]", infos.join(", "))
     }
 }
 
