@@ -1,7 +1,5 @@
 //! This module contains utilities and classes for handling table schemas.
 
-use byteorder::{BigEndian, ReadBytesExt};
-
 use std::collections::{HashMap, HashSet};
 use std::default::Default;
 use std::io;
@@ -10,9 +8,11 @@ use std::iter::{FromIterator, IntoIterator};
 use std::ops::Index;
 use std::slice::Iter;
 
-use super::column::{ColumnInfo, ColumnName, ColumnType, EMPTY_CHAR, EMPTY_NUMERIC, EMPTY_VARCHAR};
-use super::storage::{DBPage, ReadNanoDBExt, TupleLiteral, WriteNanoDBExt};
-use super::storage::header_page::OFFSET_SCHEMA_START;
+use byteorder::{BigEndian, ReadBytesExt};
+
+use ::column::{ColumnInfo, ColumnName, ColumnType, EMPTY_CHAR, EMPTY_NUMERIC, EMPTY_VARCHAR};
+use ::storage::{DBPage, ReadNanoDBExt, TupleLiteral, WriteNanoDBExt};
+use ::storage::header_page::OFFSET_SCHEMA_START;
 
 #[derive(Debug, Clone, PartialEq)]
 /// An error that occurs when the name of a column results in an invalid schema state.
@@ -449,8 +449,8 @@ impl ::std::fmt::Display for Schema {
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
-    use super::Schema;
-    use super::super::column::{ColumnInfo, ColumnType};
+
+    use ::{ColumnInfo, ColumnType, Schema};
 
     #[test]
     fn test_index() {
