@@ -1,11 +1,11 @@
 //! This module contains `FROM` clause information.
 
+use std::collections::HashSet;
+use std::default::Default;
 
 use ::{ColumnInfo, Schema};
 use ::commands::{ExecutionError, InvalidSchemaError};
 use ::expressions::{CompareType, Expression, SelectValue};
-use std::collections::HashSet;
-use std::default::Default;
 use ::storage::{FileManager, TableManager};
 
 /// For FROM clauses that contain join expressions, this enumeration specifies the kind of

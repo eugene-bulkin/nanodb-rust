@@ -2,7 +2,7 @@
 
 use ::ColumnName;
 use ::column::column_name_to_string;
-use super::{ArithmeticType, CompareType, Environment, ExpressionError, Literal};
+use ::expressions::{ArithmeticType, CompareType, Environment, ExpressionError, Literal};
 
 fn coerce_literals(left: Literal, right: Literal) -> (Literal, Literal) {
     // WE ASSUME THAT BOTH LITERALS ARE ARITHMETIC HERE.
@@ -386,7 +386,7 @@ impl ::std::fmt::Display for Expression {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::{ArithmeticType, CompareType, ExpressionError, Literal};
+    use ::expressions::{ArithmeticType, CompareType, ExpressionError, Literal};
 
     #[test]
     fn test_arithmetic() {

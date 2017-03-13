@@ -17,8 +17,8 @@ pub use self::processor::Processor as ExpressionProcessor;
 pub use self::select_clause::SelectClause;
 pub use self::select_value::SelectValue;
 
-use super::ColumnName;
-use super::storage::TupleError;
+use ::ColumnName;
+use ::storage::TupleError;
 
 fn col_name_to_string(col_name: &ColumnName) -> String {
     match *col_name {
