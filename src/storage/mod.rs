@@ -262,6 +262,35 @@ impl From<PinError> for TupleError {
     }
 }
 
+impl ::std::fmt::Display for TupleError {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            TupleError::IOError => {
+                // TODO: What's the error?
+                write!(f, "An IO error occurred.")
+            },
+            TupleError::PinError(ref e) => {
+                write!(f, "{}", e)
+            },
+            TupleError::FileManagerError(ref e) => {
+                write!(f, "{}", e)
+            },
+            TupleError::DBPageError(ref e) => {
+                write!(f, "{}", e)
+            },
+            TupleError::UnsupportedColumnType(col_type) => {
+                write!(f, "The column type {} is unsupported for storage.", col_type)
+            },
+            TupleError::InvalidColumnIndex(index, num_cols) => {
+                write!(f, "Column index must be in range [0, {}], got {}.", num_cols - 1, index)
+            },
+            TupleError::TupleTooBig(tuple_size, page_size) => {
+                write!(f, "Tuple size {} is larger than page size {}.", tuple_size, page_size)
+            },
+        }
+    }
+}
+
 /// This interface provides the operations that can be performed with a tuple. In relational
 /// database theory, a tuple is an ordered set of attribute-value pairs, but in this implementation
 /// the tuple's data and its schema are kept completely separate. This tuple interface simply
