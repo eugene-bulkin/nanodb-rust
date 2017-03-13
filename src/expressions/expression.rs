@@ -1,6 +1,7 @@
 //! This module contains utilities for dealing with expressions, including the `Expression` struct.
 
-use super::super::ColumnName;
+use ::ColumnName;
+use ::column::column_name_to_string;
 use super::{ArithmeticType, CompareType, Environment, ExpressionError, Literal};
 
 fn coerce_literals(left: Literal, right: Literal) -> (Literal, Literal) {
@@ -351,14 +352,7 @@ impl ::std::fmt::Display for Expression {
             Expression::Float(num) => { write!(f, "{}", num) },
             Expression::Double(num) => { write!(f, "{}", num) },
             Expression::String(ref s) => { write!(f, "\'{}\'", s) },
-            Expression::ColumnValue(ref name) => {
-                match *name {
-                    (Some(ref table_name), Some(ref col_name)) => write!(f, "{}.{}", table_name, col_name),
-                    (None, Some(ref col_name)) => write!(f, "{}", col_name),
-                    (Some(ref table_name), None) => write!(f, "{}.*", table_name),
-                    (None, None) => write!(f, "*"),
-                }
-            },
+            Expression::ColumnValue(ref name) => write!(f, "{}", column_name_to_string(name)),
             Expression::OR(ref exprs) => {
                 let r: Vec<_> = exprs.iter().map(|e| wrap_expr_parens(e)).collect();
                 write!(f, "{}", r.join(" OR "))

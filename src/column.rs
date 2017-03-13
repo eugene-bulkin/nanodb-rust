@@ -5,6 +5,16 @@ use std::fmt;
 /// A shorthand type for storing a column name in (table_name, column_name) form.
 pub type ColumnName = (Option<String>, Option<String>);
 
+/// Convert a column name to string form, with wildcards.
+pub fn column_name_to_string(name: &ColumnName) -> String {
+    match *name {
+        (Some(ref table_name), Some(ref col_name)) => format!("{}.{}", table_name, col_name),
+        (None, Some(ref col_name)) => format!("{}", col_name),
+        (Some(ref table_name), None) => format!("{}.*", table_name),
+        (None, None) => format!("*"),
+    }
+}
+
 use super::expressions::Literal;
 
 /// An empty Char column type. Useful for comparing type IDs.
