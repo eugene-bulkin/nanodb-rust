@@ -302,10 +302,8 @@ impl FromClause {
                             return Err(ExecutionError::InvalidSchema(InvalidSchemaError::NoShared));
                         }
 
-                        println!("{}", schema);
                         let built =
                             try!(build_join_schema(left_schema, right_schema, common_cols, &mut schema, *join_type));
-                        println!("{}", schema);
                         self.computed_join_expr = built.0;
                         self.computed_select_values = built.1;
                     }
