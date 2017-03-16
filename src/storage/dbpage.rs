@@ -1,5 +1,6 @@
 //! This module contains utilities to handle pages within database files for NanoDB.
 
+use std::error::Error as ErrorTrait;
 use std::io::{self, ErrorKind, SeekFrom};
 use std::io::prelude::*;
 
@@ -22,7 +23,7 @@ pub const EMPTY_SLOT: u16 = 0;
 /// An error that can occur during the operations on a `DBPage`.
 pub enum Error {
     /// Some I/O error occurred.
-    IOError,
+    IOError(String),
     /// For when a tuple error occurs.
     TupleError(Box<TupleError>),
     /// The slot asked for is at an invalid position. In the form of (num slots, slot desired).
@@ -40,9 +41,8 @@ pub enum Error {
 impl ::std::fmt::Display for Error {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
-            Error::IOError => {
-                // TODO: What's the error?
-                write!(f, "An IO error occurred.")
+            Error::IOError(ref e) => {
+                write!(f, "An IO error occurred: {}", e)
             }
             Error::TupleError(ref e) => write!(f, "{}", e),
             Error::InvalidSlot(num_slots, slot) => {
@@ -65,8 +65,8 @@ impl ::std::fmt::Display for Error {
 }
 
 impl From<io::Error> for Error {
-    fn from(_: io::Error) -> Error {
-        Error::IOError
+    fn from(e: io::Error) -> Error {
+        Error::IOError(e.description().into())
     }
 }
 

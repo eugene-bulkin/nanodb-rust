@@ -254,8 +254,8 @@ impl HeapTupleFile {
                 // pin-count by one, so we decrement it before breaking
                 // out. TODO
 
-                // TODO: Fix error handling here
-                let mut tuple = try!(PageTuple::new(db_page, offset, self.schema.clone()).map_err(|_| file_manager::Error::IOError));
+                // TODO: Fix error handling here (i.e. better handling of TupleError)
+                let mut tuple = try!(PageTuple::new(db_page, offset, self.schema.clone()).map_err(|e| file_manager::Error::IOError(format!("{}", e))));
                 tuple.pin();
                 return Ok(Some(HeapFilePageTuple {
                     page_tuple: tuple,
@@ -308,8 +308,8 @@ impl HeapTupleFile {
                 if next_offset != EMPTY_SLOT {
                     // Creating this tuple will pin the page a second time.
                     // Thus, we unpin the page after creating this tuple.
-                    // TODO: Fix error handling here
-                    let mut tuple = try!(PageTuple::new(db_page, next_offset, self.schema.clone()).map_err(|_| file_manager::Error::IOError));
+                    // TODO: Fix error handling here (see previous TODO)
+                    let mut tuple = try!(PageTuple::new(db_page, next_offset, self.schema.clone()).map_err(|e| file_manager::Error::IOError(format!("{}", e))));
                     tuple.pin();
                     return Ok(Some(HeapFilePageTuple {
                         page_tuple: tuple,

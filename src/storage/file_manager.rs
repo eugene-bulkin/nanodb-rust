@@ -1,5 +1,6 @@
 //! This module contains utilities to handle NanoDB's database files.
 
+use std::error::Error as ErrorTrait;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -64,7 +65,7 @@ pub enum Error {
     /// A `DBFile` was unable to be parsed properly.
     DBFileParseError,
     /// Some I/O error occurred.
-    IOError,
+    IOError(String),
     /// A `DBFile` was unable to be extended due to memory constraints.
     CantExtendDBFile,
     /// The file manager was unable to create a desired file.
@@ -89,10 +90,9 @@ pub enum Error {
 impl ::std::fmt::Display for Error {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
-            Error::IOError => {
-                // TODO: What's the error?
-                write!(f, "An IO error occurred.")
-            }
+            Error::IOError(ref e) => {
+                write!(f, "An IO error occurred: {}", e)
+            },
             Error::CantCreateFile(ref filename) => write!(f, "Unable to create file {}", filename),
             Error::CantOpenFile(ref filename) => write!(f, "Unable to open file {}", filename),
             Error::CantExtendDBFile => write!(f, "Unable to extend a DB file."),
@@ -143,8 +143,8 @@ impl From<dbpage::Error> for Error {
 }
 
 impl From<io::Error> for Error {
-    fn from(_: io::Error) -> Error {
-        Error::IOError
+    fn from(e: io::Error) -> Error {
+        Error::IOError(e.description().into())
     }
 }
 
