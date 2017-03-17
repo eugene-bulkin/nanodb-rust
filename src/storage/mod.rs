@@ -40,6 +40,7 @@ pub use self::header_page::HeaderPage;
 pub use self::table_manager::TableManager;
 pub use self::tuple_literal::TupleLiteral;
 
+use std::error::Error;
 use std::io;
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
@@ -221,7 +222,7 @@ impl<R: io::Read + ?Sized> ReadNanoDBExt for R {}
 #[derive(Clone, Debug, PartialEq)]
 pub enum TupleError {
     /// For when an IO error occurs.
-    IOError,
+    IOError(String),
     /// For when an pinning error occurs.
     PinError(PinError),
     /// For when an file manager error occurs.
@@ -237,8 +238,8 @@ pub enum TupleError {
 }
 
 impl From<io::Error> for TupleError {
-    fn from(_: io::Error) -> Self {
-        TupleError::IOError
+    fn from(e: io::Error) -> Self {
+        TupleError::IOError(e.description().into())
     }
 }
 
@@ -263,9 +264,8 @@ impl From<PinError> for TupleError {
 impl ::std::fmt::Display for TupleError {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
-            TupleError::IOError => {
-                // TODO: What's the error?
-                write!(f, "An IO error occurred.")
+            TupleError::IOError(ref e) => {
+                write!(f, "An IO error occurred: {}", e)
             }
             TupleError::PinError(ref e) => write!(f, "{}", e),
             TupleError::FileManagerError(ref e) => write!(f, "{}", e),

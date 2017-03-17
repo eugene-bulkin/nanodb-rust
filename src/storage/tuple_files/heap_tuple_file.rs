@@ -219,7 +219,7 @@ impl HeapTupleFile {
     }
 
     /// Returns the first tuple in this table file, or `None` if there are no tuples in the file.
-    pub fn get_first_tuple(&mut self) -> Result<Option<HeapFilePageTuple>, file_manager::Error> {
+    pub fn get_first_tuple(&mut self) -> Result<Option<HeapFilePageTuple>, TupleError> {
         // Scan through the data pages until we hit the end of the table
         // file.  It may be that the first run of data pages is empty,
         // so just keep looking until we hit the end of the file.
@@ -235,7 +235,7 @@ impl HeapTupleFile {
                         break;
                     }
                     _ => {
-                        return Err(e);
+                        return Err(e.into());
                     }
                 }
             }
@@ -254,8 +254,7 @@ impl HeapTupleFile {
                 // pin-count by one, so we decrement it before breaking
                 // out. TODO
 
-                // TODO: Fix error handling here
-                let mut tuple = try!(PageTuple::new(db_page, offset, self.schema.clone()).map_err(|_| file_manager::Error::IOError));
+                let mut tuple = try!(PageTuple::new(db_page, offset, self.schema.clone()));
                 tuple.pin();
                 return Ok(Some(HeapFilePageTuple {
                     page_tuple: tuple,
@@ -273,7 +272,7 @@ impl HeapTupleFile {
     /// or unpinned.
     pub fn get_next_tuple(&mut self,
                           cur_tuple: &HeapFilePageTuple)
-                          -> Result<Option<HeapFilePageTuple>, file_manager::Error> {
+                          -> Result<Option<HeapFilePageTuple>, TupleError> {
         // Procedure:
         //   1)  Get slot index of current tuple.
         //   2)  If there are more slots in the current page, find the next
@@ -308,8 +307,7 @@ impl HeapTupleFile {
                 if next_offset != EMPTY_SLOT {
                     // Creating this tuple will pin the page a second time.
                     // Thus, we unpin the page after creating this tuple.
-                    // TODO: Fix error handling here
-                    let mut tuple = try!(PageTuple::new(db_page, next_offset, self.schema.clone()).map_err(|_| file_manager::Error::IOError));
+                    let mut tuple = try!(PageTuple::new(db_page, next_offset, self.schema.clone()));
                     tuple.pin();
                     return Ok(Some(HeapFilePageTuple {
                         page_tuple: tuple,
@@ -334,7 +332,7 @@ impl HeapTupleFile {
                             break;
                         }
                         _ => {
-                            return Err(e);
+                            return Err(e.into());
                         }
                     }
                 }

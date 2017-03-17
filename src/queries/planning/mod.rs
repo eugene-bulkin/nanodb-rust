@@ -9,7 +9,7 @@ use ::{ColumnName, schema};
 use ::column::column_name_to_string;
 use ::expressions::{Expression, ExpressionError, SelectClause};
 use ::queries::{FileScanNode, NodeResult, PlanNode};
-use ::storage::{FileManager, PinError, TableManager, file_manager, table_manager};
+use ::storage::{FileManager, PinError, TableManager, TupleError, file_manager, table_manager};
 
 /// An error that could occur during planning.
 #[derive(Clone, Debug, PartialEq)]
@@ -30,6 +30,8 @@ pub enum Error {
     CouldNotApplyPredicate(ExpressionError),
     /// The specified column does not exist.
     ColumnDoesNotExist(ColumnName),
+    /// Unable to advance to the next tuple in a node.
+    CouldNotAdvanceTuple(TupleError),
     /// The node was not prepared before using.
     NodeNotPrepared,
 }
@@ -68,6 +70,7 @@ impl ::std::fmt::Display for Error {
             Error::Unimplemented => write!(f, "The requested operation is not yet implemented."),
             Error::InvalidPredicate => write!(f, "The predicate is invalid."),
             Error::CouldNotApplyPredicate(ref e) => write!(f, "The predicate could not be applied: {}", e),
+            Error::CouldNotAdvanceTuple(ref e) => write!(f, "Unable to advance to next tuple in node: {}", e),
             Error::ColumnDoesNotExist(ref col_name) => {
                 write!(f,
                        "The column {} does not exist.",
