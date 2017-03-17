@@ -69,11 +69,18 @@ impl FileScanNode {
             debug!("Resuming at previously marked tuple.");
             unimplemented!()
         } else {
-            self.current_tuple = (match self.current_tuple {
-                    Some(ref tuple) => try!(self.table.get_next_tuple(tuple)),
-                    None => try!(self.table.get_first_tuple()),
-                })
-                .map(Box::new);
+            let cur_tuple_result = match self.current_tuple {
+                Some(ref tuple) => self.table.get_next_tuple(tuple),
+                None => self.table.get_first_tuple(),
+            };
+            match cur_tuple_result {
+                Ok(tuple) => {
+                    self.current_tuple = tuple.map(Box::new);
+                },
+                Err(e) => {
+                    return Err(PlanError::CouldNotAdvanceTuple(e));
+                }
+            }
         }
         Ok(())
     }

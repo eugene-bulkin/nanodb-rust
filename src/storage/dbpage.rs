@@ -24,8 +24,6 @@ pub const EMPTY_SLOT: u16 = 0;
 pub enum Error {
     /// Some I/O error occurred.
     IOError(String),
-    /// For when a tuple error occurs.
-    TupleError(Box<TupleError>),
     /// The slot asked for is at an invalid position. In the form of (num slots, slot desired).
     InvalidSlot(u16, u16),
     /// The page does not have enough space for the tuple. In the form of (needed, free space).
@@ -44,7 +42,6 @@ impl ::std::fmt::Display for Error {
             Error::IOError(ref e) => {
                 write!(f, "An IO error occurred: {}", e)
             }
-            Error::TupleError(ref e) => write!(f, "{}", e),
             Error::InvalidSlot(num_slots, slot) => {
                 write!(f, "Valid slots are in range [0, {}). Got {}.", num_slots, slot)
             }
@@ -67,12 +64,6 @@ impl ::std::fmt::Display for Error {
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Error {
         Error::IOError(e.description().into())
-    }
-}
-
-impl From<TupleError> for Error {
-    fn from(error: TupleError) -> Error {
-        Error::TupleError(Box::new(error))
     }
 }
 
@@ -567,9 +558,9 @@ impl DBPage {
     /// * offset - The offset at which to put the tuple.
     /// * schema - A reference to the schema the tuple should follow.
     /// * tuple - A reference to the tuple itself.
-    pub fn store_new_tuple<T: Tuple>(&mut self, offset: u16, schema: Schema, mut tuple: T) -> Result<(), Error> {
+    pub fn store_new_tuple<T: Tuple>(&mut self, offset: u16, schema: Schema, mut tuple: T) -> Result<(), TupleError> {
         if schema.num_columns() != tuple.get_column_count() {
-            return Err(Error::WrongArity(tuple.get_column_count(), schema.num_columns()));
+            return Err(Error::WrongArity(tuple.get_column_count(), schema.num_columns()).into());
         }
 
         let mut cur_offset = offset + get_null_flags_size(schema.num_columns());

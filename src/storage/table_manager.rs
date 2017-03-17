@@ -31,7 +31,7 @@ impl Table {
     }
 
     /// Wrapper around the tuple file's `get_first_tuple` method.
-    pub fn get_first_tuple(&self) -> Result<Option<HeapFilePageTuple>, file_manager::Error> {
+    pub fn get_first_tuple(&self) -> Result<Option<HeapFilePageTuple>, TupleError> {
         let mut borrowed = self.tuple_file.borrow_mut();
         let result = borrowed.get_first_tuple();
         result
@@ -41,7 +41,7 @@ impl Table {
     /// Wrapper around the tuple file's `get_next_tuple` method.
     pub fn get_next_tuple(&self,
                           cur_tuple: &HeapFilePageTuple)
-                          -> Result<Option<HeapFilePageTuple>, file_manager::Error> {
+                          -> Result<Option<HeapFilePageTuple>, TupleError> {
         let mut borrowed = self.tuple_file.borrow_mut();
         let result = borrowed.get_next_tuple(cur_tuple);
         result
