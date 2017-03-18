@@ -99,8 +99,6 @@ impl Environment {
         let mut found = false;
         let mut result: Option<Result<Literal, TupleError>> = None;
 
-        let is_col_wildcard = col_name.1.is_none();
-
         // First try to find it in the current environment.
         for i in 0..self.current_tuples.len() {
             let ref mut tuple: TupleLiteral = self.current_tuples[i];
