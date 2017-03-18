@@ -2,6 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::default::Default;
+use std::error::Error as ErrorTrait;
 use std::io;
 use std::io::{Seek, SeekFrom};
 use std::iter::{FromIterator, IntoIterator};
@@ -42,7 +43,7 @@ impl ::std::fmt::Display for NameError {
 /// An error that can occur while handling schemas.
 pub enum Error {
     /// An error occurred while performing I/O.
-    IOError,
+    IOError(String),
     /// An error occurred that had to do with parsing a schema.
     ParseError,
     /// An error occurred that had to do with the names of columns passed in.
@@ -56,9 +57,8 @@ pub enum Error {
 impl ::std::fmt::Display for Error {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
-            Error::IOError => {
-                // TODO: What was the IO error?
-                write!(f, "An IO error occurred.")
+            Error::IOError(ref e) => {
+                write!(f, "An IO error occurred: {}", e)
             }
             Error::ParseError => {
                 // TODO: What was the parsing error?
@@ -72,8 +72,8 @@ impl ::std::fmt::Display for Error {
 }
 
 impl From<io::Error> for Error {
-    fn from(_: io::Error) -> Error {
-        Error::IOError
+    fn from(e: io::Error) -> Error {
+        Error::IOError(e.description().into())
     }
 }
 

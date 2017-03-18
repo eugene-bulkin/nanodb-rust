@@ -1,5 +1,6 @@
 //! This module contains utilities to handle pages within database files for NanoDB.
 
+use std::error::Error as ErrorTrait;
 use std::io::{self, ErrorKind, SeekFrom};
 use std::io::prelude::*;
 
@@ -22,9 +23,7 @@ pub const EMPTY_SLOT: u16 = 0;
 /// An error that can occur during the operations on a `DBPage`.
 pub enum Error {
     /// Some I/O error occurred.
-    IOError,
-    /// For when a tuple error occurs.
-    TupleError(Box<TupleError>),
+    IOError(String),
     /// The slot asked for is at an invalid position. In the form of (num slots, slot desired).
     InvalidSlot(u16, u16),
     /// The page does not have enough space for the tuple. In the form of (needed, free space).
@@ -40,11 +39,9 @@ pub enum Error {
 impl ::std::fmt::Display for Error {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
-            Error::IOError => {
-                // TODO: What's the error?
-                write!(f, "An IO error occurred.")
+            Error::IOError(ref e) => {
+                write!(f, "An IO error occurred: {}", e)
             }
-            Error::TupleError(ref e) => write!(f, "{}", e),
             Error::InvalidSlot(num_slots, slot) => {
                 write!(f, "Valid slots are in range [0, {}). Got {}.", num_slots, slot)
             }
@@ -65,14 +62,8 @@ impl ::std::fmt::Display for Error {
 }
 
 impl From<io::Error> for Error {
-    fn from(_: io::Error) -> Error {
-        Error::IOError
-    }
-}
-
-impl From<TupleError> for Error {
-    fn from(error: TupleError) -> Error {
-        Error::TupleError(Box::new(error))
+    fn from(e: io::Error) -> Error {
+        Error::IOError(e.description().into())
     }
 }
 
@@ -567,9 +558,9 @@ impl DBPage {
     /// * offset - The offset at which to put the tuple.
     /// * schema - A reference to the schema the tuple should follow.
     /// * tuple - A reference to the tuple itself.
-    pub fn store_new_tuple<T: Tuple>(&mut self, offset: u16, schema: Schema, mut tuple: T) -> Result<(), Error> {
+    pub fn store_new_tuple<T: Tuple>(&mut self, offset: u16, schema: Schema, mut tuple: T) -> Result<(), TupleError> {
         if schema.num_columns() != tuple.get_column_count() {
-            return Err(Error::WrongArity(tuple.get_column_count(), schema.num_columns()));
+            return Err(Error::WrongArity(tuple.get_column_count(), schema.num_columns()).into());
         }
 
         let mut cur_offset = offset + get_null_flags_size(schema.num_columns());
