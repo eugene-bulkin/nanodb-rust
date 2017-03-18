@@ -60,6 +60,24 @@ use ::queries::PlanError;
 use ::relations::SchemaError;
 use ::storage::{PinError, file_manager, table_manager};
 
+/// An enum describing the side of a join being handled.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum JoinSide {
+    /// The left side of a join.
+    Left,
+    /// The right side of a join.
+    Right,
+}
+
+impl ::std::fmt::Display for JoinSide {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "{}", match *self {
+            JoinSide::Left => "left",
+            JoinSide::Right => "right",
+        })
+    }
+}
+
 /// An invalid schema error that occurred during execution.
 #[derive(Debug, Clone, PartialEq)]
 pub enum InvalidSchemaError {
@@ -67,9 +85,14 @@ pub enum InvalidSchemaError {
     LeftSchemaDuplicates,
     /// The right schema has ambiguous column names.
     RightSchemaDuplicates,
+    /// Some side of a join had an ambiguous column name.
+    AmbiguousJoinColumn(String, JoinSide),
+    /// Some side of a join is missing a column name.
+    MissingJoinColumn(String, JoinSide),
     /// The schemas for a NATURAL JOIN don't share column names.
     NoShared,
 }
+
 impl ::std::fmt::Display for InvalidSchemaError {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
@@ -81,6 +104,12 @@ impl ::std::fmt::Display for InvalidSchemaError {
                 write!(f,
                        "right child table has multiple columns with same column name")
             }
+            InvalidSchemaError::AmbiguousJoinColumn(ref column_name, side) => {
+                write!(f, "column name {} is ambiguous on the {} side", column_name, side)
+            },
+            InvalidSchemaError::MissingJoinColumn(ref column_name, side) => {
+                write!(f, "column name {} doesn't appear on the {} side", column_name, side)
+            },
             InvalidSchemaError::NoShared => write!(f, "child tables share no common column names"),
         }
     }
@@ -133,6 +162,12 @@ impl From<SchemaError> for ExecutionError {
 impl From<PinError> for ExecutionError {
     fn from(error: PinError) -> ExecutionError {
         ExecutionError::PinError(error)
+    }
+}
+
+impl From<InvalidSchemaError> for ExecutionError {
+    fn from(error: InvalidSchemaError) -> ExecutionError {
+        ExecutionError::InvalidSchema(error)
     }
 }
 

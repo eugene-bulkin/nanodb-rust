@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 use std::default::Default;
 
-use ::commands::{ExecutionError, InvalidSchemaError};
+use ::commands::{ExecutionError, InvalidSchemaError, JoinSide};
 use ::expressions::{CompareType, Expression, SelectValue};
 use ::relations::{ColumnInfo, Schema};
 use ::storage::{FileManager, TableManager};
@@ -92,6 +92,18 @@ impl ::std::ops::Deref for FromClause {
     }
 }
 
+fn check_join_column<S: Into<String>>(schema: &Schema, side: JoinSide, name: S) -> Result<(), InvalidSchemaError> {
+    let name = name.into();
+    let count = schema.num_columns_with_name(name.as_ref());
+    if count == 0 {
+        Err(InvalidSchemaError::MissingJoinColumn(name.clone(), side))
+    } else if count > 1 {
+        Err(InvalidSchemaError::AmbiguousJoinColumn(name.clone(), side))
+    } else {
+        Ok(())
+    }
+}
+
 fn build_join_schema(left: Schema,
                      right: Schema,
                      common: HashSet<String>,
@@ -111,13 +123,8 @@ fn build_join_schema(left: Schema,
         // Handle the shared columns.  We need to check that the
         // names aren't ambiguous on one or the other side.
         for name in common.iter() {
-            let left_count = left.num_columns_with_name(name.as_ref());
-            let right_count = right.num_columns_with_name(name.as_ref());
-
-            if left_count != 1 || right_count != 1 {
-                // TODO: Make this an invalid schema error
-                return Err(ExecutionError::Unimplemented);
-            }
+            try!(check_join_column(&left, JoinSide::Left, name.as_ref()));
+            try!(check_join_column(&right, JoinSide::Right, name.as_ref()));
 
             let left_info = left.get_column(name.as_ref()).unwrap();
             let right_info = right.get_column(name.as_ref()).unwrap();
