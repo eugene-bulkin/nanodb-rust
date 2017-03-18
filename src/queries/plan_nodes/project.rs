@@ -1,9 +1,9 @@
 //! This module provides the project plan node.
 
-use ::{ColumnInfo, Schema};
 use ::expressions::{Environment, Expression, SelectValue};
 use ::queries::plan_nodes::PlanNode;
 use ::queries::planning::{PlanError, PlanResult};
+use ::relations::{ColumnInfo, Schema};
 use ::storage::{Tuple, TupleLiteral};
 
 /// PlanNode representing the `SELECT` clause in a SQL query. This is the relational algebra Project

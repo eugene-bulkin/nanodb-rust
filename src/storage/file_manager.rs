@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use nom::{IResult, be_u8};
 
-use ::schema;
+use ::relations::SchemaError;
 use ::storage::{dbpage, PinError};
 use ::storage::dbfile::{self, DBFile, DBFileType};
 
@@ -60,7 +60,7 @@ pub enum Error {
     /// An error occurred while attempting to pin a page.
     PinError(PinError),
     /// An error occurred while attempting to handle a schema.
-    SchemaError(schema::Error),
+    SchemaError(SchemaError),
     /// A `DBFile` was unable to be parsed properly.
     DBFileParseError,
     /// Some I/O error occurred.
@@ -130,8 +130,8 @@ impl From<dbfile::Error> for Error {
     }
 }
 
-impl From<schema::Error> for Error {
-    fn from(error: schema::Error) -> Error {
+impl From<SchemaError> for Error {
+    fn from(error: SchemaError) -> Error {
         Error::SchemaError(error)
     }
 }

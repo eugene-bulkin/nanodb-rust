@@ -54,9 +54,10 @@ pub use self::show::ShowCommand;
 
 use std::any::Any;
 
-use ::{Server, schema};
+use ::{Server};
 use ::expressions::{Expression, ExpressionError};
 use ::queries::PlanError;
+use ::relations::SchemaError;
 use ::storage::{PinError, file_manager, table_manager};
 
 /// An invalid schema error that occurred during execution.
@@ -91,7 +92,7 @@ pub enum ExecutionError {
     /// One or more schemas passed in are not valid.
     InvalidSchema(InvalidSchemaError),
     /// Unable to construct a schema given the column information provided.
-    CouldNotCreateSchema(schema::Error),
+    CouldNotCreateSchema(SchemaError),
     /// The command was unable to compute a schema.
     CouldNotComputeSchema(table_manager::Error),
     /// The command tried to open a given table and was unable to.
@@ -120,8 +121,8 @@ pub enum ExecutionError {
     Unimplemented,
 }
 
-impl From<schema::Error> for ExecutionError {
-    fn from(error: schema::Error) -> ExecutionError {
+impl From<SchemaError> for ExecutionError {
+    fn from(error: SchemaError) -> ExecutionError {
         ExecutionError::CouldNotCreateSchema(error)
     }
 }

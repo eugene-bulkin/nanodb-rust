@@ -2,7 +2,7 @@ use std::str::{self, FromStr};
 
 use nom::{alpha, digit};
 
-use ::column::ColumnName;
+use ::relations::ColumnName;
 
 #[derive(Debug, Clone, PartialEq)]
 /// An enum representing a SQL literal.

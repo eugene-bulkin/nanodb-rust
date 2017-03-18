@@ -13,15 +13,13 @@ extern crate lazy_static;
 #[macro_use]
 extern crate log;
 
-pub mod parser;
-pub mod storage;
-pub mod column;
-pub mod schema;
 pub mod commands;
-pub mod server;
 pub mod expressions;
+pub mod parser;
 pub mod queries;
+pub mod relations;
+pub mod storage;
+pub mod server;
 
-pub use column::{ColumnInfo, ColumnName, ColumnType};
-pub use schema::Schema;
+pub use relations::{Schema, SchemaError, ColumnInfo, ColumnName, ColumnType};
 pub use server::{Client, Server};

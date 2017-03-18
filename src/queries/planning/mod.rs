@@ -5,8 +5,7 @@ pub mod simple_planner;
 
 pub use self::simple_planner::SimplePlanner;
 
-use ::{ColumnName, schema};
-use ::column::column_name_to_string;
+use ::relations::{ColumnName, SchemaError, column_name_to_string};
 use ::expressions::{Expression, ExpressionError, SelectClause};
 use ::queries::{FileScanNode, NodeResult, PlanNode};
 use ::storage::{FileManager, PinError, TableManager, file_manager, table_manager};
@@ -19,7 +18,7 @@ pub enum Error {
     /// A table manager error occurred.
     TableManagerError(table_manager::Error),
     /// A schema error occurred.
-    SchemaError(schema::Error),
+    SchemaError(SchemaError),
     /// A pin error occurred.
     PinError(PinError),
     /// The operation is unimplemented.
@@ -46,8 +45,8 @@ impl From<table_manager::Error> for Error {
     }
 }
 
-impl From<schema::Error> for Error {
-    fn from(e: schema::Error) -> Error {
+impl From<SchemaError> for Error {
+    fn from(e: SchemaError) -> Error {
         Error::SchemaError(e)
     }
 }

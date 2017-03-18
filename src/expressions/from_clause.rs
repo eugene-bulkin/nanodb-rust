@@ -3,9 +3,9 @@
 use std::collections::HashSet;
 use std::default::Default;
 
-use ::{ColumnInfo, Schema};
 use ::commands::{ExecutionError, InvalidSchemaError};
 use ::expressions::{CompareType, Expression, SelectValue};
+use ::relations::{ColumnInfo, Schema};
 use ::storage::{FileManager, TableManager};
 
 /// For FROM clauses that contain join expressions, this enumeration specifies the kind of

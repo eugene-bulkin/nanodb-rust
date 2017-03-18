@@ -1,6 +1,6 @@
-use ::column::ColumnType;
 use ::commands::CreateCommand;
 use ::parser::utils::*;
+use ::relations::ColumnType;
 
 named!(col_type_len (&[u8]) -> u16, do_parse!(
     ws!(tag!("(")) >>
@@ -113,8 +113,8 @@ mod tests {
     use nom::IResult::*;
 
     use super::*;
-    use ::column::ColumnType;
     use ::commands::CreateCommand;
+    use ::relations::ColumnType;
 
     #[test]
     fn test_col_type() {

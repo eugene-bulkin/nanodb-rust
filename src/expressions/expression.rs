@@ -1,7 +1,6 @@
 //! This module contains utilities for dealing with expressions, including the `Expression` struct.
 
-use ::ColumnName;
-use ::column::column_name_to_string;
+use ::relations::{ColumnName, column_name_to_string};
 use ::expressions::{ArithmeticType, CompareType, Environment, ExpressionError, Literal};
 
 fn coerce_literals(left: Literal, right: Literal) -> (Literal, Literal) {
