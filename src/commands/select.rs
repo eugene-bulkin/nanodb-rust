@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use ::Server;
 use ::commands::{Command, ExecutionError};
 use ::commands::utils::print_table;
@@ -48,12 +50,9 @@ impl Command for SelectCommand {
             return Ok(());
         }
 
-        if let Err(_) = print_table(&mut ::std::io::stdout(), col_names, tuples) {
-            // TODO
-            Err(ExecutionError::Unimplemented)
-        } else {
-            Ok(())
-        }
+        print_table(&mut ::std::io::stdout(), col_names, tuples).map_err(|e| {
+            ExecutionError::PrintError(e.description().into())
+        })
     }
 
     fn as_any(&self) -> &::std::any::Any {

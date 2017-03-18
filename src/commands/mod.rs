@@ -117,6 +117,9 @@ pub enum ExecutionError {
     CouldNotDeleteTable(file_manager::Error),
     /// A pinning error occurred.
     PinError(PinError),
+    /// An error occurred while trying to print the results of a query. This error would be an
+    /// io::Error, so we have to take the description.
+    PrintError(String),
     /// The command has not been fully implemented.
     Unimplemented,
 }
@@ -166,6 +169,7 @@ impl ::std::fmt::Display for ExecutionError {
             ExecutionError::TableDoesNotExist(ref name) => write!(f, "The table {} does not exist.", name),
             ExecutionError::ExpressionError(ref e) => write!(f, "{}", e),
             ExecutionError::PinError(ref e) => write!(f, "{}", e),
+            ExecutionError::PrintError(ref e) => write!(f, "Unable to print results: {}.", e),
         }
     }
 }
