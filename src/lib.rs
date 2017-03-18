@@ -8,7 +8,7 @@ extern crate nom;
 extern crate rustyline;
 extern crate tempdir;
 extern crate byteorder;
-#[macro_use]
+#[cfg_attr(test, macro_use)]
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
