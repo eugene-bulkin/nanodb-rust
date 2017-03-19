@@ -1,7 +1,8 @@
 //! This module contains the classes and functions needed for a simple query planner.
 
 use ::expressions::{FromClause, FromClauseType, JoinType, SelectClause};
-use ::queries::{NestedLoopJoinNode, NodeResult, PlanNode, Planner, ProjectNode, make_simple_select};
+use ::queries::{NestedLoopJoinNode, NodeResult, PlanNode, Planner, ProjectNode, make_simple_select,
+                RenameNode};
 use ::storage::{FileManager, TableManager};
 
 /// This class generates execution plannodes for performing SQL queries. The primary responsibility
@@ -24,11 +25,11 @@ impl<'a> SimplePlanner<'a> {
     fn make_join_tree(&self, clause: FromClause) -> NodeResult {
         match *clause {
             FromClauseType::BaseTable { ref table, ref alias } => {
-                let cur_node = make_simple_select(self.file_manager, self.table_manager, table.clone(), None);
-                if let Some(name) = alias.clone() {
-                    // TODO: RenameNode
+                let mut cur_node = try!(make_simple_select(self.file_manager, self.table_manager, table.clone(), None));
+                if let Some(ref name) = *alias {
+                    cur_node = Box::new(RenameNode::new(cur_node, name.as_ref()));
                 }
-                cur_node
+                Ok(cur_node)
             }
             FromClauseType::JoinExpression { ref left, ref right, ref join_type, ref condition_type } => {
                 let left_child = try!(self.make_join_tree(*left.clone()));
