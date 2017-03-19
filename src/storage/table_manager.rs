@@ -7,6 +7,7 @@ use std::rc::Rc;
 use ::Schema;
 use ::storage::{DBFileType, FileManager, file_manager, Tuple, TupleError};
 use ::storage::tuple_files::{HeapFilePageTuple, HeapTupleFile};
+use ::storage::dbfile::get_default_pagesize;
 
 /// This class represents a single table in the database, including the table's name, and the tuple
 /// file that holds the table's data.
@@ -148,7 +149,7 @@ impl TableManager {
                                          schema: Schema)
                                          -> Result<(), Error> {
         let table_name = table_name.into();
-        let page_size = 512; // TODO: Change this to .get_current_pagesize()
+        let page_size = get_default_pagesize();
 
         let table_filename = get_table_file_name(table_name.clone());
 

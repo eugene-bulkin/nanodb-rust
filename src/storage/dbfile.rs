@@ -21,7 +21,6 @@ const MIN_PAGESIZE: u32 = 512;
 const MAX_PAGESIZE: u32 = 65536;
 
 /// The default page size is 8K bytes.
-#[allow(dead_code)]
 const DEFAULT_PAGESIZE: u32 = 8192;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -37,6 +36,13 @@ impl ::std::fmt::Display for Error {
             Error::InvalidPageSize(size) => write!(f, "The page size {} is not valid for a DB file.", size),
         }
     }
+}
+
+/// Returns the page size to use for new database files. Currently just returns the default, but in
+/// the future this should be configurable.
+#[inline]
+pub fn get_default_pagesize() -> u32 {
+    DEFAULT_PAGESIZE
 }
 
 /// This static helper method returns true if the specified page size is valid; i.e. it must be
