@@ -279,10 +279,11 @@ impl FromClause {
                 debug!("Preparing BASE_TABLE from-clause.");
 
                 let table = try!(table_manager.get_table(file_manager, table.clone()).map_err(ExecutionError::CouldNotComputeSchema));
-                let schema = table.get_schema();
+                let mut schema = table.get_schema();
 
-                if let Some(name) = alias.clone() {
-                    // TODO
+                if let Some(ref name) = *alias {
+                    try!(schema.set_table_name(name.as_ref())
+                               .map_err(ExecutionError::CouldNotCreateSchema));
                 }
 
                 self.computed_schema = Some(schema.clone());
