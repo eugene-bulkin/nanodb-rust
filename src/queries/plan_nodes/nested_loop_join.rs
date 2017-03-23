@@ -30,6 +30,10 @@ pub struct NestedLoopJoinNode<'a> {
     output_schema: Option<Schema>,
     /// The predicate for testing the join.
     predicate: Option<Expression>,
+    /// Whether a tuple has been matched (for outer joins).
+    matched: bool,
+    /// Whether the left child is empty (only for full outer joins).
+    left_empty: bool,
 }
 
 impl<'a> NestedLoopJoinNode<'a> {
@@ -40,57 +44,64 @@ impl<'a> NestedLoopJoinNode<'a> {
                condition_type: JoinConditionType,
                predicate: Option<Expression>)
                -> NestedLoopJoinNode<'a> {
-        NestedLoopJoinNode {
-            left: left,
-            right: right,
-            join_type: join_type,
-            condition_type: condition_type,
-            done: false,
-            schema_swapped: false,
-            left_tuple: None,
-            right_tuple: None,
-            current_tuple: None,
-            output_schema: None,
-            predicate: predicate,
+        match join_type {
+            JoinType::RightOuter => {
+                // We can't naturally do a RIGHT OUTER join with a nested-loop join node, but we can get
+                // around that limitation by emulating one using a schema swap.
+                NestedLoopJoinNode {
+                    // Note the swap here!
+                    left: right,
+                    right: left,
+                    // Now this is a LEFT OUTER join with swapped schemas.
+                    join_type: JoinType::LeftOuter,
+                    condition_type: condition_type,
+                    done: false,
+                    schema_swapped: true,
+                    left_tuple: None,
+                    right_tuple: None,
+                    current_tuple: None,
+                    output_schema: None,
+                    predicate: predicate,
+                    matched: false,
+                    left_empty: false,
+                }
+            },
+            _ => {
+                NestedLoopJoinNode {
+                    left: left,
+                    right: right,
+                    join_type: join_type,
+                    condition_type: condition_type,
+                    done: false,
+                    schema_swapped: false,
+                    left_tuple: None,
+                    right_tuple: None,
+                    current_tuple: None,
+                    output_schema: None,
+                    predicate: predicate,
+                    matched: false,
+                    left_empty: false,
+                }
+            }
         }
     }
 
     fn get_tuples_to_join(&mut self) -> PlanResult<bool> {
+        // Reset current tuple so that we ensure we get a fresh one if it exists.
         self.current_tuple = None;
-        if self.left_tuple.is_none() {
+
+        if self.right_tuple.is_none() {
             self.left_tuple = try!(self.left.get_next_tuple()).map(|t| TupleLiteral::from_tuple(t));
+            self.matched = false;
+
             if self.left_tuple.is_none() {
-                self.done = true;
                 return Ok(false);
             }
-        }
-
-        if let Some(right) = self.right_tuple.as_mut() {
-            try!(right.unpin());
+            self.right.initialize();
         }
         self.right_tuple = try!(self.right.get_next_tuple()).map(|t| TupleLiteral::from_tuple(t));
 
-        // If inner table is exhausted, move back to start
-        // and increment outer table.
-        if self.right_tuple.is_none() {
-            if let Some(left) = self.left_tuple.as_mut() {
-                try!(left.unpin());
-            }
-            self.left_tuple = try!(self.left.get_next_tuple()).map(|t| TupleLiteral::from_tuple(t));
-            //            self.matched = true;
-
-            if self.left_tuple.is_none() {
-                self.done = true;
-                return Ok(false);
-            }
-
-            self.right.initialize();
-
-            // Increment the inner tuple.
-            self.right_tuple = try!(self.right.get_next_tuple()).map(|t| TupleLiteral::from_tuple(t));
-        }
-
-        Ok(!self.done)
+        Ok(true)
     }
 
     fn can_join_tuples(&mut self) -> PlanResult<bool> {
@@ -122,7 +133,7 @@ impl<'a> NestedLoopJoinNode<'a> {
         }
     }
 
-    fn join_tuples<T1: Tuple + ?Sized, T2: Tuple + ?Sized>(&mut self, left: &mut T1, right: &mut T2) {
+    fn join_tuples<T1: Tuple + ? Sized, T2: Tuple + ? Sized>(&mut self, left: &mut T1, right: &mut T2) {
         let mut result = TupleLiteral::new();
 
         if !self.schema_swapped {
@@ -152,13 +163,53 @@ impl<'a> PlanNode for NestedLoopJoinNode<'a> {
             return Ok(None);
         }
 
-        while try!(self.get_tuples_to_join()) {
-            if try!(self.can_join_tuples()) {
-                // This step won't occur unless the left and right tuple are set
-                let mut left = self.left_tuple.clone().unwrap();
-                let mut right = self.right_tuple.clone().unwrap();
-                self.join_tuples(&mut left, &mut right);
-                break;
+        match self.join_type {
+            JoinType::Inner | JoinType::Cross => {
+                while try!(self.get_tuples_to_join()) {
+                    if try!(self.can_join_tuples()) {
+                        // This step won't occur unless the left and right tuple are set
+                        let mut left = self.left_tuple.clone().unwrap();
+                        let mut right = self.right_tuple.clone().unwrap();
+                        self.join_tuples(&mut left, &mut right);
+                        break;
+                    }
+                }
+            },
+            JoinType::LeftOuter => {
+                while try!(self.get_tuples_to_join()) {
+                    if self.right_tuple.is_some() && try!(self.can_join_tuples()) {
+                        self.matched = true;
+                        // If a match is found, return joined pair,
+                        // switched if needed.
+                        let mut left = self.left_tuple.clone().unwrap();
+                        let mut right = self.right_tuple.clone().unwrap();
+                        self.join_tuples(&mut left, &mut right);
+                        break;
+                    } else if !self.matched && self.right_tuple.is_none() {
+                        // For left outer join, include the left tuple if it
+                        // hasn't been matched yet.
+                        let right_schema: Schema = self.right.get_schema();
+                        let mut left = self.left_tuple.clone().unwrap();
+                        let mut right = TupleLiteral::null(right_schema.num_columns());
+                        self.join_tuples(&mut left, &mut right);
+                        break;
+                    }
+                }
+            },
+            JoinType::FullOuter => {
+                // TODO: This one is pretty tricky.
+                // One way to do this is to leverage file pointers to keep track of the tuples we've
+                // already seen, while storing the literal itself in an unused list.
+                // There may be other ways, though.
+                return Err(PlanError::Unimplemented);
+            },
+            JoinType::RightOuter => {
+                // This shouldn't happen since we do a swap!
+                return Err(PlanError::Unimplemented);
+            }
+            _ => {
+                // TODO: implement antijoin and semijoin.
+                return Err(PlanError::Unimplemented);
             }
         }
 
@@ -187,5 +238,11 @@ impl<'a> PlanNode for NestedLoopJoinNode<'a> {
         self.output_schema = Some(schema);
 
         Ok(())
+    }
+
+    fn initialize(&mut self) {
+        self.done = false;
+        self.left_tuple = None;
+        self.right_tuple = None;
     }
 }

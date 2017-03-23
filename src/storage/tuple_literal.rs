@@ -17,6 +17,11 @@ impl TupleLiteral {
         TupleLiteral { values: vec![] }
     }
 
+    /// Construct a new tuple-literal with n NULL columns (used for outer joins).
+    pub fn null(size: usize) -> TupleLiteral {
+        TupleLiteral { values: vec![Literal::Null; size] }
+    }
+
     /// Construct a new tuple-literal from an iterator of literals.
     pub fn from_iter<I: IntoIterator<Item=Literal>>(literals: I) -> TupleLiteral {
         TupleLiteral {
