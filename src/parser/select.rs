@@ -115,7 +115,12 @@ named!(join_expr (&[u8]) -> FromClause, complete!(do_parse!(
         join: opt!(ws!(join_type)) >>
         ws!(tag_no_case!("JOIN")) >>
         right: from_expr >>
-        on_expr: opt!(preceded!(ws!(tag_no_case!("ON")), expression)) >>
+        on_expr: opt!(alt_complete!(
+            map!(preceded!(ws!(tag_no_case!("ON")), expression), |e| JoinConditionType::OnExpr(e)) |
+            map!(preceded!(ws!(tag_no_case!("USING")),
+                          separated_nonempty_list!(ws!(tag!(",")), dbobj_ident)),
+                 |idents| JoinConditionType::Using(idents))
+        )) >>
         ({
             let mut jt = JoinType::Cross;
             let mut ct: JoinConditionType = Default::default();
@@ -126,7 +131,7 @@ named!(join_expr (&[u8]) -> FromClause, complete!(do_parse!(
                 }
             }
             if let Some(expr) = on_expr {
-                ct = JoinConditionType::OnExpr(expr);
+                ct = expr;
             }
             (right, jt, ct)
         })

@@ -32,8 +32,8 @@ impl ::std::fmt::Display for JoinConditionType {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
             JoinConditionType::NaturalJoin => write!(f, "NaturalJoin"),
-            JoinConditionType::OnExpr(_) => write!(f, "JoinOnExpression"),
-            JoinConditionType::Using(_) => write!(f, "JoinUsing"),
+            JoinConditionType::OnExpr(ref expr) => write!(f, "JoinOn({})", expr),
+            JoinConditionType::Using(ref names) => write!(f, "JoinUsing({})", names.join(", ")),
         }
     }
 }
@@ -289,7 +289,7 @@ impl FromClause {
                 schema.clone()
             }
             FromClauseType::JoinExpression { ref mut left, ref mut right, ref condition_type, ref join_type } => {
-                debug!("Preparing JOIN_EXPR from-clause.  Condition type = {:?}", condition_type);
+                debug!("Preparing JOIN_EXPR from-clause.  Condition type = {}", condition_type);
 
                 let mut schema = Schema::new();
 
@@ -315,7 +315,17 @@ impl FromClause {
                         self.computed_select_values = built.1;
                     }
                     JoinConditionType::Using(ref names) => {
-                        return Err(ExecutionError::Unimplemented);
+                        let mut common_cols: HashSet<String> = HashSet::new();
+                        for name in names {
+                            if !common_cols.insert(name.clone()) {
+                                return Err(ExecutionError::InvalidSchema(InvalidSchemaError::UsingDuplicate(name.clone())));
+                            }
+                        }
+
+                        let built =
+                            try!(build_join_schema(left_schema, right_schema, common_cols, &mut schema, *join_type));
+                        self.computed_join_expr = built.0;
+                        self.computed_select_values = built.1;
                     }
                     JoinConditionType::OnExpr(ref expr) => {
                         try!(schema.add_columns(left_schema));
@@ -352,7 +362,7 @@ impl ::std::fmt::Display for FromClause {
                         try!(write!(f, ", computed_join_expr={}", self.computed_join_expr.clone().unwrap()));
                     }
                     JoinConditionType::Using(ref names) => {
-                        try!(write!(f, ", using_names={:?}", names));
+                        try!(write!(f, ", using_names={}", names.join(", ")));
                         try!(write!(f, ", computed_join_expr={}", self.computed_join_expr.clone().unwrap()));
                     }
                     JoinConditionType::OnExpr(ref expr) => {

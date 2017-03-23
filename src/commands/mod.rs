@@ -91,6 +91,8 @@ pub enum InvalidSchemaError {
     MissingJoinColumn(String, JoinSide),
     /// The schemas for a NATURAL JOIN don't share column names.
     NoShared,
+    /// A column name was specified twice in a USING clause.
+    UsingDuplicate(String),
 }
 
 impl ::std::fmt::Display for InvalidSchemaError {
@@ -111,6 +113,9 @@ impl ::std::fmt::Display for InvalidSchemaError {
                 write!(f, "column name {} doesn't appear on the {} side", column_name, side)
             },
             InvalidSchemaError::NoShared => write!(f, "child tables share no common column names"),
+            InvalidSchemaError::UsingDuplicate(ref name) => {
+                write!(f, "Column name {} was specified multiple times in USING clause", name)
+            }
         }
     }
 }
