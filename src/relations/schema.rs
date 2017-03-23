@@ -52,6 +52,9 @@ pub enum Error {
     NoColumns,
     /// The column name at the given index was empty.
     EmptyColumnName(usize),
+    /// Setting all of the tables on the schema to a certain name would result in ambiguous column
+    /// names.
+    AmbiguousColumnsAfterTableRename(String, Vec<String>),
 }
 
 impl ::std::fmt::Display for Error {
@@ -67,6 +70,10 @@ impl ::std::fmt::Display for Error {
             Error::Name(ref e) => write!(f, "{}", e),
             Error::NoColumns => write!(f, "All schemas must have at least one column."),
             Error::EmptyColumnName(idx) => write!(f, "The column name at index {} does not have a name.", idx),
+            Error::AmbiguousColumnsAfterTableRename(ref table_name, ref ambiguous_columns) => {
+                write!(f, "Overriding table-name to \"{}\" would produce ambiguous columns: {}",
+                       table_name, ambiguous_columns.join(", "))
+            }
         }
     }
 }
@@ -257,7 +264,7 @@ impl Schema {
     ///
     /// # Errors
     /// This constructor will fail if adding a column would fail at any point.
-    pub fn with_columns<I: IntoIterator<Item = ColumnInfo>>(column_infos: I) -> Result<Schema, Error> {
+    pub fn with_columns<I: IntoIterator<Item=ColumnInfo>>(column_infos: I) -> Result<Schema, Error> {
         let mut result = Schema::new();
         result.add_columns(column_infos).map(|_| result)
     }
@@ -305,7 +312,7 @@ impl Schema {
     ///
     /// # Errors
     /// This method will fail if adding a column would fail at any point.
-    pub fn add_columns<T: IntoIterator<Item = ColumnInfo>>(&mut self, schema: T) -> Result<(), Error> {
+    pub fn add_columns<T: IntoIterator<Item=ColumnInfo>>(&mut self, schema: T) -> Result<(), Error> {
         let result: Result<Vec<()>, Error> = schema.into_iter().map(|column| self.add_column(column)).collect();
         result.map(|_| ())
     }
@@ -437,6 +444,53 @@ impl Schema {
         }
         result
     }
+
+    /// This method iterates through all columns in this schema and sets them all to be on the
+    /// specified table. This method will return an error if the result would be an invalid schema
+    /// with duplicate column names.
+    pub fn set_table_name<S: Into<String>>(&mut self, name: S) -> Result<(), Error> {
+        let name = name.into();
+        // First, verify that overriding the table names will not produce multiple ambiguous column
+        // names.
+        let mut duplicates: Vec<String> = Vec::new();
+
+        for (name, indices) in self.cols_hashed_by_column.iter() {
+            match *name {
+                Some(ref name) => {
+                    if indices.len() > 1 {
+                        duplicates.push(name.clone());
+                    }
+                },
+                None => continue,
+            }
+        }
+
+        if !duplicates.is_empty() {
+            return Err(Error::AmbiguousColumnsAfterTableRename(name.clone(), duplicates));
+        }
+
+        // If we get here, we know that we can safely override the table name for
+        // all columns.
+
+        let old_infos = self.column_infos.clone();
+
+        self.column_infos.clear();
+        self.cols_hashed_by_column.clear();
+        self.cols_hashed_by_table.clear();
+
+        // Iterate over the columns in the same order as they were in originally. For each one,
+        // override the table name, then use add_column() to properly update the internal hash
+        // structure.
+
+        for info in old_infos.iter() {
+            let mut new_info: ColumnInfo = info.clone();
+            new_info.table_name = Some(name.clone());
+
+            try!(self.add_column(new_info));
+        }
+
+        Ok(())
+    }
 }
 
 impl ::std::fmt::Display for Schema {
@@ -450,7 +504,8 @@ impl ::std::fmt::Display for Schema {
 mod tests {
     use std::io::Cursor;
 
-    use ::{ColumnInfo, ColumnType, Schema};
+    use super::*;
+    use ::relations::{ColumnType, ColumnInfo};
 
     #[test]
     fn test_index() {
@@ -483,7 +538,7 @@ mod tests {
         let buffer = vec![0x00; 512];
         let mut expected = vec![0x00; 6];
         expected.extend_from_slice(&[0x01, 0x03, 0x46, 0x4F, 0x4F, 0x03, 0x01, 0x00, 0x01, 0x41, 0x16, 0x00, 0x14, 0x00,
-                                 0x01, 0x42, 0x01, 0x00, 0x01, 0x43]);
+            0x01, 0x42, 0x01, 0x00, 0x01, 0x43]);
         expected.extend_from_slice(&[0x00; 486]);
 
         let mut cursor = Cursor::new(buffer);
@@ -556,5 +611,36 @@ mod tests {
             result.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
             result
         });
+    }
+
+    #[test]
+    fn test_set_table_name() {
+        let a = ColumnInfo::with_name(ColumnType::Integer, "A");
+        let b = ColumnInfo::with_name(ColumnType::Float, "B");
+        let a_foo = ColumnInfo::with_table_name(ColumnType::Integer, "A", "FOO");
+        let b_foo = ColumnInfo::with_table_name(ColumnType::Float, "B", "FOO");
+        let a_bar = ColumnInfo::with_table_name(ColumnType::Integer, "A", "BAR");
+        let b_bar = ColumnInfo::with_table_name(ColumnType::Float, "B", "BAR");
+        let a_abc = ColumnInfo::with_table_name(ColumnType::Integer, "A", "ABC");
+        let b_abc = ColumnInfo::with_table_name(ColumnType::Float, "B", "ABC");
+
+        let mut schema1 = Schema::with_columns(vec![a.clone(), b.clone()]).unwrap();
+        let mut schema2 = Schema::with_columns(vec![a_foo.clone(), b_foo.clone()]).unwrap();
+        let mut schema3 = Schema::with_columns(vec![a_foo.clone(), b_bar.clone()]).unwrap();
+        let mut schema4 = Schema::with_columns(vec![a_foo.clone(), a_bar.clone()]).unwrap();
+
+        assert_eq!(Ok(()), schema1.set_table_name("ABC"));
+        assert_eq!(vec![a_abc.clone(), b_abc.clone()], schema1.column_infos);
+
+        assert_eq!(Ok(()), schema2.set_table_name("ABC"));
+        assert_eq!(vec![a_abc.clone(), b_abc.clone()], schema2.column_infos);
+
+        assert_eq!(Ok(()), schema3.set_table_name("ABC"));
+        assert_eq!(vec![a_abc.clone(), b_abc.clone()], schema3.column_infos);
+
+        assert_eq!(Err(Error::AmbiguousColumnsAfterTableRename("ABC".into(),
+                                                               vec!["A".into()])),
+        schema4.set_table_name("ABC"));
+        assert_eq!(vec![a_foo.clone(), a_bar.clone()], schema4.column_infos);
     }
 }
