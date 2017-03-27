@@ -26,6 +26,13 @@ impl ::std::ops::Deref for HeapFilePageTuple {
     }
 }
 
+impl ::std::hash::Hash for HeapFilePageTuple {
+    fn hash<H: ::std::hash::Hasher>(&self, state: &mut H) {
+        self.page_tuple.db_page.page_no.hash(state);
+        self.slot.hash(state);
+    }
+}
+
 impl Pinnable for HeapFilePageTuple {
     fn pin(&mut self) {
         self.page_tuple.pin()

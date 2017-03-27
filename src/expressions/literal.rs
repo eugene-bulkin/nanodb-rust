@@ -31,6 +31,50 @@ pub enum Literal {
     },
 }
 
+impl ::std::hash::Hash for Literal {
+    fn hash<H: ::std::hash::Hasher>(&self, state: &mut H) {
+        match *self {
+            Literal::Int(i) => {
+                i.hash(state);
+                state.write_u8(1u8);
+            },
+            Literal::Long(l) => {
+                l.hash(state);
+                state.write_u8(1u8);
+            },
+            Literal::String(ref s) => {
+                s.hash(state);
+                state.write_u8(1u8);
+            },
+            Literal::Null => {
+                0.hash(state);
+                state.write_u8(0u8);
+            },
+            Literal::True => {
+                1.hash(state);
+                state.write_u8(0u8);
+            },
+            Literal::False => {
+                2.hash(state);
+                state.write_u8(0u8);
+            },
+            Literal::Double(d) => {
+                (d as u64).hash(state);
+                state.write_u8(1u8);
+            },
+            Literal::Float(f) => {
+                (f as u32).hash(state);
+                state.write_u8(1u8);
+            },
+            Literal::FilePointer { page_no, offset } => {
+                page_no.hash(state);
+                offset.hash(state);
+                state.write_u8(1u8);
+            }
+        }
+    }
+}
+
 impl ::std::fmt::Display for Literal {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {

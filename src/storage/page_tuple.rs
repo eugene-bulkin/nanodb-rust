@@ -103,6 +103,13 @@ pub struct PageTuple {
     pin_count: u32,
 }
 
+impl ::std::hash::Hash for PageTuple {
+    fn hash<H: ::std::hash::Hasher>(&self, state: &mut H) {
+        self.db_page.page_no.hash(state);
+        self.page_offset.hash(state);
+    }
+}
+
 impl PageTuple {
     /// Construct a new tuple object that is backed by the data in the database page. This tuple is
     /// able to be read from or written to.
