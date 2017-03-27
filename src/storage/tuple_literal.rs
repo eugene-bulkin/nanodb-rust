@@ -96,6 +96,11 @@ impl Tuple for TupleLiteral {
     fn get_column_count(&self) -> usize {
         self.values.len()
     }
+
+    fn get_external_reference(&self) -> Option<Literal> {
+        // These are literals, so they can't have an external backing.
+        None
+    }
 }
 
 impl ::std::fmt::Display for TupleLiteral {

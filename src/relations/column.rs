@@ -189,6 +189,7 @@ impl ColumnType {
                 }
             }
             Literal::Null => true,
+            Literal::FilePointer { .. } => false,
         }
     }
 

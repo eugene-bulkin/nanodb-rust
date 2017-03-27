@@ -6,7 +6,7 @@ use std::fs::File;
 use ::Schema;
 use ::expressions::Literal;
 use ::storage::{DBFile, DBPage, PinError, Pinnable, Tuple, TupleError};
-use ::storage::dbpage::EMPTY_SLOT;
+use ::storage::dbpage::{EMPTY_SLOT, get_slot_offset};
 use ::storage::file_manager;
 use ::storage::page_tuple::{PageTuple, get_tuple_storage_size};
 use ::storage::storage_manager::load_dbpage;
@@ -70,6 +70,13 @@ impl Tuple for HeapFilePageTuple {
     fn get_column_value(&mut self, col_index: usize) -> Result<Literal, TupleError> {
         self.page_tuple.get_column_value(col_index)
     }
+
+    fn get_external_reference(&self) -> Option<Literal> {
+        Some(Literal::FilePointer {
+            page_no: self.page_tuple.db_page.page_no as u16,
+            offset: get_slot_offset(self.slot)
+        })
+    }
 }
 
 impl<'a> Tuple for &'a mut HeapFilePageTuple {
@@ -87,6 +94,13 @@ impl<'a> Tuple for &'a mut HeapFilePageTuple {
 
     fn get_column_value(&mut self, col_index: usize) -> Result<Literal, TupleError> {
         self.page_tuple.get_column_value(col_index)
+    }
+
+    fn get_external_reference(&self) -> Option<Literal> {
+        Some(Literal::FilePointer {
+            page_no: self.page_tuple.db_page.page_no as u16,
+            offset: get_slot_offset(self.slot)
+        })
     }
 }
 
