@@ -25,7 +25,7 @@ impl InsertCommand {
 }
 
 impl Command for InsertCommand {
-    fn execute(&mut self, server: &mut Server) -> CommandResult {
+    fn execute(&mut self, server: &mut Server, _out: &mut ::std::io::Write) -> CommandResult {
         match server.table_manager.get_table(&server.file_manager, self.table_name.as_ref()) {
             Ok(ref mut table) => {
                 // Try to evaluate expressions.

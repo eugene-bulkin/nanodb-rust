@@ -41,7 +41,7 @@ impl Server {
     ///
     /// If an error occurs in the command, it is printed to the console.
     pub fn handle_command(&mut self, mut command: Box<Command>) {
-        if let Err(e) = command.execute(self) {
+        if let Err(e) = command.execute(self, &mut ::std::io::stdout()) {
             println!("{}", e);
         }
     }

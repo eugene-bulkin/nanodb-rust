@@ -53,6 +53,7 @@ pub use self::select::SelectCommand;
 pub use self::show::ShowCommand;
 
 use std::any::Any;
+use std::io::Write;
 
 use ::{Server};
 use ::expressions::{Expression, ExpressionError};
@@ -233,7 +234,7 @@ pub trait Command: ::std::fmt::Debug + Any {
     ///
     /// If executing the command results in an error, an
     /// [`ExecutionError`](enum.ExecutionError.html) will be returned.
-    fn execute(&mut self, server: &mut Server) -> CommandResult;
+    fn execute(&mut self, server: &mut Server, out: &mut Write) -> CommandResult;
 
     /// Casts the command to Any. Needed to ensure polymorphism.
     fn as_any(&self) -> &Any;

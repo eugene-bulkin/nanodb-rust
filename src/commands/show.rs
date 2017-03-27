@@ -16,7 +16,7 @@ pub enum ShowCommand {
 }
 
 impl Command for ShowCommand {
-    fn execute(&mut self, server: &mut Server) -> CommandResult {
+    fn execute(&mut self, server: &mut Server, out: &mut ::std::io::Write) -> CommandResult {
         match *self {
             ShowCommand::Tables => {
                 match server.file_manager.get_file_paths() {
@@ -29,7 +29,7 @@ impl Command for ShowCommand {
                             table_names.push(vec![name.clone()]);
                             tuple_results.push(TupleLiteral::from_iter(vec![Literal::String(name.clone())]));
                         }
-                        match print_table(&mut ::std::io::stdout(), header, table_names) {
+                        match print_table(out, header, table_names) {
                             Ok(_) => Ok(Some(tuple_results)),
                             Err(e) => Err(ExecutionError::PrintError(e.description().into()))
                         }
@@ -71,6 +71,6 @@ mod tests {
         let foo_tup = TupleLiteral::from_iter(vec![Literal::String("FOO".into())]);
         let bar_tup = TupleLiteral::from_iter(vec![Literal::String("BAR".into())]);
 
-        assert_eq!(Ok(Some(vec![bar_tup, foo_tup])), cmd.execute(&mut server));
+        assert_eq!(Ok(Some(vec![bar_tup, foo_tup])), cmd.execute(&mut server, &mut ::std::io::sink()));
     }
 }

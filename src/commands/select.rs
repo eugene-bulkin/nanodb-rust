@@ -30,7 +30,7 @@ impl SelectCommand {
 }
 
 impl Command for SelectCommand {
-    fn execute(&mut self, server: &mut Server) -> CommandResult {
+    fn execute(&mut self, server: &mut Server, out: &mut ::std::io::Write) -> CommandResult {
         let result_schema = try!(self.clause.compute_schema(&server.file_manager, &server.table_manager));
         debug!("Prepared SelectClause:\n{}", self.clause);
         debug!("Result schema: {}", result_schema);
@@ -50,7 +50,7 @@ impl Command for SelectCommand {
             return Ok(None);
         }
 
-        match print_table(&mut ::std::io::stdout(), col_names, tuples) {
+        match print_table(out, col_names, tuples) {
             Ok(_) => {
                 // TODO
                 Ok(None)

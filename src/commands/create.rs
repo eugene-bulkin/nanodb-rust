@@ -20,7 +20,7 @@ pub enum CreateCommand {
 }
 
 impl Command for CreateCommand {
-    fn execute(&mut self, server: &mut Server) -> CommandResult {
+    fn execute(&mut self, server: &mut Server, _out: &mut ::std::io::Write) -> CommandResult {
         match *self {
             CreateCommand::Table { ref name, ref decls, .. } => {
                 let column_infos: Vec<ColumnInfo> = decls.iter()
@@ -66,6 +66,6 @@ mod tests {
             decls: vec![("A".into(), ColumnType::Integer)],
         };
 
-        assert_eq!(Ok(None), command.execute(&mut server));
+        assert_eq!(Ok(None), command.execute(&mut server, &mut ::std::io::sink()));
     }
 }
