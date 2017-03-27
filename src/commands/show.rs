@@ -22,14 +22,20 @@ impl Command for ShowCommand {
                 match server.file_manager.get_file_paths() {
                     Ok(paths) => {
                         let header = vec!["TABLE NAME"];
-                        let mut table_names: Vec<Vec<String>> = Vec::new();
-                        let mut tuple_results: Vec<TupleLiteral> = Vec::new();
-                        for path in &paths {
-                            let name: String = path.as_path().file_stem().unwrap().to_str().unwrap().into();
-                            table_names.push(vec![name.clone()]);
-                            tuple_results.push(TupleLiteral::from_iter(vec![Literal::String(name.clone())]));
-                        }
-                        match print_table(out, header, table_names) {
+                        let mut table_names: Vec<String> = paths.iter().map(|p| {
+                            p.as_path()
+                                .file_stem().unwrap()
+                                .to_str().unwrap()
+                                .into()
+                        }).collect();
+                        // For consistency, we sort the table names. This isn't a performance
+                        // critical command anyway.
+                        table_names.sort();
+
+                        let table_rows: Vec<Vec<String>> = table_names.iter().map(|name| vec![name.clone()]).collect();
+                        let tuple_results: Vec<TupleLiteral> = table_names.iter().map(|name| TupleLiteral::from_iter(vec![Literal::String(name.clone())])).collect();
+
+                        match print_table(out, header, table_rows) {
                             Ok(_) => Ok(Some(tuple_results)),
                             Err(e) => Err(ExecutionError::PrintError(e.description().into()))
                         }
@@ -61,6 +67,7 @@ mod tests {
     fn test_show_tables_command() {
         let dir = TempDir::new("test_dbfiles").unwrap();
 
+        File::create(&dir.path().join("BAZ.tbl")).unwrap();
         File::create(&dir.path().join("FOO.tbl")).unwrap();
         File::create(&dir.path().join("BAR.tbl")).unwrap();
 
@@ -70,7 +77,8 @@ mod tests {
 
         let foo_tup = TupleLiteral::from_iter(vec![Literal::String("FOO".into())]);
         let bar_tup = TupleLiteral::from_iter(vec![Literal::String("BAR".into())]);
+        let baz_tup = TupleLiteral::from_iter(vec![Literal::String("BAZ".into())]);
 
-        assert_eq!(Ok(Some(vec![bar_tup, foo_tup])), cmd.execute(&mut server, &mut ::std::io::sink()));
+        assert_eq!(Ok(Some(vec![bar_tup, baz_tup, foo_tup])), cmd.execute(&mut server, &mut ::std::io::sink()));
     }
 }
