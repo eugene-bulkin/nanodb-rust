@@ -1,9 +1,9 @@
 //! This module provides the nested-loops join plan node.
 
 use ::Schema;
-use ::expressions::{Environment, Expression, ExpressionError, JoinConditionType, JoinType, Literal};
+use ::expressions::{Environment, Expression, ExpressionError, JoinType, Literal};
 use ::queries::{PlanError, PlanNode, PlanResult};
-use ::storage::{Pinnable, Tuple, TupleLiteral};
+use ::storage::{Tuple, TupleLiteral};
 
 /// This plan node implements a nested-loops join operation, which can support arbitrary join
 /// conditions but is also the slowest join implementation.
@@ -14,8 +14,6 @@ pub struct NestedLoopJoinNode<'a> {
     right: Box<PlanNode + 'a>,
     /// The type of join being performed.
     join_type: JoinType,
-    /// The condition type of the join being performed.
-    condition_type: JoinConditionType,
     /// Whether there are more tuples to process or not.
     done: bool,
     /// Whether the schema is swapped (e.g. in a right outer join).
@@ -41,7 +39,6 @@ impl<'a> NestedLoopJoinNode<'a> {
     pub fn new(left: Box<PlanNode + 'a>,
                right: Box<PlanNode + 'a>,
                join_type: JoinType,
-               condition_type: JoinConditionType,
                predicate: Option<Expression>)
                -> NestedLoopJoinNode<'a> {
         match join_type {
@@ -54,7 +51,6 @@ impl<'a> NestedLoopJoinNode<'a> {
                     right: left,
                     // Now this is a LEFT OUTER join with swapped schemas.
                     join_type: JoinType::LeftOuter,
-                    condition_type: condition_type,
                     done: false,
                     schema_swapped: true,
                     left_tuple: None,
@@ -71,7 +67,6 @@ impl<'a> NestedLoopJoinNode<'a> {
                     left: left,
                     right: right,
                     join_type: join_type,
-                    condition_type: condition_type,
                     done: false,
                     schema_swapped: false,
                     left_tuple: None,

@@ -1,6 +1,6 @@
 //! This module contains the classes and functions needed for a simple query planner.
 
-use ::expressions::{FromClause, FromClauseType, JoinType, SelectClause};
+use ::expressions::{FromClause, FromClauseType, SelectClause};
 use ::queries::{NestedLoopJoinNode, NodeResult, PlanNode, Planner, ProjectNode, make_simple_select,
                 RenameNode};
 use ::storage::{FileManager, TableManager};
@@ -31,14 +31,13 @@ impl<'a> SimplePlanner<'a> {
                 }
                 Ok(cur_node)
             }
-            FromClauseType::JoinExpression { ref left, ref right, ref join_type, ref condition_type } => {
+            FromClauseType::JoinExpression { ref left, ref right, ref join_type, .. } => {
                 let left_child = try!(self.make_join_tree(*left.clone()));
                 let right_child = try!(self.make_join_tree(*right.clone()));
 
                 let mut cur_node: Box<PlanNode> = Box::new(NestedLoopJoinNode::new(left_child,
                                                                                    right_child,
                                                                                    join_type.clone(),
-                                                                                   condition_type.clone(),
                                                                                    clause.get_computed_join_expr()));
                 try!(cur_node.prepare());
 
