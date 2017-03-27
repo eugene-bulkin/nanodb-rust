@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use ::Server;
-use ::commands::{Command, ExecutionError};
+use ::commands::{Command, CommandResult, ExecutionError};
 use ::commands::utils::print_table;
 use ::expressions::SelectClause;
 use ::queries::{Planner, SimplePlanner};
@@ -30,7 +30,7 @@ impl SelectCommand {
 }
 
 impl Command for SelectCommand {
-    fn execute(&mut self, server: &mut Server) -> Result<(), ExecutionError> {
+    fn execute(&mut self, server: &mut Server) -> CommandResult {
         let result_schema = try!(self.clause.compute_schema(&server.file_manager, &server.table_manager));
         debug!("Prepared SelectClause:\n{}", self.clause);
         debug!("Result schema: {}", result_schema);

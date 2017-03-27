@@ -1,5 +1,5 @@
 use ::{ColumnInfo, ColumnType, Schema, Server};
-use ::commands::{Command, ExecutionError};
+use ::commands::{Command, CommandResult, ExecutionError};
 
 #[derive(Debug, Clone, PartialEq)]
 /// A command for creating a new database object.
@@ -20,7 +20,7 @@ pub enum CreateCommand {
 }
 
 impl Command for CreateCommand {
-    fn execute(&mut self, server: &mut Server) -> Result<(), ExecutionError> {
+    fn execute(&mut self, server: &mut Server) -> CommandResult {
         match *self {
             CreateCommand::Table { ref name, ref decls, .. } => {
                 let column_infos: Vec<ColumnInfo> = decls.iter()

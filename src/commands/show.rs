@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use ::Server;
-use ::commands::{Command, ExecutionError};
+use ::commands::{Command, CommandResult, ExecutionError};
 use ::commands::utils::print_table;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -14,7 +14,7 @@ pub enum ShowCommand {
 }
 
 impl Command for ShowCommand {
-    fn execute(&mut self, server: &mut Server) -> Result<(), ExecutionError> {
+    fn execute(&mut self, server: &mut Server) -> CommandResult {
         match *self {
             ShowCommand::Tables => {
                 match server.file_manager.get_file_paths() {

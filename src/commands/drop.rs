@@ -1,5 +1,5 @@
 use ::Server;
-use ::commands::{Command, ExecutionError};
+use ::commands::{Command, CommandResult, ExecutionError};
 use ::storage::table_manager::get_table_file_name;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -10,7 +10,7 @@ pub enum DropCommand {
 }
 
 impl Command for DropCommand {
-    fn execute(&mut self, server: &mut Server) -> Result<(), ExecutionError> {
+    fn execute(&mut self, server: &mut Server) -> CommandResult {
         match *self {
             DropCommand::Table(ref table_name) => {
                 let table_exists = server.table_manager.table_exists(&server.file_manager, table_name.as_str());

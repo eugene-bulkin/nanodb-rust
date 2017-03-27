@@ -1,5 +1,5 @@
 use ::Server;
-use ::commands::{Command, ExecutionError};
+use ::commands::{Command, CommandResult, ExecutionError};
 use ::expressions::Expression;
 use ::storage::TupleLiteral;
 
@@ -25,7 +25,7 @@ impl InsertCommand {
 }
 
 impl Command for InsertCommand {
-    fn execute(&mut self, server: &mut Server) -> Result<(), ExecutionError> {
+    fn execute(&mut self, server: &mut Server) -> CommandResult {
         match server.table_manager.get_table(&server.file_manager, self.table_name.as_ref()) {
             Ok(ref mut table) => {
                 // Try to evaluate expressions.

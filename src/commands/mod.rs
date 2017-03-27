@@ -214,6 +214,9 @@ impl ::std::fmt::Display for ExecutionError {
     }
 }
 
+/// A result from a command execution.
+pub type CommandResult = Result<(), ExecutionError>;
+
 /// Trait for all commands that NanoDB supports. Command classes contain both the arguments and
 /// configuration details for the command being executed, as well as the code for actually
 /// performing the command. Databases tend to have large `switch` statements controlling how
@@ -230,7 +233,7 @@ pub trait Command: ::std::fmt::Debug + Any {
     ///
     /// If executing the command results in an error, an
     /// [`ExecutionError`](enum.ExecutionError.html) will be returned.
-    fn execute(&mut self, server: &mut Server) -> Result<(), ExecutionError>;
+    fn execute(&mut self, server: &mut Server) -> CommandResult;
 
     /// Casts the command to Any. Needed to ensure polymorphism.
     fn as_any(&self) -> &Any;
