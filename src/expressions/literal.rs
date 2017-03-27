@@ -21,6 +21,14 @@ pub enum Literal {
     True,
     /// A `FALSE` value
     False,
+    /// A file pointer. This can never be provided by a user, but it may show up in certain cases,
+    /// such as a B-tree tuple file.
+    FilePointer {
+        /// The page number in the table file.
+        page_no: u16,
+        /// The offset of the data within the page.
+        offset: u16
+    },
 }
 
 impl ::std::fmt::Display for Literal {
@@ -34,6 +42,7 @@ impl ::std::fmt::Display for Literal {
             Literal::Float(num) => write!(f, "{}", num),
             Literal::Double(num) => write!(f, "{}", num),
             Literal::String(ref s) => write!(f, "\'{}\'", s),
+            Literal::FilePointer { page_no, offset } => write!(f, "FP({}, {})", page_no, offset),
         }
     }
 }
@@ -134,6 +143,7 @@ impl Literal {
             Literal::String(ref s) => ColumnType::VarChar { length: s.len() as u16 },
             Literal::Null => ColumnType::Null,
             Literal::True | Literal::False => ColumnType::TinyInt,
+            Literal::FilePointer { .. } => ColumnType::FilePointer,
         }
     }
 }

@@ -278,10 +278,9 @@ impl Tuple for PageTuple {
                 Ok(Literal::String(value))
             }
             ColumnType::FilePointer => {
-                let _page_no = try!(self.db_page.read_u16::<BigEndian>());
-                let _offset = try!(self.db_page.read_u16::<BigEndian>());
-                // TODO
-                Err(TupleError::UnsupportedColumnType(ColumnType::FilePointer))
+                let page_no = try!(self.db_page.read_u16::<BigEndian>());
+                let offset = try!(self.db_page.read_u16::<BigEndian>());
+                Ok(Literal::FilePointer { page_no: page_no, offset: offset })
             }
             _ => Err(TupleError::UnsupportedColumnType(col_type)),
         }

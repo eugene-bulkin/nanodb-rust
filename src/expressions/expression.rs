@@ -65,6 +65,9 @@ impl From<Literal> for Expression {
             Literal::Null => Expression::Null,
             Literal::True => Expression::True,
             Literal::False => Expression::False,
+            // There really isn't anything else to convert this to... a file pointer should never
+            // come up in a spot where it would be converted into an expression.
+            Literal::FilePointer { .. } => Expression::Null,
         }
     }
 }
