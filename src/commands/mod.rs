@@ -58,7 +58,7 @@ use ::{Server};
 use ::expressions::{Expression, ExpressionError};
 use ::queries::PlanError;
 use ::relations::SchemaError;
-use ::storage::{PinError, file_manager, table_manager};
+use ::storage::{PinError, TupleLiteral, file_manager, table_manager};
 
 /// An enum describing the side of a join being handled.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -214,8 +214,8 @@ impl ::std::fmt::Display for ExecutionError {
     }
 }
 
-/// A result from a command execution.
-pub type CommandResult = Result<(), ExecutionError>;
+/// A result from a command execution. On success, may have a set of rows (if applicable).
+pub type CommandResult = Result<Option<Vec<TupleLiteral>>, ExecutionError>;
 
 /// Trait for all commands that NanoDB supports. Command classes contain both the arguments and
 /// configuration details for the command being executed, as well as the code for actually

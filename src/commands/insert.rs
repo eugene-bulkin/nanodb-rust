@@ -60,7 +60,7 @@ impl Command for InsertCommand {
                 match table.add_tuple(tuple) {
                     Ok(mut page_tuple) => {
                         try!(page_tuple.unpin());
-                        Ok(())
+                        Ok(None)
                     }
                     Err(e) => {
                         error!("{:?}", e);

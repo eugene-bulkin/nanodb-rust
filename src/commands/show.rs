@@ -23,9 +23,13 @@ impl Command for ShowCommand {
                         let table_names: Vec<Vec<String>> = paths.iter()
                             .map(|p| vec![p.as_path().file_stem().unwrap().to_str().unwrap().into()])
                             .collect();
-                        print_table(&mut ::std::io::stdout(), header, table_names).map_err(|e| {
-                            ExecutionError::PrintError(e.description().into())
-                        })
+                        match print_table(&mut ::std::io::stdout(), header, table_names) {
+                            Ok(_) => {
+                                // TODO
+                                Ok(None)
+                            },
+                            Err(e) => Err(ExecutionError::PrintError(e.description().into()))
+                        }
                     }
                     Err(e) => Err(ExecutionError::CouldNotListTables(e)),
                 }

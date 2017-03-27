@@ -15,9 +15,11 @@ impl Command for DropCommand {
             DropCommand::Table(ref table_name) => {
                 let table_exists = server.table_manager.table_exists(&server.file_manager, table_name.as_str());
                 if table_exists {
-                    server.file_manager
-                        .remove_dbfile(get_table_file_name(table_name.as_str()))
-                        .map_err(|e| ExecutionError::CouldNotDeleteTable(e))
+                    match server.file_manager
+                        .remove_dbfile(get_table_file_name(table_name.as_str())) {
+                        Ok(_) => Ok(None),
+                        Err(e) => Err(ExecutionError::CouldNotDeleteTable(e))
+                    }
                 } else {
                     Err(ExecutionError::TableDoesNotExist(table_name.clone()))
                 }
@@ -62,7 +64,7 @@ mod tests {
 
             let mut command = DropCommand::Table(table_name.into());
 
-            assert_eq!(Ok(()), command.execute(&mut server));
+            assert_eq!(Ok(None), command.execute(&mut server));
             assert!(!table_path.exists());
         }
 

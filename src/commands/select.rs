@@ -47,12 +47,16 @@ impl Command for SelectCommand {
         }
         if tuples.is_empty() {
             println!("No rows are in the table.");
-            return Ok(());
+            return Ok(None);
         }
 
-        print_table(&mut ::std::io::stdout(), col_names, tuples).map_err(|e| {
-            ExecutionError::PrintError(e.description().into())
-        })
+        match print_table(&mut ::std::io::stdout(), col_names, tuples) {
+            Ok(_) => {
+                // TODO
+                Ok(None)
+            },
+            Err(e) => Err(ExecutionError::PrintError(e.description().into()))
+        }
     }
 
     fn as_any(&self) -> &::std::any::Any {

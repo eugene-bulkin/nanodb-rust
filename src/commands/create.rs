@@ -33,7 +33,7 @@ impl Command for CreateCommand {
                     Ok(_) => {
                         debug!("New table {} was created.", &name);
                         println!("Created table {}.", &name);
-                        Ok(())
+                        Ok(None)
                     }
                     Err(e) => Err(ExecutionError::CouldNotCreateTable(e)),
                 }
@@ -66,6 +66,6 @@ mod tests {
             decls: vec![("A".into(), ColumnType::Integer)],
         };
 
-        assert_eq!(Ok(()), command.execute(&mut server));
+        assert_eq!(Ok(None), command.execute(&mut server));
     }
 }
