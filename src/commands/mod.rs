@@ -53,12 +53,13 @@ pub use self::select::SelectCommand;
 pub use self::show::ShowCommand;
 
 use std::any::Any;
+use std::io::Write;
 
 use ::{Server};
 use ::expressions::{Expression, ExpressionError};
 use ::queries::PlanError;
 use ::relations::SchemaError;
-use ::storage::{PinError, file_manager, table_manager};
+use ::storage::{PinError, TupleLiteral, file_manager, table_manager};
 
 /// An enum describing the side of a join being handled.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -214,6 +215,9 @@ impl ::std::fmt::Display for ExecutionError {
     }
 }
 
+/// A result from a command execution. On success, may have a set of rows (if applicable).
+pub type CommandResult = Result<Option<Vec<TupleLiteral>>, ExecutionError>;
+
 /// Trait for all commands that NanoDB supports. Command classes contain both the arguments and
 /// configuration details for the command being executed, as well as the code for actually
 /// performing the command. Databases tend to have large `switch` statements controlling how
@@ -230,7 +234,7 @@ pub trait Command: ::std::fmt::Debug + Any {
     ///
     /// If executing the command results in an error, an
     /// [`ExecutionError`](enum.ExecutionError.html) will be returned.
-    fn execute(&mut self, server: &mut Server) -> Result<(), ExecutionError>;
+    fn execute(&mut self, server: &mut Server, out: &mut Write) -> CommandResult;
 
     /// Casts the command to Any. Needed to ensure polymorphism.
     fn as_any(&self) -> &Any;

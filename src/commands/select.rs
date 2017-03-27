@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use ::Server;
-use ::commands::{Command, ExecutionError};
+use ::commands::{Command, CommandResult, ExecutionError};
 use ::commands::utils::print_table;
 use ::expressions::SelectClause;
 use ::queries::{Planner, SimplePlanner};
@@ -30,7 +30,7 @@ impl SelectCommand {
 }
 
 impl Command for SelectCommand {
-    fn execute(&mut self, server: &mut Server) -> Result<(), ExecutionError> {
+    fn execute(&mut self, server: &mut Server, out: &mut ::std::io::Write) -> CommandResult {
         let result_schema = try!(self.clause.compute_schema(&server.file_manager, &server.table_manager));
         debug!("Prepared SelectClause:\n{}", self.clause);
         debug!("Result schema: {}", result_schema);
@@ -47,12 +47,16 @@ impl Command for SelectCommand {
         }
         if tuples.is_empty() {
             println!("No rows are in the table.");
-            return Ok(());
+            return Ok(None);
         }
 
-        print_table(&mut ::std::io::stdout(), col_names, tuples).map_err(|e| {
-            ExecutionError::PrintError(e.description().into())
-        })
+        match print_table(out, col_names, tuples) {
+            Ok(_) => {
+                // TODO
+                Ok(None)
+            },
+            Err(e) => Err(ExecutionError::PrintError(e.description().into()))
+        }
     }
 
     fn as_any(&self) -> &::std::any::Any {

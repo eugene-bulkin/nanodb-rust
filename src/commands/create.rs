@@ -1,5 +1,5 @@
 use ::{ColumnInfo, ColumnType, Schema, Server};
-use ::commands::{Command, ExecutionError};
+use ::commands::{Command, CommandResult, ExecutionError};
 
 #[derive(Debug, Clone, PartialEq)]
 /// A command for creating a new database object.
@@ -20,7 +20,7 @@ pub enum CreateCommand {
 }
 
 impl Command for CreateCommand {
-    fn execute(&mut self, server: &mut Server) -> Result<(), ExecutionError> {
+    fn execute(&mut self, server: &mut Server, _out: &mut ::std::io::Write) -> CommandResult {
         match *self {
             CreateCommand::Table { ref name, ref decls, .. } => {
                 let column_infos: Vec<ColumnInfo> = decls.iter()
@@ -33,7 +33,7 @@ impl Command for CreateCommand {
                     Ok(_) => {
                         debug!("New table {} was created.", &name);
                         println!("Created table {}.", &name);
-                        Ok(())
+                        Ok(None)
                     }
                     Err(e) => Err(ExecutionError::CouldNotCreateTable(e)),
                 }
@@ -66,6 +66,6 @@ mod tests {
             decls: vec![("A".into(), ColumnType::Integer)],
         };
 
-        assert_eq!(Ok(()), command.execute(&mut server));
+        assert_eq!(Ok(None), command.execute(&mut server, &mut ::std::io::sink()));
     }
 }

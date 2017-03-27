@@ -1,5 +1,5 @@
 use ::Server;
-use ::commands::{Command, ExecutionError};
+use ::commands::{Command, CommandResult, ExecutionError};
 use ::storage::table_manager::get_table_file_name;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -10,14 +10,16 @@ pub enum DropCommand {
 }
 
 impl Command for DropCommand {
-    fn execute(&mut self, server: &mut Server) -> Result<(), ExecutionError> {
+    fn execute(&mut self, server: &mut Server, _out: &mut ::std::io::Write) -> CommandResult {
         match *self {
             DropCommand::Table(ref table_name) => {
                 let table_exists = server.table_manager.table_exists(&server.file_manager, table_name.as_str());
                 if table_exists {
-                    server.file_manager
-                        .remove_dbfile(get_table_file_name(table_name.as_str()))
-                        .map_err(|e| ExecutionError::CouldNotDeleteTable(e))
+                    match server.file_manager
+                        .remove_dbfile(get_table_file_name(table_name.as_str())) {
+                        Ok(_) => Ok(None),
+                        Err(e) => Err(ExecutionError::CouldNotDeleteTable(e))
+                    }
                 } else {
                     Err(ExecutionError::TableDoesNotExist(table_name.clone()))
                 }
@@ -52,7 +54,7 @@ mod tests {
                 if_not_exists: false,
                 decls: vec![("A".into(), ColumnType::Integer)],
             };
-            command.execute(&mut server).unwrap();
+            command.execute(&mut server, &mut ::std::io::sink()).unwrap();
         }
 
         // Try dropping the FOO table.
@@ -62,7 +64,7 @@ mod tests {
 
             let mut command = DropCommand::Table(table_name.into());
 
-            assert_eq!(Ok(()), command.execute(&mut server));
+            assert_eq!(Ok(None), command.execute(&mut server, &mut ::std::io::sink()));
             assert!(!table_path.exists());
         }
 
@@ -74,7 +76,7 @@ mod tests {
             let mut command = DropCommand::Table("BAR".into());
 
             assert_eq!(Err(ExecutionError::TableDoesNotExist("BAR".into())),
-                       command.execute(&mut server));
+                       command.execute(&mut server, &mut ::std::io::sink()));
         }
     }
 }
