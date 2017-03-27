@@ -318,4 +318,9 @@ pub trait Tuple: Pinnable {
     /// # Arguments
     /// * col_index - The index of the column
     fn get_column_value(&mut self, col_index: usize) -> Result<Literal, TupleError>;
+
+    /// This method returns an external reference to the tuple, which can be stored and used to look
+    /// up this tuple. The external reference is represented as a file-pointer. Implementations can
+    /// return `None` if the kind of tuple doesn't support an external reference.
+    fn get_external_reference(&self) -> Option<Literal>;
 }

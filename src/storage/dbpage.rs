@@ -67,8 +67,9 @@ impl From<io::Error> for Error {
     }
 }
 
+/// Calculates the offset in the page for a given slot.
 #[inline]
-fn get_slot_offset(slot: u16) -> u16 {
+pub fn get_slot_offset(slot: u16) -> u16 {
     (1 + slot) * 2
 }
 

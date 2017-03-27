@@ -285,4 +285,9 @@ impl Tuple for PageTuple {
             _ => Err(TupleError::UnsupportedColumnType(col_type)),
         }
     }
+
+    fn get_external_reference(&self) -> Option<Literal> {
+        // We don't know what kind of page this is in, so we can't have an external reference.
+        None
+    }
 }
