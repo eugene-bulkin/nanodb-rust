@@ -8,13 +8,14 @@ extern crate nom;
 extern crate rustyline;
 extern crate tempdir;
 extern crate byteorder;
-#[cfg_attr(test, macro_use)]
+#[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
 
 pub mod commands;
 pub mod expressions;
+pub mod functions;
 pub mod parser;
 pub mod queries;
 pub mod relations;

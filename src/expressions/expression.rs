@@ -1,7 +1,12 @@
 //! This module contains utilities for dealing with expressions, including the `Expression` struct.
 
-use ::relations::{ColumnName, column_name_to_string};
 use ::expressions::{ArithmeticType, CompareType, Environment, ExpressionError, Literal};
+use ::functions::Directory;
+use ::relations::{ColumnName, column_name_to_string};
+
+lazy_static! {
+    static ref DIRECTORY: Directory = Directory::new();
+}
 
 fn coerce_literals(left: Literal, right: Literal) -> (Literal, Literal) {
     // WE ASSUME THAT BOTH LITERALS ARE ARITHMETIC HERE.
@@ -22,6 +27,17 @@ fn coerce_literals(left: Literal, right: Literal) -> (Literal, Literal) {
 /// A SQL-supported expression.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
+    /// A function call
+    Function {
+        /// The string name of the function as specified in the original SQL.
+        name: String,
+        /// A flag indicating whether the `DISTINCT` keyword was used in the function invocation,
+        /// e.g. `COUNT(DISTINCT n)`. This flag is only used in the context of aggregate functions;
+        /// if it is set for other kinds of functions, it is a semantic error.
+        distinct: bool,
+        /// The list of one or more arguments for the function call.
+        args: Vec<Expression>
+    },
     /// A Boolean OR expression
     OR(Vec<Expression>),
     /// A Boolean AND expression
@@ -188,7 +204,11 @@ impl Expression {
                 } else {
                     Err(ExpressionError::CouldNotResolve(name.clone()))
                 }
-            }
+            },
+            Expression::Function { ref name, ref args, .. } => {
+                let func = try!(DIRECTORY.get(name.as_ref()));
+                func.evaluate(&mut env, args.to_vec()).map_err(Into::into)
+            },
             _ => Err(ExpressionError::Unimplemented),
         }
     }
@@ -346,6 +366,14 @@ fn wrap_expr_parens(expr: &Expression) -> String {
 impl ::std::fmt::Display for Expression {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
+            Expression::Function { ref name, ref distinct, ref args } => {
+                try!(write!(f, "{}(", name));
+                if *distinct {
+                    try!(write!(f, "DISTINCT "));
+                }
+                let arg_vals: Vec<String> = args.iter().map(|expr| format!("{}", expr)).collect();
+                write!(f, "{})", arg_vals.join(", "))
+            }
             Expression::True => write!(f, "TRUE"),
             Expression::False => write!(f, "FALSE"),
             Expression::Null => write!(f, "NULL"),
