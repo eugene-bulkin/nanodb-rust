@@ -1,12 +1,22 @@
 //! A module which stores utilities for a tuple literal.
 
+use std::default::Default;
+
 use ::expressions::Literal;
 use ::storage::{PinError, Pinnable, Tuple, TupleError};
 
 /// A simple implementation of the {@link Tuple} interface for storing literal tuple values.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Hash)]
 pub struct TupleLiteral {
     values: Vec<Literal>,
+}
+
+impl ::std::cmp::Eq for TupleLiteral {}
+
+impl Default for TupleLiteral {
+    fn default() -> TupleLiteral {
+        TupleLiteral { values: vec![] }
+    }
 }
 
 impl TupleLiteral {
@@ -14,7 +24,7 @@ impl TupleLiteral {
     /// with the {@link #addValue} method, or entire tuples can be appended using the
     /// {@link #appendTuple} method.
     pub fn new() -> TupleLiteral {
-        TupleLiteral { values: vec![] }
+        Default::default()
     }
 
     /// Construct a new tuple-literal with n NULL columns (used for outer joins).

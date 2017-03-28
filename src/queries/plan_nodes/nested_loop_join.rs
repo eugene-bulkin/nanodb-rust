@@ -1,9 +1,37 @@
 //! This module provides the nested-loops join plan node.
 
+use std::collections::{HashMap, HashSet};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
 use ::Schema;
 use ::expressions::{Environment, Expression, ExpressionError, JoinType, Literal};
 use ::queries::{PlanError, PlanNode, PlanResult};
 use ::storage::{Tuple, TupleLiteral};
+
+/// A struct containing information about the current join status of the node.
+pub struct JoinData {
+    /// Whether a tuple has been matched (for outer joins).
+    matched: bool,
+    /// Whether the left child is empty (only for full outer joins).
+    left_empty: bool,
+    /// Associates a tuple with whether it's been joined. The keys are the hashes.
+    used_tuples: HashMap<u64, bool>,
+    unused_tuples: HashSet<TupleLiteral>,
+    unused_tuple_iterator: Option<Box<Iterator<Item=TupleLiteral>>>,
+}
+
+impl Default for JoinData {
+    fn default() -> Self {
+        JoinData {
+            matched: false,
+            left_empty: true,
+            used_tuples: HashMap::new(),
+            unused_tuples: HashSet::new(),
+            unused_tuple_iterator: None,
+        }
+    }
+}
 
 /// This plan node implements a nested-loops join operation, which can support arbitrary join
 /// conditions but is also the slowest join implementation.
@@ -28,10 +56,21 @@ pub struct NestedLoopJoinNode<'a> {
     output_schema: Option<Schema>,
     /// The predicate for testing the join.
     predicate: Option<Expression>,
-    /// Whether a tuple has been matched (for outer joins).
-    matched: bool,
-    /// Whether the left child is empty (only for full outer joins).
-    left_empty: bool,
+    /// Information used to join nodes.
+    join_data: JoinData,
+}
+
+impl<'a> ::std::ops::Deref for NestedLoopJoinNode<'a> {
+    type Target = JoinData;
+    fn deref(&self) -> &Self::Target {
+        &self.join_data
+    }
+}
+
+impl<'a> ::std::ops::DerefMut for NestedLoopJoinNode<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.join_data
+    }
 }
 
 impl<'a> NestedLoopJoinNode<'a> {
@@ -58,8 +97,7 @@ impl<'a> NestedLoopJoinNode<'a> {
                     current_tuple: None,
                     output_schema: None,
                     predicate: predicate,
-                    matched: false,
-                    left_empty: false,
+                    join_data: Default::default(),
                 }
             },
             _ => {
@@ -74,8 +112,7 @@ impl<'a> NestedLoopJoinNode<'a> {
                     current_tuple: None,
                     output_schema: None,
                     predicate: predicate,
-                    matched: false,
-                    left_empty: false,
+                    join_data: Default::default(),
                 }
             }
         }
@@ -97,6 +134,27 @@ impl<'a> NestedLoopJoinNode<'a> {
         self.right_tuple = try!(self.right.get_next_tuple()).map(|t| TupleLiteral::from_tuple(t));
 
         Ok(true)
+    }
+
+    fn get_remaining_tuples(&mut self) -> PlanResult<bool> {
+        if self.left_tuple.is_some() {
+            return Ok(false);
+        }
+
+        if self.unused_tuple_iterator.is_none() {
+            self.unused_tuple_iterator = Some(Box::new(self.unused_tuples.clone().into_iter()));
+        }
+
+        let mut iter = self.unused_tuple_iterator.take().unwrap();
+        let result = match iter.next() {
+            Some(next) => {
+                self.right_tuple = Some(next);
+                Ok(true)
+            },
+            None => Ok(false)
+        };
+        self.unused_tuple_iterator = Some(iter);
+        result
     }
 
     fn can_join_tuples(&mut self) -> PlanResult<bool> {
@@ -192,11 +250,59 @@ impl<'a> PlanNode for NestedLoopJoinNode<'a> {
                 }
             },
             JoinType::FullOuter => {
-                // TODO: This one is pretty tricky.
-                // One way to do this is to leverage file pointers to keep track of the tuples we've
-                // already seen, while storing the literal itself in an unused list.
-                // There may be other ways, though.
-                return Err(PlanError::Unimplemented);
+                while try!(self.get_tuples_to_join()) {
+                    println!("{:?} {:?}", self.unused_tuples, self.used_tuples);
+                    self.left_empty = false;
+                    if self.right_tuple.is_some() {
+                        let literal = TupleLiteral::from_tuple(self.right_tuple.as_mut().unwrap());
+                        let hash = {
+                            let mut hasher = DefaultHasher::new();
+                            literal.hash(&mut hasher);
+                            hasher.finish()
+                        };
+                        if !self.used_tuples.contains_key(&hash) {
+                            self.unused_tuples.insert(literal.clone());
+                            self.used_tuples.insert(hash, false);
+                        }
+                        if self.left_tuple.is_some() && try!(self.can_join_tuples()) {
+                            self.matched = true;
+                            self.used_tuples.insert(hash, true);
+
+                            let mut right = literal.clone();
+                            self.unused_tuples.remove(&right);
+
+                            let mut left = self.left_tuple.clone().unwrap();
+
+                            self.join_tuples(&mut left, &mut right);
+                            break;
+                        }
+                    } else if !self.matched && self.right_tuple.is_none() && self.left_tuple.is_some() {
+                        let right_schema: Schema = self.right.get_schema();
+                        let mut left = self.left_tuple.clone().unwrap();
+                        let mut right = TupleLiteral::null(right_schema.num_columns());
+                        self.join_tuples(&mut left, &mut right);
+                        break;
+                    }
+                }
+
+                if self.left_empty {
+                    self.right_tuple = try!(self.right.get_next_tuple()).map(|t| TupleLiteral::from_tuple(t));
+
+                    if self.right_tuple.is_none() {
+                        return Ok(None);
+                    }
+                    let left_schema: Schema = self.left.get_schema();
+                    let mut left = TupleLiteral::null(left_schema.num_columns());
+                    let mut right = self.right_tuple.clone().unwrap();
+                    self.join_tuples(&mut left, &mut right);
+                } else {
+                    while try!(self.get_remaining_tuples()) {
+                        let left_schema: Schema = self.left.get_schema();
+                        let mut left = TupleLiteral::null(left_schema.num_columns());
+                        let mut right = self.right_tuple.clone().unwrap();
+                        self.join_tuples(&mut left, &mut right);
+                    }
+                }
             },
             JoinType::RightOuter => {
                 // This shouldn't happen since we do a swap!
