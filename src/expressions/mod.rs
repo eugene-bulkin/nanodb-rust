@@ -18,6 +18,7 @@ pub use self::select_clause::SelectClause;
 pub use self::select_value::SelectValue;
 
 use ::ColumnName;
+use ::functions::FunctionError;
 use ::storage::TupleError;
 
 fn col_name_to_string(col_name: &ColumnName) -> String {
@@ -126,8 +127,16 @@ pub enum Error {
     EmptyExpression,
     /// The expression tried to read a column value and failed.
     CouldNotRead(TupleError),
+    /// A function error occurred during evaluation.
+    FunctionError(FunctionError),
     /// This expression's evaluation has not been implemented yet.
     Unimplemented,
+}
+
+impl From<FunctionError> for Error {
+    fn from(error: FunctionError) -> Self {
+        Error::FunctionError(error)
+    }
 }
 
 impl ::std::fmt::Display for Error {
@@ -158,6 +167,7 @@ impl ::std::fmt::Display for Error {
                        "The expression was expecting a set of clauses and got none.")
             }
             Error::CouldNotRead(ref e) => write!(f, "Could not read a value from a tuple: {}", e),
+            Error::FunctionError(ref e) => write!(f, "{}", e),
             Error::Unimplemented => {
                 write!(f,
                        "The expression's evaluation has not yet been implemented.")
