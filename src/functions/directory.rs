@@ -1,5 +1,6 @@
 //! This module contains utilities for storing a function directory.
 
+use super::coalesce::Coalesce;
 use super::{Function, FunctionError};
 
 use std::collections::HashMap;
@@ -20,7 +21,9 @@ impl Directory {
         result
     }
 
-    fn init_builtin_functions(&mut self) {}
+    fn init_builtin_functions(&mut self) {
+        self.add_function("COALESCE", Box::new(Coalesce::new));
+    }
 
     fn add_function<S: Into<String>, F: Fn() -> Box<Function> + 'static + Sync>(&mut self, name: S, f: Box<F>) {
         // Probably, function names will come in cleaned up, but this will make doubly sure!
