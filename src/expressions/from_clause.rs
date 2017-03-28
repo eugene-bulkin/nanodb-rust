@@ -155,8 +155,21 @@ fn build_join_schema(left: Schema,
                     });
                 }
                 JoinType::FullOuter => {
-                    // TODO: Need function calls here to use COALESCE.
-                    return Err(ExecutionError::Unimplemented);
+                    // In this case, the LHS column-value could be null, or the RHS column-value
+                    // could be null. Thus, we need to produce a result of
+                    // COALESCE(lhs.col, rhs.col) AS col.
+                    let coalesce = Expression::Function {
+                        name: "COALESCE".into(),
+                        distinct: false,
+                        args: vec![
+                            Expression::ColumnValue(left_info.get_column_name()),
+                            Expression::ColumnValue(right_info.get_column_name()),
+                        ],
+                    };
+                    select_values.push(SelectValue::Expression {
+                        expression: coalesce,
+                        alias: Some(name.clone()),
+                    });
                 }
                 _ => {
                     // Do nothing...?
