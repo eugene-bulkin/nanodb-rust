@@ -219,7 +219,7 @@ impl<'a> PlanNode for NestedLoopJoinNode<'a> {
         match self.join_type {
             JoinType::Inner | JoinType::Cross => {
                 while try!(self.get_tuples_to_join()) {
-                    if try!(self.can_join_tuples()) {
+                    if self.right_tuple.is_some() && try!(self.can_join_tuples()) {
                         // This step won't occur unless the left and right tuple are set
                         let mut left = self.left_tuple.clone().unwrap();
                         let mut right = self.right_tuple.clone().unwrap();
@@ -251,7 +251,6 @@ impl<'a> PlanNode for NestedLoopJoinNode<'a> {
             },
             JoinType::FullOuter => {
                 while try!(self.get_tuples_to_join()) {
-                    println!("{:?} {:?}", self.unused_tuples, self.used_tuples);
                     self.left_empty = false;
                     if self.right_tuple.is_some() {
                         let literal = TupleLiteral::from_tuple(self.right_tuple.as_mut().unwrap());
