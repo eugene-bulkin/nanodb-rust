@@ -9,7 +9,7 @@ use nom::{IResult, be_u8};
 
 use ::relations::SchemaError;
 use ::storage::{dbpage, PinError};
-use ::storage::dbfile::{self, DBFile, DBFileType};
+use ::storage::dbfile::{self, DBFile, DBFileType, encode_pagesize};
 
 named!(parse_header (&[u8]) -> (u8, Result<u32, dbfile::Error>), do_parse!(
     type_id: be_u8 >>
@@ -357,7 +357,7 @@ impl FileManager {
                     Ok(mut db_file) => {
                         let mut buffer = vec![0; page_size as usize];
                         buffer[0] = file_type as u8;
-                        buffer[1] = 0x09;
+                        buffer[1] = try!(encode_pagesize(page_size));
 
                         // logger.debug("Creating new database file " + f +
                         // ".");

@@ -62,7 +62,7 @@ pub fn is_valid_pagesize(page_size: u32) -> bool {
 /// assert_eq!(encode_pagesize(512), Ok(9));
 /// assert_eq!(encode_pagesize(513), Err(Error::InvalidPageSize(513)));
 /// ```
-pub fn encode_pagesize(page_size: u32) -> Result<u32, Error> {
+pub fn encode_pagesize(page_size: u32) -> Result<u8, Error> {
     if !is_valid_pagesize(page_size) {
         Err(Error::InvalidPageSize(page_size))
     } else {
