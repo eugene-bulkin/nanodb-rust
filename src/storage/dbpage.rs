@@ -99,7 +99,7 @@ pub struct DBPage {
     /// TODO: Ideally, this should be a `&[u8]`.
     pub page_data: Vec<u8>,
     old_page_data: Option<Vec<u8>>,
-
+    is_disk_backed: bool,
     cur_page_position: u64,
 }
 
@@ -115,6 +115,7 @@ impl DBPage {
     /// An error can occur if the buffer manager was unable to allocate the space to store the page.
     /// Currently the buffer manager does not exist, so this should never return an error.
     pub fn new(db_file_info: &DBFileInfo, page_no: u32) -> Result<DBPage, Error> {
+        let is_disk_backed = db_file_info.path.as_ref().map(|pb| pb.exists()) == Some(true);
         let page = DBPage {
             page_no: page_no,
             pin_count: 0,
@@ -123,10 +124,16 @@ impl DBPage {
             // TODO: Use BufferManager to get a page.
             page_data: vec![0; db_file_info.page_size as usize],
             old_page_data: None,
+            is_disk_backed: is_disk_backed,
             cur_page_position: 0,
         };
         // TODO: Use buffer manager
         Ok(page)
+    }
+
+    /// Checks whether a page is disk-backed (i.e. is on a file that exists).
+    pub fn is_disk_backed(&self) -> bool {
+        self.is_disk_backed
     }
 
     /// Sets the dirty flag to true or false, indicating whether the page's data has or has not been

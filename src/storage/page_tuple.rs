@@ -225,8 +225,7 @@ impl Pinnable for PageTuple {
 
 impl Tuple for PageTuple {
     fn is_disk_backed(&self) -> bool {
-        // TODO: Should check if the DBFile has a path?
-        true
+        self.db_page.is_disk_backed()
     }
 
     fn is_null_value(&self, col_index: usize) -> Result<bool, TupleError> {
