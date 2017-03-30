@@ -327,13 +327,8 @@ impl<'a> PlanNode for NestedLoopJoinNode<'a> {
 
         let mut schema = Schema::new();
 
-        if !self.schema_swapped {
-            try!(schema.add_columns(left_schema));
-            try!(schema.add_columns(right_schema));
-        } else {
-            try!(schema.add_columns(right_schema));
-            try!(schema.add_columns(left_schema));
-        }
+        try!(schema.add_columns(left_schema));
+        try!(schema.add_columns(right_schema));
 
         self.output_schema = Some(schema);
 
