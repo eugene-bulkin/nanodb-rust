@@ -500,6 +500,24 @@ impl ::std::fmt::Display for Schema {
     }
 }
 
+impl ::std::ops::Add for Schema {
+    type Output = Self;
+    fn add(self, other: Schema) -> Schema {
+        let mut result = Schema::with_columns(self.column_infos).unwrap();
+        // Yes, this may panic, but you shouldn't really be using this without checking first.
+        result.add_columns(other.column_infos).unwrap();
+        result
+    }
+}
+
+impl ::std::ops::AddAssign for Schema {
+    #[inline]
+    fn add_assign(&mut self, other: Schema) {
+        // Yes, this may panic, but you shouldn't really be using this without checking first.
+        self.add_columns(other.column_infos).unwrap();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
