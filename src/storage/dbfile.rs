@@ -127,6 +127,18 @@ impl From<u8> for DBFileType {
     }
 }
 
+impl ::std::fmt::Display for DBFileType {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            DBFileType::HeapTupleFile => write!(f, "HEAP"),
+            DBFileType::BTreeTupleFile => write!(f, "BTREE"),
+            DBFileType::TxnStateFile => write!(f, "TXN_STATE"),
+            DBFileType::WriteAheadLogFile => write!(f, "WAL"),
+            DBFileType::Unknown => write!(f, "UNKNOWN"),
+        }
+    }
+}
+
 /// This struct stores identifying information on `DBFile`s. Since the contents may vary, but the
 /// location of the file and other metadata will uniquely identify it, this is the best way to store
 /// data about the `DBFile` itself.
@@ -138,6 +150,13 @@ pub struct DBFileInfo {
     pub page_size: u32,
     /// An optional path of the backing file.
     pub path: Option<PathBuf>,
+}
+
+impl DBFileInfo {
+    /// Retrieve the name of the DBFile, if it exists.
+    pub fn get_name(&self) -> Option<String> {
+        self.path.as_ref().map(|pb| pb.as_path().to_string_lossy().to_string())
+    }
 }
 
 impl PartialEq for DBFileInfo {

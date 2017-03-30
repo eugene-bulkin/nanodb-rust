@@ -43,6 +43,29 @@ pub struct FileManager {
     base_dir: PathBuf,
 }
 
+
+#[derive(Debug, Clone, PartialEq)]
+/// An error that occurs while parsing a db file.
+pub enum DBFileParseError {
+    /// Unable to read enough bytes to parse the DB File.
+    NotEnoughData,
+    /// Unable to parse the header.
+    CouldNotParseHeader,
+}
+
+impl ::std::fmt::Display for DBFileParseError {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            DBFileParseError::NotEnoughData => {
+                write!(f, "there were insufficient bytes to read db file.")
+            },
+            DBFileParseError::CouldNotParseHeader => {
+                write!(f, "the header could not be parsed.")
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 /// An error that occurs while handling files.
 pub enum Error {
@@ -62,8 +85,9 @@ pub enum Error {
     PinError(PinError),
     /// An error occurred while attempting to handle a schema.
     SchemaError(SchemaError),
-    /// A `DBFile` was unable to be parsed properly.
-    DBFileParseError,
+    /// A `DBFile` was unable to be parsed properly because there was insufficient data to parse the
+    /// header.
+    DBFileHeaderIncomplete,
     /// Some I/O error occurred.
     IOError(String),
     /// A `DBFile` was unable to be extended due to memory constraints.
@@ -110,10 +134,7 @@ impl ::std::fmt::Display for Error {
             Error::InvalidDBFileType(type_id) => write!(f, "The file type {} is not valid for a DB file.", type_id),
             Error::InvalidBaseDir(ref dir) => write!(f, "The base directory {} is not valid.", dir),
             Error::FilePathsError => write!(f, "Unable to list file paths in a directory."),
-            Error::DBFileParseError => {
-                // TODO: What's the error?
-                write!(f, "An error occurred while parsing a DBFile.")
-            }
+            Error::DBFileHeaderIncomplete => write!(f, "Parsing a DBFile failed because the header was incomplete."),
             Error::DBFileError(ref e) => write!(f, "{}", e),
             Error::DBPageError(ref e) => write!(f, "{}", e),
             Error::SchemaError(ref e) => write!(f, "{}", e),
@@ -240,8 +261,9 @@ pub fn load_page(dbfile: &mut DBFile<File>, page_no: u32, mut buffer: &mut [u8],
             if create {
                 // Caller wants to create the page if it doesn't already exist yet.
 
-                // logger.debug(String.format("Requested page %d doesn't yet
-                // exist in file %s; creating.", pageNo, dbFile.getDataFile().getName()));
+                debug!("Requested page {} doesn't yet exist in file {}; creating.",
+                page_no,
+                dbfile.get_name().unwrap_or("(no file)".into()));
 
                 // ...of course, we don't actually extend the file's size until the page is
                 // stored back to the file...
@@ -285,11 +307,11 @@ impl FileManager {
         let dir = fs::read_dir(self.base_dir.as_path()).map_err(|_| Error::FilePathsError);
         if let Ok(dir) = dir {
             dir.map(|entry| {
-                    match entry {
-                        Ok(e) => Ok(e.path()),
-                        _ => Err(Error::FilePathsError),
-                    }
-                })
+                match entry {
+                    Ok(e) => Ok(e.path()),
+                    _ => Err(Error::FilePathsError),
+                }
+            })
                 .collect()
         } else {
             Err(Error::FilePathsError)
@@ -342,8 +364,10 @@ impl FileManager {
         let mut full_path = self.base_dir.clone();
         full_path.push(&filename);
 
+        let filename_string: String = filename.as_ref().to_string_lossy().into();
+
         if full_path.exists() {
-            return Err(Error::DBFileExists(filename.as_ref().to_string_lossy().into()));
+            return Err(Error::DBFileExists(filename_string));
         }
 
         let file = OpenOptions::new()
@@ -359,15 +383,11 @@ impl FileManager {
                         buffer[0] = file_type as u8;
                         buffer[1] = try!(encode_pagesize(page_size));
 
-                        // logger.debug("Creating new database file " + f +
-                        // ".");
-                        let save_result = save_page(&mut db_file, 0, buffer.as_slice())
-                            .and_then(|_| db_file.flush().map_err(Into::into));
+                        debug!("Creating new database file {}.", filename_string);
+                        try!(save_page(&mut db_file, 0, buffer.as_slice())
+                            .and_then(|_| db_file.flush().map_err(Into::into)));
 
-                        match save_result {
-                            Ok(()) => Ok(db_file),
-                            Err(e) => Err(e.into()),
-                        }
+                        Ok(db_file)
                     }
                     Err(e) => Err(e.into()),
                 }
@@ -423,11 +443,7 @@ impl FileManager {
         }
         let mut file = file.unwrap();
         let mut buf = [0u8; 2];
-        let read_result = file.read_exact(&mut buf)
-            .map_err(|_| Error::DBFileParseError);
-        if read_result.is_err() {
-            return Err(Error::DBFileParseError);
-        }
+        try!(file.read_exact(&mut buf).map_err(|_| Error::DBFileHeaderIncomplete));
 
         match parse_header(&buf) {
             IResult::Done(_, (type_id, page_size)) => {
@@ -442,15 +458,15 @@ impl FileManager {
                 };
                 match page_size {
                     Ok(size) => {
-                        // logger.debug(String.format("Opened existing database file %s; type is
-                        // %s, page size is %d.", f, type, pageSize));
+                        debug!("Opened existing database file {}; type is {}, page size is {}.",
+                        filename.as_ref().to_string_lossy(), file_type, size);
 
                         DBFile::with_path(file_type, size, file, full_path.clone()).map_err(Into::into)
                     }
                     Err(e) => Err(e.into()),
                 }
             }
-            _ => Err(Error::DBFileParseError),
+            _ => Err(Error::DBFileHeaderIncomplete),
         }
     }
 }
@@ -475,14 +491,14 @@ mod tests {
             File::create(&file_path).unwrap();
 
             assert_eq!(Err(Error::InvalidBaseDir("bar.txt".into())),
-                       FileManager::with_directory("bar.txt"));
+            FileManager::with_directory("bar.txt"));
             assert_eq!(Err(Error::InvalidBaseDir(path_as_string)),
-                       FileManager::with_directory(&file_path));
+            FileManager::with_directory(&file_path));
             assert_eq!(Ok(FileManager {
-                           base_dir: dir.path().to_path_buf(),
-                           last_accessed: None,
-                       }),
-                       FileManager::with_directory(dir.path()));
+                base_dir: dir.path().to_path_buf(),
+                last_accessed: None,
+            }),
+            FileManager::with_directory(dir.path()));
         } else {
             panic!("Unable to create test_dbfiles directory!");
         }
@@ -497,7 +513,7 @@ mod tests {
             let file_manager = FileManager::with_directory(dir.path()).unwrap();
 
             assert_eq!(Ok(vec![PathBuf::from(file_path.clone())]),
-                       file_manager.get_file_paths());
+            file_manager.get_file_paths());
         } else {
             panic!("Unable to create test_dbfiles directory!");
         }
@@ -512,7 +528,7 @@ mod tests {
             File::create(&file_path).unwrap();
 
             assert_eq!(Err(Error::DBFileExists("foo.tbl".into())),
-                       file_manager.create_dbfile("foo.tbl", DBFileType::HeapTupleFile, 512));
+            file_manager.create_dbfile("foo.tbl", DBFileType::HeapTupleFile, 512));
 
             let bar_file = file_manager.create_dbfile(Path::new("bar.tbl"), DBFileType::HeapTupleFile, 512);
             assert!(bar_file.is_ok());
@@ -530,16 +546,21 @@ mod tests {
             let path_as_string: String = file_path.to_str().unwrap().into();
             // Haven't created file yet
             assert_eq!(Err(Error::DBFileDoesNotExist(path_as_string)),
-                       file_manager.open_dbfile(&file_path));
+            file_manager.open_dbfile(&file_path));
 
             let mut file = File::create(&file_path).unwrap();
             let file_type = DBFileType::BTreeTupleFile;
 
             // Empty file won't parse
-            assert_eq!(Err(Error::DBFileParseError),
-                       file_manager.open_dbfile(&file_path));
+            assert_eq!(Err(Error::DBFileHeaderIncomplete), file_manager.open_dbfile(&file_path));
 
-            file.write(&[file_type as u8, 0x09]).unwrap();
+            // Incomplete file won't parse
+            file.write(&[file_type as u8]).unwrap();
+            file.flush().unwrap();
+            assert_eq!(Err(Error::DBFileHeaderIncomplete), file_manager.open_dbfile(&file_path));
+
+            // Full header will work
+            file.write(&[0x09]).unwrap();
             file.flush().unwrap();
 
             let expected = DBFile::with_path(file_type, 512, file, &file_path).map_err(|e| Error::DBFileError(e));
@@ -564,7 +585,7 @@ mod tests {
         let second_page = [0xfd; 512];
 
         assert_eq!(Err(Error::IncorrectBufferSize(512, 5)),
-                   save_page(&mut dbfile, 0, &[0; 5]));
+        save_page(&mut dbfile, 0, &[0; 5]));
         assert_eq!(Ok(()), save_page(&mut dbfile, 0, &first_page));
 
         let result = dbfile.get_contents().clone().into_inner();
@@ -601,7 +622,7 @@ mod tests {
         expected.extend_from_slice(&[0xaf; 510][..]);
 
         assert_eq!(Err(Error::NotFullyRead),
-                   load_page(&mut dbfile, 1000, &mut result, false));
+        load_page(&mut dbfile, 1000, &mut result, false));
         assert_eq!(Ok(()), load_page(&mut dbfile, 0, &mut result, false));
         assert_eq!(expected.as_slice(), &result[..]);
     }

@@ -386,7 +386,7 @@ impl Schema {
     /// # Errors
     /// This function can fail if anything goes wrong trying to write to the given output.
     pub fn write<W: WriteNanoDBExt + Seek>(&self, mut output: &mut W) -> Result<(), io::Error> {
-        info! ("Writing table schema: {:?}", self );
+        info! ("Writing table schema: {}", self);
 
         try!(output.seek(SeekFrom::Start(OFFSET_SCHEMA_START as u64)));
 
