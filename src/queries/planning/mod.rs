@@ -33,6 +33,9 @@ pub enum Error {
     CouldNotAdvanceTuple(TupleError),
     /// The node was not prepared before using.
     NodeNotPrepared,
+    /// A tuple was found in a plan that did not match the schema size. In the form of
+    /// `(tuple size, schema size)`.
+    WrongArity(usize, usize),
 }
 
 impl From<file_manager::Error> for Error {
@@ -76,6 +79,10 @@ impl ::std::fmt::Display for Error {
                        column_name_to_string(col_name))
             }
             Error::NodeNotPrepared => write!(f, "A node was not prepared."),
+            Error::WrongArity(tup_size, schema_size) => {
+                write!(f, "Tuple has different arity ({} columns) than target schema ({} columns).",
+                       tup_size, schema_size)
+            }
         }
     }
 }

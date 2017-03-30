@@ -71,6 +71,9 @@ impl TupleLiteral {
             self.values.push(tuple.get_column_value(i).unwrap())
         }
     }
+
+    /// The size of the tuple literal.
+    pub fn len(&self) -> usize { self.values.len() }
 }
 
 impl Pinnable for TupleLiteral {

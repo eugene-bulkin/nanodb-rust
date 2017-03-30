@@ -2,10 +2,14 @@
 
 mod file_scan;
 mod project;
+#[cfg(test)]
+mod literal;
 mod nested_loop_join;
 mod rename;
 
 pub use self::file_scan::FileScanNode;
+#[cfg(test)]
+pub use self::literal::LiteralNode;
 pub use self::nested_loop_join::NestedLoopJoinNode;
 pub use self::project::ProjectNode;
 pub use self::rename::RenameNode;
