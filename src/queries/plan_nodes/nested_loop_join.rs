@@ -341,3 +341,298 @@ impl<'a> PlanNode for NestedLoopJoinNode<'a> {
         self.right_tuple = None;
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use std::iter::empty;
+
+    use super::*;
+    use ::Schema;
+    use ::expressions::{CompareType, JoinType, Expression, Literal};
+    use ::expressions::Expression::*;
+    use ::queries::plan_nodes::LiteralNode;
+    use ::relations::{ColumnInfo, ColumnType};
+    use ::storage::TupleLiteral;
+
+    lazy_static! {
+        static ref LEFT_A: ColumnInfo = ColumnInfo::with_table_name(ColumnType::Integer, "A", "LEFT");
+        static ref LEFT_B: ColumnInfo = ColumnInfo::with_table_name(ColumnType::Integer, "B", "LEFT");
+        static ref RIGHT_A: ColumnInfo = ColumnInfo::with_table_name(ColumnType::Integer, "A", "RIGHT");
+        static ref RIGHT_C: ColumnInfo = ColumnInfo::with_table_name(ColumnType::Integer, "C", "RIGHT");
+
+        static ref PREDICATE: Expression = {
+            let left_name = (Some("LEFT".into()), Some("A".into()));
+            let right_name = (Some("RIGHT".into()), Some("A".into()));
+            Compare(Box::new(ColumnValue(left_name)), CompareType::Equals, Box::new(ColumnValue(right_name)))
+        };
+
+        static ref LEFT_SCHEMA: Schema = Schema::with_columns(vec ! [LEFT_A.clone(), LEFT_B.clone()]).unwrap();
+        static ref RIGHT_SCHEMA: Schema = Schema::with_columns(vec ! [RIGHT_A.clone(), RIGHT_C.clone()]).unwrap();
+
+        static ref LEFT_TUPLES: Vec<TupleLiteral> = vec![
+            TupleLiteral::from_iter(vec![1i32.into(), 2i32.into()]),
+            TupleLiteral::from_iter(vec![3i32.into(), 4i32.into()]),
+        ];
+        static ref RIGHT_TUPLES: Vec<TupleLiteral> = vec![
+            TupleLiteral::from_iter(vec![3i32.into(), 6i32.into()]),
+            TupleLiteral::from_iter(vec![7i32.into(), 8i32.into()]),
+        ];
+
+        static ref EMPTY: Vec<TupleLiteral> = vec![];
+    }
+
+    fn generate_node_results(left: Box<PlanNode>, right: Box<PlanNode>, join_type: JoinType, predicate: Option<Expression>) -> (Schema, Vec<TupleLiteral>) {
+        let mut node = NestedLoopJoinNode::new(left, right, join_type, predicate);
+        node.prepare().unwrap();
+
+        let schema = node.get_schema();
+
+        let mut result: Vec<TupleLiteral> = Vec::new();
+        while let Some(tuple) = node.get_next_tuple().unwrap() {
+            result.push(TupleLiteral::from_tuple(tuple));
+        }
+        (schema, result)
+    }
+
+    #[test]
+    fn test_cross_join() {
+        let result_schema = LEFT_SCHEMA.clone() + RIGHT_SCHEMA.clone();
+
+        // Test empty joins
+        {
+            let left_node = LiteralNode::from_iter(LEFT_TUPLES.clone().into_iter(), LEFT_SCHEMA.clone()).unwrap();
+            let right_node = LiteralNode::from_iter(RIGHT_TUPLES.clone().into_iter(), RIGHT_SCHEMA.clone()).unwrap();
+
+            {
+                let empty_node = LiteralNode::from_iter(empty::<TupleLiteral>(), RIGHT_SCHEMA.clone()).unwrap();
+                let (schema, result) = generate_node_results(Box::new(left_node), Box::new(empty_node), JoinType::Cross, None);
+
+                assert_eq!(schema, result_schema);
+                assert_eq!(EMPTY.clone(), result);
+            }
+
+            {
+                let empty_node = LiteralNode::from_iter(empty::<TupleLiteral>(), LEFT_SCHEMA.clone()).unwrap();
+                let (schema, result) = generate_node_results(Box::new(empty_node), Box::new(right_node), JoinType::Cross, None);
+
+                assert_eq!(schema, result_schema);
+                assert_eq!(EMPTY.clone(), result);
+            }
+        }
+
+        // Test non-empty joins
+        {
+            let left_node = LiteralNode::from_iter(LEFT_TUPLES.clone().into_iter(), LEFT_SCHEMA.clone()).unwrap();
+            let right_node = LiteralNode::from_iter(RIGHT_TUPLES.clone().into_iter(), RIGHT_SCHEMA.clone()).unwrap();
+
+            let (schema, result) = generate_node_results(Box::new(left_node), Box::new(right_node), JoinType::Cross, None);
+
+            assert_eq!(schema, result_schema);
+            assert_eq!(vec![
+                TupleLiteral::from_iter(vec![1i32.into(), 2i32.into(), 3i32.into(), 6i32.into()]),
+                TupleLiteral::from_iter(vec![1i32.into(), 2i32.into(), 7i32.into(), 8i32.into()]),
+                TupleLiteral::from_iter(vec![3i32.into(), 4i32.into(), 3i32.into(), 6i32.into()]),
+                TupleLiteral::from_iter(vec![3i32.into(), 4i32.into(), 7i32.into(), 8i32.into()]),
+            ], result);
+        }
+    }
+
+    #[test]
+    fn test_inner_join() {
+        let result_schema = LEFT_SCHEMA.clone() + RIGHT_SCHEMA.clone();
+
+        // Test empty joins
+        {
+            let left_node = LiteralNode::from_iter(LEFT_TUPLES.clone().into_iter(), LEFT_SCHEMA.clone()).unwrap();
+            let right_node = LiteralNode::from_iter(RIGHT_TUPLES.clone().into_iter(), RIGHT_SCHEMA.clone()).unwrap();
+
+            {
+                let empty_node = LiteralNode::from_iter(empty::<TupleLiteral>(), RIGHT_SCHEMA.clone()).unwrap();
+                let (schema, result) = generate_node_results(Box::new(left_node), Box::new(empty_node), JoinType::Inner, None);
+
+                assert_eq!(schema, result_schema);
+                assert_eq!(EMPTY.clone(), result);
+            }
+
+            {
+                let empty_node = LiteralNode::from_iter(empty::<TupleLiteral>(), LEFT_SCHEMA.clone()).unwrap();
+                let (schema, result) = generate_node_results(Box::new(empty_node), Box::new(right_node), JoinType::Inner, None);
+
+                assert_eq!(schema, result_schema);
+                assert_eq!(EMPTY.clone(), result);
+            }
+        }
+
+        // Test INNER JOIN without predicate.
+        {
+            let left_node = LiteralNode::from_iter(LEFT_TUPLES.clone().into_iter(), LEFT_SCHEMA.clone()).unwrap();
+            let right_node = LiteralNode::from_iter(RIGHT_TUPLES.clone().into_iter(), RIGHT_SCHEMA.clone()).unwrap();
+            let (schema, result) = generate_node_results(Box::new(left_node), Box::new(right_node), JoinType::Inner, None);
+
+            assert_eq!(schema, result_schema);
+            assert_eq!(vec![
+                TupleLiteral::from_iter(vec![1i32.into(), 2i32.into(), 3i32.into(), 6i32.into()]),
+                TupleLiteral::from_iter(vec![1i32.into(), 2i32.into(), 7i32.into(), 8i32.into()]),
+                TupleLiteral::from_iter(vec![3i32.into(), 4i32.into(), 3i32.into(), 6i32.into()]),
+                TupleLiteral::from_iter(vec![3i32.into(), 4i32.into(), 7i32.into(), 8i32.into()]),
+            ], result);
+        }
+
+        // Test INNER JOIN with predicate.
+        {
+            let left_node = LiteralNode::from_iter(LEFT_TUPLES.clone().into_iter(), LEFT_SCHEMA.clone()).unwrap();
+            let right_node = LiteralNode::from_iter(RIGHT_TUPLES.clone().into_iter(), RIGHT_SCHEMA.clone()).unwrap();
+            let (schema, result) = generate_node_results(Box::new(left_node), Box::new(right_node),
+                                                         JoinType::Inner,
+                                                         Some(PREDICATE.clone()));
+
+            assert_eq!(schema, result_schema);
+            assert_eq!(vec![
+                TupleLiteral::from_iter(vec![3i32.into(), 4i32.into(), 3i32.into(), 6i32.into()]),
+            ], result);
+        }
+    }
+
+    #[test]
+    fn test_left_outer_join() {
+        let result_schema = LEFT_SCHEMA.clone() + RIGHT_SCHEMA.clone();
+
+        // Test empty joins
+        {
+            let left_node = LiteralNode::from_iter(LEFT_TUPLES.clone().into_iter(), LEFT_SCHEMA.clone()).unwrap();
+            let right_node = LiteralNode::from_iter(RIGHT_TUPLES.clone().into_iter(), RIGHT_SCHEMA.clone()).unwrap();
+
+            {
+                let empty_node = LiteralNode::from_iter(empty::<TupleLiteral>(), RIGHT_SCHEMA.clone()).unwrap();
+                let (schema, result) = generate_node_results(Box::new(left_node), Box::new(empty_node), JoinType::LeftOuter, Some(PREDICATE.clone()));
+
+                assert_eq!(schema, result_schema);
+                assert_eq!(vec![
+                    TupleLiteral::from_iter(vec![1i32.into(), 2i32.into(), Literal::Null, Literal::Null]),
+                    TupleLiteral::from_iter(vec![3i32.into(), 4i32.into(), Literal::Null, Literal::Null]),
+                ], result);
+            }
+
+            {
+                let empty_node = LiteralNode::from_iter(empty::<TupleLiteral>(), LEFT_SCHEMA.clone()).unwrap();
+                let (schema, result) = generate_node_results(Box::new(empty_node), Box::new(right_node), JoinType::LeftOuter, Some(PREDICATE.clone()));
+
+                assert_eq!(schema, result_schema);
+                assert_eq!(EMPTY.clone(), result);
+            }
+        }
+
+        // Test non-empty joins
+        {
+            let left_node = LiteralNode::from_iter(LEFT_TUPLES.clone().into_iter(), LEFT_SCHEMA.clone()).unwrap();
+            let right_node = LiteralNode::from_iter(RIGHT_TUPLES.clone().into_iter(), RIGHT_SCHEMA.clone()).unwrap();
+
+            let (schema, result) = generate_node_results(Box::new(left_node), Box::new(right_node),
+                                                         JoinType::LeftOuter,
+                                                         Some(PREDICATE.clone()));
+
+            assert_eq!(schema, result_schema);
+            assert_eq!(vec![
+                TupleLiteral::from_iter(vec![1i32.into(), 2i32.into(), Literal::Null, Literal::Null]),
+                TupleLiteral::from_iter(vec![3i32.into(), 4i32.into(), 3i32.into(), 6i32.into()]),
+            ], result);
+        }
+    }
+
+    #[test]
+    fn test_right_outer_join() {
+        let result_schema = RIGHT_SCHEMA.clone() + LEFT_SCHEMA.clone();
+
+        // Test empty joins
+        {
+            let left_node = LiteralNode::from_iter(LEFT_TUPLES.clone().into_iter(), LEFT_SCHEMA.clone()).unwrap();
+            let right_node = LiteralNode::from_iter(RIGHT_TUPLES.clone().into_iter(), RIGHT_SCHEMA.clone()).unwrap();
+
+            {
+                let empty_node = LiteralNode::from_iter(empty::<TupleLiteral>(), RIGHT_SCHEMA.clone()).unwrap();
+                let (schema, result) = generate_node_results(Box::new(left_node), Box::new(empty_node), JoinType::RightOuter, Some(PREDICATE.clone()));
+
+                assert_eq!(schema, result_schema);
+                assert_eq!(EMPTY.clone(), result);
+            }
+
+            {
+                let empty_node = LiteralNode::from_iter(empty::<TupleLiteral>(), LEFT_SCHEMA.clone()).unwrap();
+                let (schema, result) = generate_node_results(Box::new(empty_node), Box::new(right_node), JoinType::RightOuter, Some(PREDICATE.clone()));
+
+                assert_eq!(schema, result_schema);
+                assert_eq!(vec![
+                    TupleLiteral::from_iter(vec![Literal::Null, Literal::Null, 3i32.into(), 6i32.into()]),
+                    TupleLiteral::from_iter(vec![Literal::Null, Literal::Null, 7i32.into(), 8i32.into()]),
+                ], result);
+            }
+        }
+
+        // Test non-empty joins
+        {
+            let left_node = LiteralNode::from_iter(LEFT_TUPLES.clone().into_iter(), LEFT_SCHEMA.clone()).unwrap();
+            let right_node = LiteralNode::from_iter(RIGHT_TUPLES.clone().into_iter(), RIGHT_SCHEMA.clone()).unwrap();
+
+            let (schema, result) = generate_node_results(Box::new(left_node), Box::new(right_node),
+                                                         JoinType::RightOuter,
+                                                         Some(PREDICATE.clone()));
+
+            assert_eq!(schema, result_schema);
+            assert_eq!(vec![
+                TupleLiteral::from_iter(vec![3i32.into(), 4i32.into(), 3i32.into(), 6i32.into()]),
+                TupleLiteral::from_iter(vec![Literal::Null, Literal::Null, 7i32.into(), 8i32.into()]),
+            ], result);
+        }
+    }
+
+    #[test]
+    fn test_full_outer_join() {
+        let result_schema = LEFT_SCHEMA.clone() + RIGHT_SCHEMA.clone();
+
+        // Test empty joins
+        {
+            let left_node = LiteralNode::from_iter(LEFT_TUPLES.clone().into_iter(), LEFT_SCHEMA.clone()).unwrap();
+            let right_node = LiteralNode::from_iter(RIGHT_TUPLES.clone().into_iter(), RIGHT_SCHEMA.clone()).unwrap();
+
+            {
+                let empty_node = LiteralNode::from_iter(empty::<TupleLiteral>(), RIGHT_SCHEMA.clone()).unwrap();
+                let (schema, result) = generate_node_results(Box::new(left_node), Box::new(empty_node), JoinType::FullOuter, Some(PREDICATE.clone()));
+
+                assert_eq!(schema, result_schema);
+                assert_eq!(vec![
+                    TupleLiteral::from_iter(vec![1i32.into(), 2i32.into(), Literal::Null, Literal::Null]),
+                    TupleLiteral::from_iter(vec![3i32.into(), 4i32.into(), Literal::Null, Literal::Null]),
+                ], result);
+            }
+
+            {
+                let empty_node = LiteralNode::from_iter(empty::<TupleLiteral>(), LEFT_SCHEMA.clone()).unwrap();
+                let (schema, result) = generate_node_results(Box::new(empty_node), Box::new(right_node), JoinType::FullOuter, Some(PREDICATE.clone()));
+
+                assert_eq!(schema, result_schema);
+                assert_eq!(vec![
+                    TupleLiteral::from_iter(vec![Literal::Null, Literal::Null, 3i32.into(), 6i32.into()]),
+                    TupleLiteral::from_iter(vec![Literal::Null, Literal::Null, 7i32.into(), 8i32.into()]),
+                ], result);
+            }
+        }
+
+        // Test non-empty joins
+        {
+            let left_node = LiteralNode::from_iter(LEFT_TUPLES.clone().into_iter(), LEFT_SCHEMA.clone()).unwrap();
+            let right_node = LiteralNode::from_iter(RIGHT_TUPLES.clone().into_iter(), RIGHT_SCHEMA.clone()).unwrap();
+
+            let (schema, result) = generate_node_results(Box::new(left_node), Box::new(right_node),
+                                                         JoinType::FullOuter,
+                                                         Some(PREDICATE.clone()));
+
+            assert_eq!(schema, result_schema);
+            assert_eq!(vec![
+                TupleLiteral::from_iter(vec![1i32.into(), 2i32.into(), Literal::Null, Literal::Null]),
+                TupleLiteral::from_iter(vec![3i32.into(), 4i32.into(), 3i32.into(), 6i32.into()]),
+                TupleLiteral::from_iter(vec![Literal::Null, Literal::Null, 7i32.into(), 8i32.into()]),
+            ], result);
+        }
+    }
+}

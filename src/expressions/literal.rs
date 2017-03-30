@@ -97,6 +97,42 @@ impl From<bool> for Literal {
     }
 }
 
+impl From<i32> for Literal {
+    fn from(value: i32) -> Self {
+        Literal::Int(value)
+    }
+}
+
+impl From<i64> for Literal {
+    fn from(value: i64) -> Self {
+        Literal::Long(value)
+    }
+}
+
+impl From<f32> for Literal {
+    fn from(value: f32) -> Self {
+        Literal::Float(value)
+    }
+}
+
+impl From<f64> for Literal {
+    fn from(value: f64) -> Self {
+        Literal::Double(value)
+    }
+}
+
+impl<'a> From<&'a str> for Literal {
+    fn from(value: &str) -> Self {
+        Literal::String(value.into())
+    }
+}
+
+impl From<String> for Literal {
+    fn from(value: String) -> Self {
+        Literal::String(value)
+    }
+}
+
 impl Literal {
     /// A utility function for determining if the literal is numeric.
     pub fn is_numeric(&self) -> bool {
