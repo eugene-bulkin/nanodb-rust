@@ -32,15 +32,12 @@ named!(select_value (&[u8]) -> SelectValue, alt_complete!(
             _ => SelectValue::Expression { expression: res.clone(), alias: None }
         }
     } }
+    | tag!("*") => { |_| SelectValue::WildcardColumn { table: None } }
 ));
 
-named!(select_values (&[u8]) -> Vec<SelectValue>, do_parse!(
-    result: alt!(
-            tag!("*")   => { |_| vec![SelectValue::WildcardColumn { table: None }] }
-        | separated_nonempty_list!(tag!(","), ws!(select_value))
-    ) >>
-    (result)
-));
+named!(select_values (&[u8]) -> Vec<SelectValue>,
+    separated_nonempty_list!(tag!(","), ws!(select_value))
+);
 
 named!(limit (&[u8]) -> Option<i32>, do_parse!(
     ws!(tag_no_case!("LIMIT")) >>
@@ -251,20 +248,34 @@ mod tests {
         assert_eq!(Done(&b""[..], SelectValue::Expression { expression: cn3.clone(), alias: Some(kw3.into()) }), select_value(b"foo.bar as baz"));
 
         assert_eq!(Done(&b""[..], vec![SelectValue::WildcardColumn { table: None }]), select_values(b"*"));
+        assert_eq!(Done(&b""[..], vec![SelectValue::Expression { expression: cn1.clone(), alias: None },
+                                       SelectValue::WildcardColumn { table: None }]), select_values(b"foo, *"));
         assert_eq!(Done(&b""[..], vec![SelectValue::WildcardColumn { table: Some(kw1.into()) }]), select_values(b"foo.*"));
         assert_eq!(Done(&b""[..], vec![SelectValue::Expression { expression: cn1.clone(), alias: None },
-                                                     SelectValue::Expression { expression: cn2.clone(), alias: None }
+                                       SelectValue::Expression { expression: cn2.clone(), alias: None }
         ]), select_values(b"foo,bar"));
         assert_eq!(Done(&b""[..], vec![SelectValue::Expression { expression: cn2.clone(), alias: None },
-                                                     SelectValue::Expression { expression: cn1.clone(), alias: None }
+                                       SelectValue::Expression { expression: cn1.clone(), alias: None }
         ]), select_values(b"bar, foo"));
         assert_eq!(Done(&b""[..], vec![SelectValue::Expression { expression: cn1.clone(), alias: None },
-                                                     SelectValue::Expression { expression: cn2.clone(), alias: Some(kw3.into()) }
+                                       SelectValue::Expression { expression: cn2.clone(), alias: Some(kw3.into()) }
         ]), select_values(b"foo, bar AS baz"));
+        assert_eq!(Done(&b""[..], vec![SelectValue::Expression { expression: cn1.clone(), alias: None },
+                                       SelectValue::Expression { expression: cn2.clone(), alias: Some(kw3.into()) },
+                                       SelectValue::WildcardColumn { table: Some(kw1.into()) }
+        ]), select_values(b"foo, bar AS baz, foo.*"));
+        assert_eq!(Done(&b""[..], vec![SelectValue::Expression { expression: cn1.clone(), alias: None },
+                                       SelectValue::Expression { expression: cn2.clone(), alias: Some(kw3.into()) },
+                                       SelectValue::WildcardColumn { table: None }
+        ]), select_values(b"foo, bar AS baz, *"));
+        assert_eq!(Done(&b""[..], vec![SelectValue::Expression { expression: cn1.clone(), alias: None },
+                                       SelectValue::WildcardColumn { table: None },
+                                       SelectValue::Expression { expression: cn2.clone(), alias: Some(kw3.into()) }
+        ]), select_values(b"foo, *, bar AS baz"));
     }
+
     #[test]
     fn test_parse() {
-
         let kw1 = String::from("FOO");
         let kw2 = String::from("BAR");
 
