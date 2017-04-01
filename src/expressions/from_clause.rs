@@ -291,6 +291,10 @@ impl FromClause {
             FromClauseType::BaseTable { ref table, ref alias } => {
                 debug!("Preparing BASE_TABLE from-clause.");
 
+                if !table_manager.table_exists(file_manager, table.as_ref()) {
+                    return Err(ExecutionError::TableDoesNotExist(table.clone()));
+                }
+
                 let table = try!(table_manager.get_table(file_manager, table.clone()).map_err(ExecutionError::CouldNotComputeSchema));
                 let mut schema = table.get_schema();
 
