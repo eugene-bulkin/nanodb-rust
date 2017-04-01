@@ -5,6 +5,7 @@ use ::parser::utils::*;
 named!(base_expr (&[u8]) -> Expression, alt_complete!(
     literal_expr |
     column_name_expr |
+    // TODO: Function calls
     do_parse!(
         ws!(tag!("(")) >>
         e: logical_or_expr >>
