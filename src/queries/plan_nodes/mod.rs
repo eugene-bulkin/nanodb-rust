@@ -11,7 +11,7 @@ pub use self::file_scan::FileScanNode;
 #[cfg(test)]
 pub use self::literal::LiteralNode;
 pub use self::nested_loop_join::NestedLoopJoinNode;
-pub use self::project::ProjectNode;
+pub use self::project::{ProjectNode, ProjectError};
 pub use self::rename::RenameNode;
 
 use ::Schema;

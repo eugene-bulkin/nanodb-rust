@@ -103,7 +103,12 @@ impl Tuple for TupleLiteral {
     }
 
     fn get_column_value(&mut self, col_index: usize) -> Result<Literal, TupleError> {
-        Ok(self.values[col_index].clone())
+        let num_columns = self.values.len();
+        if col_index < num_columns {
+            Ok(self.values[col_index].clone())
+        } else {
+            Err(TupleError::InvalidColumnIndex(col_index, num_columns))
+        }
     }
 
     fn get_column_count(&self) -> usize {

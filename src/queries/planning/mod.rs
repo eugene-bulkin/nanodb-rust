@@ -5,9 +5,10 @@ pub mod simple_planner;
 
 pub use self::simple_planner::SimplePlanner;
 
-use ::relations::{ColumnName, SchemaError, column_name_to_string};
+use ::relations::SchemaError;
 use ::expressions::{Expression, ExpressionError, SelectClause};
 use ::queries::{FileScanNode, NodeResult, PlanNode};
+use ::queries::plan_nodes::ProjectError;
 use ::storage::{FileManager, PinError, TableManager, TupleError, file_manager, table_manager};
 
 /// An error that could occur during planning.
@@ -21,14 +22,14 @@ pub enum Error {
     SchemaError(SchemaError),
     /// A pin error occurred.
     PinError(PinError),
+    /// A projection error occurred.
+    ProjectError(ProjectError),
     /// The operation is unimplemented.
     Unimplemented,
     /// The predicate does not evaluate to a boolean.
     InvalidPredicate,
     /// The predicate could not be evaluated.
     CouldNotApplyPredicate(ExpressionError),
-    /// The specified column does not exist.
-    ColumnDoesNotExist(ColumnName),
     /// Unable to advance to the next tuple in a node.
     CouldNotAdvanceTuple(TupleError),
     /// The node was not prepared before using.
@@ -62,6 +63,12 @@ impl From<PinError> for Error {
     }
 }
 
+impl From<ProjectError> for Error {
+    fn from(e: ProjectError) -> Error {
+        Error::ProjectError(e)
+    }
+}
+
 impl ::std::fmt::Display for Error {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
@@ -73,11 +80,7 @@ impl ::std::fmt::Display for Error {
             Error::InvalidPredicate => write!(f, "The predicate is invalid."),
             Error::CouldNotApplyPredicate(ref e) => write!(f, "The predicate could not be applied: {}", e),
             Error::CouldNotAdvanceTuple(ref e) => write!(f, "Unable to advance to next tuple in node: {}", e),
-            Error::ColumnDoesNotExist(ref col_name) => {
-                write!(f,
-                       "The column {} does not exist.",
-                       column_name_to_string(col_name))
-            }
+            Error::ProjectError(ref e) => write!(f, "Projection failed because {}.", e),
             Error::NodeNotPrepared => write!(f, "A node was not prepared."),
             Error::WrongArity(tup_size, schema_size) => {
                 write!(f, "Tuple has different arity ({} columns) than target schema ({} columns).",

@@ -7,4 +7,4 @@ mod schema;
 
 pub use self::column::{ColumnName, ColumnType, ColumnInfo, EMPTY_CHAR, EMPTY_NUMERIC, EMPTY_VARCHAR,
                        column_name_to_string};
-pub use self::schema::{Schema, Error as SchemaError};
+pub use self::schema::{Schema, Error as SchemaError, NameError};

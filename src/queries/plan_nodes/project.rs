@@ -3,8 +3,63 @@
 use ::expressions::{Environment, Expression, SelectValue};
 use ::queries::plan_nodes::PlanNode;
 use ::queries::planning::{PlanError, PlanResult};
-use ::relations::{ColumnInfo, Schema};
-use ::storage::{Tuple, TupleLiteral};
+use ::relations::{ColumnInfo, ColumnName, NameError, Schema, SchemaError, column_name_to_string};
+use ::storage::{Tuple, TupleLiteral, TupleError};
+
+/// An error that could occur during projection.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Error {
+    /// The specified column does not exist.
+    ColumnDoesNotExist(ColumnName),
+    /// The specified column is ambiguous.
+    ColumnAmbiguous(ColumnName),
+    /// Unable to resolve the expression given.
+    CouldNotResolve(Expression),
+    /// Unable to read a column value due to some tuple error.
+    CouldNotReadColumnValue(ColumnName, TupleError),
+    /// Some other schema error occurred.
+    SchemaError(SchemaError),
+}
+
+impl From<SchemaError> for Error {
+    fn from(e: SchemaError) -> Error {
+        if let SchemaError::Name(ref ne) = e {
+            if let NameError::Duplicate(ref col_info) = *ne {
+                Error::ColumnAmbiguous(col_info.get_column_name())
+            } else if let NameError::NoName(ref col_info) = *ne {
+                Error::ColumnDoesNotExist(col_info.get_column_name())
+            } else {
+                Error::SchemaError(SchemaError::Name(ne.clone()))
+            }
+        } else {
+            Error::SchemaError(e)
+        }
+    }
+}
+
+impl ::std::fmt::Display for Error {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            Error::ColumnDoesNotExist(ref col_name) => {
+                write!(f, "the column {} does not exist", column_name_to_string(col_name))
+            },
+            Error::ColumnAmbiguous(ref col_name) => {
+                write!(f, "the column {} is ambiguous", column_name_to_string(col_name))
+            },
+            Error::CouldNotResolve(ref expr) => {
+                write!(f, "the expression {} could not be resolved", expr)
+            },
+            Error::CouldNotReadColumnValue(ref col_name, ref e) => {
+                write!(f, "the column value for column {} could not be read: {}", column_name_to_string(col_name), e)
+            },
+            Error::SchemaError(ref e) => {
+                write!(f, "some schema error occurred: {}", e)
+            },
+        }
+    }
+}
+
+pub use self::Error as ProjectError;
 
 /// PlanNode representing the `SELECT` clause in a SQL query. This is the relational algebra Project
 /// operator.
@@ -42,20 +97,19 @@ impl<'a> ProjectNode<'a> {
                     if let Expression::ColumnValue(ref column_name) = *expression {
                         let matches = self.input_schema.find_columns(column_name);
                         if matches.is_empty() {
-                            return Err(PlanError::ColumnDoesNotExist(column_name.clone()));
+                            return Err(Error::ColumnDoesNotExist(column_name.clone()).into());
                         }
                         if matches.len() > 1 {
-                            return Err(PlanError::Unimplemented);
+                            return Err(Error::ColumnAmbiguous(column_name.clone()).into());
                         }
                         let (ref idx, _) = matches[0];
-                        // TODO: Propagate error
-                        let value = tuple.get_column_value(*idx).unwrap();
+                        let value = try!(tuple.get_column_value(*idx).map_err(|e| ProjectError::CouldNotReadColumnValue(column_name.clone(), e)));
                         result.add_value(value);
                     } else {
                         let mut env = Environment::new();
                         env.add_tuple_ref(self.input_schema.clone(), tuple);
-                        // TODO: Propagate error
-                        let value = expression.evaluate(&mut Some(&mut env)).unwrap();
+                        let value = try!(expression.evaluate(&mut Some(&mut env))
+                            .map_err(|_| ProjectError::CouldNotResolve(expression.clone())));
                         result.add_value(value);
                     }
                 }
@@ -131,7 +185,9 @@ impl<'a> PlanNode for ProjectNode<'a> {
 
         let mut result = Schema::new();
         for select_value in self.values.iter() {
-            match *select_value {
+            // Kind of weird looking, but we're doing this because we want to ensure that the plan
+            // error that occurs is specifically one about projection, not a generic schema issue.
+            let result: Result<_, ProjectError> = match *select_value {
                 SelectValue::Expression { ref expression, ref alias } => {
                     // Determining the schema is relatively straightforward.  The
                     // statistics, unfortunately, are a different matter:  if the
@@ -139,71 +195,64 @@ impl<'a> PlanNode for ProjectNode<'a> {
                     // the stats from the subplan, but if the expression is an
                     // arithmetic operation, we need to guess...
 
-                    if let Expression::ColumnValue(ref column_name) = *expression {
+                    let col_info = if let Expression::ColumnValue(ref column_name) = *expression {
                         let matches = self.input_schema.find_columns(column_name);
                         if matches.is_empty() {
-                            return Err(PlanError::ColumnDoesNotExist(column_name.clone()));
+                            return Err(Error::ColumnDoesNotExist(column_name.clone()).into());
                         }
                         if matches.len() > 1 {
-                            // TODO: Return a real error here
-                            return Err(PlanError::Unimplemented);
+                            return Err(Error::ColumnAmbiguous(column_name.clone()).into());
                         }
                         let (ref idx, _) = matches[0];
-                        try!(result.add_column(ColumnInfo::with_name(self.input_schema[*idx].column_type,
-                                                              match *alias {
-                                                                  Some(ref name) => name.clone(),
-                                                                  None => column_name.1.clone().unwrap(),
-                                                              }))
-                            .map_err(|_| PlanError::Unimplemented)); // TODO: Return a real error here
+                        ColumnInfo::with_name(self.input_schema[*idx].column_type,
+                                              match *alias {
+                                                  Some(ref name) => name.clone(),
+                                                  None => column_name.1.clone().unwrap(),
+                                              })
                     } else {
                         // First, see if we can just figure out what it is without a tuple (e.g. it's a
                         // constant expression).
-                        // TODO: Return real errors here, and maybe find a way to combine the two cases.
                         if let Ok(literal) = expression.evaluate(&mut None) {
                             let col_type = literal.get_column_type();
-                            try!(result.add_column(ColumnInfo::with_name(col_type,
-                                                                  match *alias {
-                                                                      Some(ref name) => name.clone(),
-                                                                      None => format!("{}", literal),
-                                                                  }))
-                                .map_err(|_| PlanError::Unimplemented));
+                            ColumnInfo::with_name(col_type,
+                                                  match *alias {
+                                                      Some(ref name) => name.clone(),
+                                                      None => format!("{}", literal),
+                                                  })
                         } else if let Ok(literal) = expression.evaluate(&mut Some(&mut default_env)) {
                             let col_type = literal.get_column_type();
-                            try!(result.add_column(ColumnInfo::with_name(col_type,
-                                                                  match *alias {
-                                                                      Some(ref name) => name.clone(),
-                                                                      None => format!("{}", expression),
-                                                                  }))
-                                .map_err(|_| PlanError::Unimplemented));
+                            ColumnInfo::with_name(col_type,
+                                                  match *alias {
+                                                      Some(ref name) => name.clone(),
+                                                      None => format!("{}", expression),
+                                                  })
                         } else {
-                            return Err(PlanError::Unimplemented);
+                            return Err(ProjectError::CouldNotResolve(expression.clone()).into());
                         }
-                    }
+                    };
+                    result.add_column(col_info).map_err(Into::into)
                 }
                 SelectValue::WildcardColumn { ref table } => {
                     // This value is a wildcard.  Find the columns that match the
                     // wildcard, then add their values one by one.
 
                     // Wildcard expressions cannot rename their results.
-                    match *table {
+                    let column_infos: Vec<ColumnInfo> = match *table {
                         Some(ref name) => {
                             // Need to find all columns that are associated with the
                             // specified table.
                             let matches = self.input_schema.find_columns(&(Some(name.clone()), None));
-
-                            for (_, info) in matches {
-                                // TODO: Return a real error here
-                                try!(result.add_column(info).map_err(|_| PlanError::Unimplemented));
-                            }
+                            matches.iter().map(|&(_, ref info)| info.clone()).collect()
                         }
                         None => {
                             // No table is specified, so this is all columns in the child schema.
-                            try!(result.add_columns(self.input_schema.clone()).map_err(|_| PlanError::Unimplemented));
+                            self.input_schema.iter().map(Clone::clone).collect()
                         }
-                    }
+                    };
+                    result.add_columns(column_infos).map_err(Into::into)
                 }
-            }
-
+            };
+            try!(result);
         }
         self.output_schema = Some(result);
         Ok(())
