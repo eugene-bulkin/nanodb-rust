@@ -5,6 +5,7 @@ use ::commands::{Command, CommandResult, ExecutionError};
 use ::commands::utils::print_table;
 use ::expressions::SelectClause;
 use ::queries::{Planner, SimplePlanner};
+use ::relations::column_name_to_string;
 use ::storage::TupleLiteral;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -38,7 +39,7 @@ impl Command for SelectCommand {
         let mut planner = SimplePlanner::new(&server.file_manager, &mut server.table_manager);
         let mut plan = try!(planner.make_plan(self.clause.clone()).map_err(ExecutionError::CouldNotExecutePlan));
 
-        let col_names: Vec<String> = plan.get_schema().iter().map(|col_info| col_info.name.clone().unwrap()).collect();
+        let col_names: Vec<String> = plan.get_schema().iter().map(|col_info| column_name_to_string(&col_info.get_column_name())).collect();
         let mut tuples: Vec<Vec<String>> = Vec::new();
 
         while let Some(mut boxed_tuple) = try!(plan.get_next_tuple().map_err(ExecutionError::CouldNotGetNextTuple)) {
