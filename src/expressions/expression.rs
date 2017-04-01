@@ -1,6 +1,6 @@
 //! This module contains utilities for dealing with expressions, including the `Expression` struct.
 
-use ::expressions::{ArithmeticType, CompareType, Environment, ExpressionError, Literal};
+use ::expressions::{ArithmeticType, CompareType, Environment, ExpressionError, Literal, SelectClause};
 use ::functions::Directory;
 use ::relations::{ColumnName, column_name_to_string};
 
@@ -52,6 +52,8 @@ pub enum Expression {
     Arithmetic(Box<Expression>, ArithmeticType, Box<Expression>),
     /// A column value for later dynamic evaluation.
     ColumnValue(ColumnName),
+    /// A subquery expression
+    Subquery(Box<SelectClause>),
     /// NULL
     Null,
     /// TRUE
@@ -383,6 +385,7 @@ impl ::std::fmt::Display for Expression {
             Expression::Double(num) => write!(f, "{}", num),
             Expression::String(ref s) => write!(f, "\'{}\'", s),
             Expression::ColumnValue(ref name) => write!(f, "{}", column_name_to_string(name)),
+            Expression::Subquery(ref clause) => write!(f, "({})", clause),
             Expression::OR(ref exprs) => {
                 let r: Vec<_> = exprs.iter().map(|e| wrap_expr_parens(e)).collect();
                 write!(f, "{}", r.join(" OR "))

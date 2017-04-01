@@ -163,8 +163,8 @@ named!(from_clause (&[u8]) -> FromClause, do_parse!(
     })
 ));
 
-/// Parses a `SELECT` statement into a `SelectCommand`.
-named!(pub parse (&[u8]) -> Box<SelectCommand>, do_parse!(
+/// Parses a `SELECT` statement into a `SelectClause`.
+named!(pub select_clause (&[u8]) -> SelectClause, do_parse!(
     ws!(tag_no_case!("SELECT")) >>
     distinct: opt!(ws!(alt!(
             tag_no_case!("ALL")         => { |_| false }
@@ -180,18 +180,23 @@ named!(pub parse (&[u8]) -> Box<SelectCommand>, do_parse!(
     ))) >>
     limit: opt!(complete!(limit)) >>
     offset: opt!(complete!(offset)) >>
-    alt!(eof!() | peek!(tag!(";"))) >>
     ({
-        let clause = SelectClause::new(from_clause, match distinct {
+        SelectClause::new(from_clause, match distinct {
                 Some(modifier) => modifier,
                 None => false
             }, select_values,
             limit.and_then(|v| v).map(|v| v as u32),
             offset.and_then(|v| v).map(|v| v as u32),
             where_expr,
-        );
-        Box::new(SelectCommand::new(clause))
+        )
     })
+));
+
+/// Parses a `SELECT` statement into a `SelectCommand`.
+named!(pub parse (&[u8]) -> Box<SelectCommand>, do_parse!(
+    clause: select_clause >>
+    alt!(eof!() | peek!(tag!(";"))) >>
+    (Box::new(SelectCommand::new(clause)))
 ));
 
 #[cfg(test)]
