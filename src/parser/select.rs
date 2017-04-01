@@ -204,7 +204,6 @@ mod tests {
     use nom::IResult::*;
 
     use super::*;
-    use ::commands::SelectCommand;
     use ::expressions::{Expression, FromClause, JoinConditionType, JoinType, SelectClause, SelectValue};
 
     #[test]
@@ -280,25 +279,27 @@ mod tests {
     }
 
     #[test]
-    fn test_parse() {
+    fn test_parse_clause() {
+        // We don't bother testing parse() now because that's just a wrapper around SelectClause.
         let kw1 = String::from("FOO");
         let kw2 = String::from("BAR");
 
         let fc1 = FromClause::base_table(kw1, None);
         let fc2 = FromClause::base_table(kw2, None);
 
-        let result1 = SelectCommand::new(SelectClause::new(fc1,
-                                                           false,
-                                                           vec![SelectValue::WildcardColumn { table: None }],
-                                                           None,
-                                                           None,
-                                                           None));
-        let result2 = SelectCommand::new(SelectClause::new(fc2,
-                                                           false,
-                                                           vec![SelectValue::WildcardColumn { table: None }],
-                                                           None,
-                                                           None,
-                                                           None));
+        let result1 = SelectClause::new(fc1,
+                                        false,
+                                        vec![SelectValue::WildcardColumn { table: None }],
+                                        None,
+                                        None,
+                                        None);
+        let result2 = SelectClause::new(fc2,
+                                        false,
+                                        vec![SelectValue::WildcardColumn { table: None }],
+                                        None,
+                                        None,
+                                        None);
+        // TODO: Fix these tests!!
         //        let result3 = Statement::Select {
         //            value: Value::All,
         //            distinct: false,
@@ -342,12 +343,12 @@ mod tests {
         //            offset: Some(4),
         //        };
         {
-            let (left, output) = parse(b"SELECT  * FROM   foo").unwrap();
-            assert_eq!((&b""[..], &result1), (left, &*output));
+            let (left, output) = select_clause(b"SELECT  * FROM   foo").unwrap();
+            assert_eq!((&b""[..], result1), (left, output));
         }
         {
-            let (left, output) = parse(b"  SELECT  * FROM  bar").unwrap();
-            assert_eq!((&b""[..], &result2), (left, &*output));
+            let (left, output) = select_clause(b"  SELECT  * FROM  bar").unwrap();
+            assert_eq!((&b""[..], result2), (left, output));
         }
         // assert_eq!(Done(&b""[..], result3.clone()), parse(b"SELECT  * FROM
         // baz  "));
