@@ -40,21 +40,20 @@ impl Command for SelectCommand {
         let mut plan = try!(planner.make_plan(self.clause.clone()).map_err(ExecutionError::CouldNotExecutePlan));
 
         let col_names: Vec<String> = plan.get_schema().iter().map(|col_info| column_name_to_string(&col_info.get_column_name())).collect();
-        let mut tuples: Vec<Vec<String>> = Vec::new();
+        let mut tuples: Vec<TupleLiteral> = Vec::new();
 
         while let Some(mut boxed_tuple) = try!(plan.get_next_tuple().map_err(ExecutionError::CouldNotGetNextTuple)) {
             let literal = TupleLiteral::from_tuple(&mut *boxed_tuple);
-            tuples.push(literal.into());
+            tuples.push(literal);
         }
         if tuples.is_empty() {
             println!("No rows are in the table.");
             return Ok(None);
         }
 
-        match print_table(out, col_names, tuples) {
+        match print_table(out, col_names, tuples.clone().into_iter().map(Into::into)) {
             Ok(_) => {
-                // TODO
-                Ok(None)
+                Ok(Some(tuples))
             },
             Err(e) => Err(ExecutionError::PrintError(e.description().into()))
         }
@@ -62,5 +61,39 @@ impl Command for SelectCommand {
 
     fn as_any(&self) -> &::std::any::Any {
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tempdir::TempDir;
+
+    use super::*;
+
+    use ::commands::ExecutionError;
+    use ::parser::statements;
+    use ::storage::TupleLiteral;
+
+    #[test]
+    fn test_select() {
+        let dir = TempDir::new("test_dbfiles").unwrap();
+        let mut server = Server::with_data_path(dir.path());
+
+        let stmts = statements(b"CREATE TABLE foo (a integer); INSERT INTO foo VALUES (3);").unwrap().1;
+        for stmt in stmts {
+            server.handle_command(stmt);
+        }
+
+        let ref mut select_command = statements(b"SELECT * FROM foo;").unwrap().1[0];
+        assert_eq!(Ok(Some(vec![TupleLiteral::from_iter(vec![3.into()])])),
+        select_command.execute(&mut server, &mut ::std::io::sink()));
+
+        let ref mut select_command = statements(b"SELECT a FROM foo;").unwrap().1[0];
+        assert_eq!(Ok(Some(vec![TupleLiteral::from_iter(vec![3.into()])])),
+        select_command.execute(&mut server, &mut ::std::io::sink()));
+
+        let ref mut select_command = statements(b"SELECT * FROM bar;").unwrap().1[0];
+        assert_eq!(Err(ExecutionError::TableDoesNotExist("BAR".into())),
+        select_command.execute(&mut server, &mut ::std::io::sink()));
     }
 }
