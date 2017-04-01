@@ -171,24 +171,30 @@ named!(pub select_clause (&[u8]) -> SelectClause, do_parse!(
         |   tag_no_case!("DISTINCT")    => { |_| true }
     ))) >>
     select_values: select_values >>
-    ws!(tag_no_case!("FROM")) >>
-    from_clause: ws!(from_clause) >>
-    where_expr: opt!(complete!(do_parse!(
-        ws!(tag_no_case!("WHERE")) >>
-        e: dbg!(ws!(expression)) >>
-        (e)
+    from: opt!(complete!(do_parse!(
+        from_clause: preceded!(ws!(tag_no_case!("FROM")), ws!(from_clause)) >>
+        where_expr: opt!(complete!(do_parse!(
+            ws!(tag_no_case!("WHERE")) >>
+            e: dbg!(ws!(expression)) >>
+            (e)
+        ))) >>
+        limit: opt!(complete!(limit)) >>
+        offset: opt!(complete!(offset)) >>
+        (from_clause, where_expr, limit, offset)
     ))) >>
-    limit: opt!(complete!(limit)) >>
-    offset: opt!(complete!(offset)) >>
     ({
-        SelectClause::new(from_clause, match distinct {
-                Some(modifier) => modifier,
-                None => false
-            }, select_values,
-            limit.and_then(|v| v).map(|v| v as u32),
-            offset.and_then(|v| v).map(|v| v as u32),
-            where_expr,
-        )
+        if let Some((from_clause, where_expr, limit, offset)) = from {
+            SelectClause::new(from_clause, match distinct {
+                    Some(modifier) => modifier,
+                    None => false
+                }, select_values,
+                limit.and_then(|v| v).map(|v| v as u32),
+                offset.and_then(|v| v).map(|v| v as u32),
+                where_expr,
+            )
+        } else {
+            SelectClause::scalar(select_values)
+        }
     })
 ));
 
@@ -299,6 +305,10 @@ mod tests {
                                         None,
                                         None,
                                         None);
+        let result3 = SelectClause::scalar(vec![SelectValue::Expression {
+            expression: Expression::Int(3),
+            alias: None,
+        }]);
         // TODO: Fix these tests!!
         //        let result3 = Statement::Select {
         //            value: Value::All,
@@ -349,6 +359,10 @@ mod tests {
         {
             let (left, output) = select_clause(b"  SELECT  * FROM  bar").unwrap();
             assert_eq!((&b""[..], result2), (left, output));
+        }
+        {
+            let (left, output) = select_clause(b"SELECT 3").unwrap();
+            assert_eq!((&b""[..], result3), (left, output));
         }
         // assert_eq!(Done(&b""[..], result3.clone()), parse(b"SELECT  * FROM
         // baz  "));

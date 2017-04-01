@@ -1,5 +1,7 @@
 //! This module contains tools for using select clauses.
 
+use std::default::Default;
+
 use ::Schema;
 use ::commands::ExecutionError;
 use ::expressions::{Expression, FromClause, SelectValue};
@@ -10,8 +12,8 @@ use ::storage::{FileManager, TableManager};
 /// classes.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SelectClause {
-    /// The from clause for the `SELECT` query.
-    pub from_clause: FromClause,
+    /// The optional from clause for the `SELECT` query.
+    pub from_clause: Option<FromClause>,
     /// Whether the row values must be distinct.
     pub distinct: bool,
     /// What select values are desired.
@@ -25,13 +27,28 @@ pub struct SelectClause {
     from_schema: Option<Schema>,
 }
 
+impl Default for SelectClause {
+    fn default() -> SelectClause {
+        // This select clause does nothing, but it's a reasonable default.
+        SelectClause {
+            from_clause: None,
+            distinct: false,
+            values: vec![],
+            limit: None,
+            offset: None,
+            where_expr: None,
+            from_schema: None,
+        }
+    }
+}
+
 impl SelectClause {
     /// Creates a new select clause.
     ///
     /// # Arguments
-    /// * table - The name of the table. TODO: This should be an arbitrary `FROM` clause.
+    /// * from_clause - The FROM clause.
     /// * distinct - Whether the values should be distinct.
-    /// * value - The select values or wildcard being selected.
+    /// * values - The select values being selected.
     /// * limit - Optionally, how many rows to return.
     /// * offset - Optionally, the index at which to start returning rows.
     /// * where_expr - Optionally, the WHERE clause.
@@ -43,13 +60,26 @@ impl SelectClause {
                where_expr: Option<Expression>)
                -> SelectClause {
         SelectClause {
-            from_clause: from_clause,
+            from_clause: Some(from_clause),
             distinct: distinct,
             values: values,
             limit: limit,
             offset: offset,
             where_expr: where_expr,
-            from_schema: None,
+            ..Default::default()
+        }
+    }
+
+    /// Creates a new scalar select clause. This is a clause like
+    /// `SELECT 3, (SELECT MAX(a) FROM foo)`, which returns a single row and does not depend on any
+    /// tables.
+    ///
+    /// # Arguments
+    /// * values - The select values being selected.
+    pub fn scalar(values: Vec<SelectValue>) -> SelectClause {
+        SelectClause {
+            values: values,
+            ..Default::default()
         }
     }
 
@@ -72,9 +102,18 @@ impl SelectClause {
                           -> Result<Schema, ExecutionError> {
         // TODO
         // For now, just return the from clause schema.
-        let schema = try!(self.from_clause.compute_schema(file_manager, table_manager));
-        self.from_schema = Some(schema.clone());
-        Ok(schema)
+        match self.from_clause {
+            Some(ref mut clause) => {
+                let schema = try!(clause.compute_schema(file_manager, table_manager));
+                self.from_schema = Some(schema.clone());
+                Ok(schema)
+            },
+            None => {
+                // TODO
+                Err(ExecutionError::Unimplemented)
+            }
+        }
+
     }
 }
 
@@ -85,7 +124,10 @@ impl ::std::fmt::Display for SelectClause {
             let values: Vec<String> = self.values.iter().map(|f| format!("{}", f)).collect();
             try!(write!(f, "\tvalues={}\n", values.join(", ")));
         }
-        try!(write!(f, "\tfrom={}\n", self.from_clause));
+
+        if let Some(ref clause) = self.from_clause {
+            try!(write!(f, "\tfrom={}\n", clause));
+        }
 
         if let Some(ref expr) = self.where_expr {
             try!(write!(f, "\twhere={}\n", expr));
