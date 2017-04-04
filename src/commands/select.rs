@@ -36,7 +36,7 @@ impl Command for SelectCommand {
         debug!("Prepared SelectClause:\n{}", self.clause);
         debug!("Result schema: {}", result_schema);
 
-        let mut planner = SimplePlanner::new(&server.file_manager, &mut server.table_manager);
+        let planner = SimplePlanner::new(&server.file_manager, &mut server.table_manager);
         let mut plan = try!(planner.make_plan(self.clause.clone()).map_err(ExecutionError::CouldNotExecutePlan));
 
         let col_names: Vec<String> = plan.get_schema().iter().map(|col_info| column_name_to_string(&col_info.get_column_name())).collect();

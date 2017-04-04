@@ -136,7 +136,7 @@ impl Expression {
     /// # Errors
     /// This will return some `ExpressionError` if the expression cannot be evaluated given the
     /// environment.
-    pub fn evaluate(&self, mut env: &mut Option<&mut Environment>, mut planner: &mut Option<&mut Planner>) -> Result<Literal, ExpressionError> {
+    pub fn evaluate(&self, mut env: &mut Option<&mut Environment>, planner: &Option<&Planner>) -> Result<Literal, ExpressionError> {
         if let Some(l) = self.try_literal() {
             return Ok(l);
         }
@@ -216,7 +216,7 @@ impl Expression {
             },
             Expression::Subquery(ref _clause) => {
                 match *planner {
-                    Some(ref mut _planner) => {
+                    Some(ref _planner) => {
                         // TODO
                         Err(ExpressionError::Unimplemented)
                     },
@@ -232,7 +232,7 @@ impl Expression {
                            left: Box<Expression>,
                            right: Box<Expression>,
                            op: ArithmeticType,
-                           mut planner: &mut Option<&mut Planner>)
+                           planner: &Option<&Planner>)
                            -> Result<Literal, ExpressionError> {
         let left_val = try!(left.evaluate(&mut env, planner));
         let right_val = try!(right.evaluate(&mut env, planner));
@@ -297,7 +297,7 @@ impl Expression {
                         left: Box<Expression>,
                         right: Box<Expression>,
                         op: CompareType,
-                        mut planner: &mut Option<&mut Planner>)
+                        planner: &Option<&Planner>)
                         -> Result<Literal, ExpressionError> {
         let left_val = try!(left.evaluate(&mut env, planner));
         let right_val = try!(right.evaluate(&mut env, planner));

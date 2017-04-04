@@ -123,5 +123,5 @@ pub fn make_simple_select<'table, S: Into<String>>(file_manager: &FileManager,
 /// each query being planned.
 pub trait Planner {
     /// Create a plan given a SELECT clause.
-    fn make_plan(&mut self, clause: SelectClause) -> NodeResult;
+    fn make_plan(&self, clause: SelectClause) -> NodeResult;
 }
