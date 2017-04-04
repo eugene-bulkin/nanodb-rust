@@ -42,7 +42,7 @@ impl<'a> SimplePlanner<'a> {
                 try!(cur_node.prepare());
 
                 if let Some(values) = clause.get_computed_select_values() {
-                    cur_node = Box::new(ProjectNode::new(cur_node, values));
+                    cur_node = Box::new(ProjectNode::new(cur_node, values, self));
                     try!(cur_node.prepare());
                 }
 
@@ -66,14 +66,14 @@ impl<'a> Planner for SimplePlanner<'a> {
                 }
 
                 if !clause.is_trivial_project() {
-                    cur_node = Box::new(ProjectNode::new(cur_node, clause.values));
+                    cur_node = Box::new(ProjectNode::new(cur_node, clause.values, self));
                     try!(cur_node.prepare());
                 }
 
                 cur_node
             },
             None => {
-                let mut cur_node = Box::new(try!(ProjectNode::scalar(clause.values)));
+                let mut cur_node = Box::new(try!(ProjectNode::scalar(clause.values, self)));
                 try!(cur_node.prepare());
                 cur_node
             }

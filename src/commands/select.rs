@@ -4,9 +4,8 @@ use ::Server;
 use ::commands::{Command, CommandResult, ExecutionError};
 use ::commands::utils::print_table;
 use ::expressions::SelectClause;
-use ::queries::{Planner, SimplePlanner};
+use ::queries::{Planner, SimplePlanner, get_plan_results};
 use ::relations::column_name_to_string;
-use ::storage::TupleLiteral;
 
 #[derive(Debug, Clone, PartialEq)]
 /// A command for selecting rows from a table.
@@ -40,12 +39,8 @@ impl Command for SelectCommand {
         let mut plan = try!(planner.make_plan(self.clause.clone()).map_err(ExecutionError::CouldNotExecutePlan));
 
         let col_names: Vec<String> = plan.get_schema().iter().map(|col_info| column_name_to_string(&col_info.get_column_name())).collect();
-        let mut tuples: Vec<TupleLiteral> = Vec::new();
+        let tuples = try!(get_plan_results(&mut *plan).map_err(ExecutionError::CouldNotExecutePlan));
 
-        while let Some(mut boxed_tuple) = try!(plan.get_next_tuple().map_err(ExecutionError::CouldNotGetNextTuple)) {
-            let literal = TupleLiteral::from_tuple(&mut *boxed_tuple);
-            tuples.push(literal);
-        }
         if tuples.is_empty() {
             println!("No rows are in the table.");
             return Ok(None);

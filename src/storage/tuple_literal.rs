@@ -76,6 +76,15 @@ impl TupleLiteral {
     pub fn len(&self) -> usize { self.values.len() }
 }
 
+impl ::std::ops::Index<usize> for TupleLiteral {
+    type Output = Literal;
+
+    fn index(&self, index: usize) -> &Literal {
+        &self.values[index]
+    }
+
+}
+
 impl Pinnable for TupleLiteral {
     fn pin(&mut self) {}
 

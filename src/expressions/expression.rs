@@ -3,7 +3,7 @@
 use ::expressions::{ArithmeticType, CompareType, Environment, ExpressionError, Literal,
                     ExpressionProcessor, SelectClause};
 use ::functions::Directory;
-use ::queries::Planner;
+use ::queries::{Planner, get_plan_results};
 use ::relations::{ColumnName, column_name_to_string};
 
 lazy_static! {
@@ -215,11 +215,21 @@ impl Expression {
                 let func = try!(DIRECTORY.get(name.as_ref()));
                 func.evaluate(&mut env, args.to_vec()).map_err(Into::into)
             },
-            Expression::Subquery(ref _clause) => {
+            Expression::Subquery(ref clause) => {
                 match *planner {
-                    Some(ref _planner) => {
-                        // TODO
-                        Err(ExpressionError::Unimplemented)
+                    Some(ref planner) => {
+                        println!("{}", clause);
+                        let mut plan = try!(planner.make_plan(*clause.clone())
+                            .map_err(|e| ExpressionError::CouldNotEvaluateSubquery(*clause.clone(), Box::new(e))));
+                        let results = try!(get_plan_results(&mut *plan)
+                            .map_err(|e| ExpressionError::CouldNotEvaluateSubquery(*clause.clone(), Box::new(e))));
+                        if results.is_empty() {
+                            Err(ExpressionError::SubqueryEmpty(*clause.clone()))
+                        } else if results.len() > 1 || results[0].len() > 1 {
+                            Err(ExpressionError::SubqueryNotScalar(*clause.clone()))
+                        } else {
+                            Ok(results[0][0].clone().into())
+                        }
                     },
                     None => Err(ExpressionError::SubqueryNeedsPlanner)
                 }

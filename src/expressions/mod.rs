@@ -19,6 +19,7 @@ pub use self::select_value::SelectValue;
 
 use ::ColumnName;
 use ::functions::FunctionError;
+use ::queries::{PlanError};
 use ::storage::TupleError;
 
 fn col_name_to_string(col_name: &ColumnName) -> String {
@@ -131,6 +132,12 @@ pub enum Error {
     FunctionError(FunctionError),
     /// Subqueries must be evaluated using a planner.
     SubqueryNeedsPlanner,
+    /// Could not evaluate a subquery.
+    CouldNotEvaluateSubquery(SelectClause, Box<PlanError>),
+    /// The subquery given needed to be scalar, but it was not.
+    SubqueryNotScalar(SelectClause),
+    /// The subquery given was empty.
+    SubqueryEmpty(SelectClause),
     /// This expression's evaluation has not been implemented yet.
     Unimplemented,
 }
@@ -171,6 +178,11 @@ impl ::std::fmt::Display for Error {
             Error::CouldNotRead(ref e) => write!(f, "Could not read a value from a tuple: {}", e),
             Error::FunctionError(ref e) => write!(f, "{}", e),
             Error::SubqueryNeedsPlanner => write!(f, "Subqueries require planners to evaluate."),
+            Error::CouldNotEvaluateSubquery(ref clause, ref e) => {
+                write!(f, "Subquery {} could not be evaluated: {}", clause, e)
+            },
+            Error::SubqueryNotScalar(ref clause) => write!(f, "The subquery {} is not scalar.", clause),
+            Error::SubqueryEmpty(ref clause) => write!(f, "The subquery {} is empty.", clause),
             Error::Unimplemented => {
                 write!(f,
                        "The expression's evaluation has not yet been implemented.")

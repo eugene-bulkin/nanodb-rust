@@ -4,7 +4,7 @@ use std::default::Default;
 
 use ::expressions::{Environment, Expression, SelectValue};
 use ::queries::plan_nodes::PlanNode;
-use ::queries::planning::{PlanError, PlanResult};
+use ::queries::planning::{PlanError, Planner, PlanResult};
 use ::relations::{ColumnInfo, ColumnName, NameError, Schema, SchemaError, column_name_to_string};
 use ::storage::{Tuple, TupleLiteral, TupleError};
 
@@ -71,6 +71,7 @@ pub struct ProjectNode<'a> {
     current_tuple: Option<Box<Tuple>>,
     input_schema: Schema,
     output_schema: Option<Schema>,
+    planner: Option<&'a Planner>,
 }
 
 impl<'a> Default for ProjectNode<'a> {
@@ -81,6 +82,7 @@ impl<'a> Default for ProjectNode<'a> {
             current_tuple: None,
             input_schema: Schema::new(),
             output_schema: None,
+            planner: None,
         }
     }
 }
@@ -91,22 +93,24 @@ impl<'a> ProjectNode<'a> {
     /// # Argument
     /// * child - The child of the node.
     /// * values - The select values of the query.
-    pub fn new(child: Box<PlanNode + 'a>, values: Vec<SelectValue>) -> ProjectNode<'a> {
+    pub fn new(child: Box<PlanNode + 'a>, values: Vec<SelectValue>, planner: &'a Planner) -> ProjectNode<'a> {
         let schema = child.get_schema();
         ProjectNode {
             child: Some(child),
             values: values,
             input_schema: schema,
+            planner: Some(planner),
             ..Default::default()
         }
     }
 
     /// Instantiate a project node that only acts on scalar values.
-    pub fn scalar(values: Vec<SelectValue>) -> Result<ProjectNode<'a>, SchemaError> {
+    pub fn scalar(values: Vec<SelectValue>, planner: &'a Planner) -> Result<ProjectNode<'a>, SchemaError> {
         let schema = try!(Schema::from_select_values(values.clone(), &mut None));
         Ok(ProjectNode {
             values: values,
             input_schema: schema,
+            planner: Some(planner),
             ..Default::default()
         })
     }
@@ -130,7 +134,7 @@ impl<'a> ProjectNode<'a> {
                     } else {
                         let mut env = Environment::new();
                         env.add_tuple_ref(self.input_schema.clone(), tuple);
-                        let value = try!(expression.evaluate(&mut Some(&mut env), &mut None)
+                        let value = try!(expression.evaluate(&mut Some(&mut env), &self.planner)
                             .map_err(|_| ProjectError::CouldNotResolve(expression.clone())));
                         result.add_value(value);
                     }
