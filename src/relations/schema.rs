@@ -11,7 +11,7 @@ use std::slice::Iter;
 
 use byteorder::{BigEndian, ReadBytesExt};
 
-use ::expressions::{Expression, Environment, SelectValue};
+use ::expressions::{Environment, SelectValue};
 use ::relations::{ColumnInfo, ColumnName, ColumnType, EMPTY_CHAR, EMPTY_NUMERIC, EMPTY_VARCHAR};
 use ::storage::{DBPage, ReadNanoDBExt, TupleLiteral, WriteNanoDBExt};
 use ::storage::header_page::OFFSET_SCHEMA_START;

@@ -285,7 +285,7 @@ impl ColumnInfo {
             SelectValue::Expression { ref expression, ref alias } => {
                 // First, see if we can just figure out what it is without a tuple (e.g. it's a
                 // constant expression).
-                if let Ok(literal) = expression.evaluate(&mut None) {
+                if let Ok(literal) = expression.evaluate(&mut None, &mut None) {
                     let col_type = literal.get_column_type();
                     Some(ColumnInfo::with_name(col_type,
                                                match *alias {
@@ -293,7 +293,7 @@ impl ColumnInfo {
                                                    None => format!("{}", literal),
                                                }))
                 } else if env.is_some() {
-                    if let Ok(literal) = expression.evaluate(env) {
+                    if let Ok(literal) = expression.evaluate(env, &mut None) {
                         let col_type = literal.get_column_type();
                         Some(ColumnInfo::with_name(col_type,
                                                    match *alias {

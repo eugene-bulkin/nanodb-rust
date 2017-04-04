@@ -4,7 +4,7 @@ use std::default::Default;
 
 use ::commands::ExecutionError;
 use ::expressions::{Expression, FromClause, SelectValue};
-use ::relations::{ColumnInfo, Schema, SchemaError};
+use ::relations::Schema;
 use ::storage::{FileManager, TableManager};
 
 /// This class represents a single `SELECT ...` statement or clause. `SELECT` statements can appear

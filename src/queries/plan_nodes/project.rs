@@ -130,7 +130,7 @@ impl<'a> ProjectNode<'a> {
                     } else {
                         let mut env = Environment::new();
                         env.add_tuple_ref(self.input_schema.clone(), tuple);
-                        let value = try!(expression.evaluate(&mut Some(&mut env))
+                        let value = try!(expression.evaluate(&mut Some(&mut env), &mut None)
                             .map_err(|_| ProjectError::CouldNotResolve(expression.clone())));
                         result.add_value(value);
                     }

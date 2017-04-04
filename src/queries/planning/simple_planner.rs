@@ -1,7 +1,7 @@
 //! This module contains the classes and functions needed for a simple query planner.
 
 use ::expressions::{FromClause, FromClauseType, SelectClause};
-use ::queries::{NestedLoopJoinNode, NodeResult, PlanNode, Planner, PlanError, ProjectNode,
+use ::queries::{NestedLoopJoinNode, NodeResult, PlanNode, Planner, ProjectNode,
                 make_simple_select, RenameNode};
 use ::storage::{FileManager, TableManager};
 

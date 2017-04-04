@@ -129,6 +129,8 @@ pub enum Error {
     CouldNotRead(TupleError),
     /// A function error occurred during evaluation.
     FunctionError(FunctionError),
+    /// Subqueries must be evaluated using a planner.
+    SubqueryNeedsPlanner,
     /// This expression's evaluation has not been implemented yet.
     Unimplemented,
 }
@@ -168,6 +170,7 @@ impl ::std::fmt::Display for Error {
             }
             Error::CouldNotRead(ref e) => write!(f, "Could not read a value from a tuple: {}", e),
             Error::FunctionError(ref e) => write!(f, "{}", e),
+            Error::SubqueryNeedsPlanner => write!(f, "Subqueries require planners to evaluate."),
             Error::Unimplemented => {
                 write!(f,
                        "The expression's evaluation has not yet been implemented.")

@@ -17,7 +17,7 @@ impl Function for Coalesce {
         }
 
         for arg in args.iter() {
-            if let Ok(value) = arg.evaluate(env) {
+            if let Ok(value) = arg.evaluate(env, &mut None) {
                 if value != Literal::Null {
                     return Ok(value);
                 }
