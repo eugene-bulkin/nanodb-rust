@@ -1,6 +1,7 @@
 //! This module contains utilities for dealing with expressions, including the `Expression` struct.
 
-use ::expressions::{ArithmeticType, CompareType, Environment, ExpressionError, Literal, SelectClause};
+use ::expressions::{ArithmeticType, CompareType, Environment, ExpressionError, Literal,
+                    ExpressionProcessor, SelectClause};
 use ::functions::Directory;
 use ::queries::Planner;
 use ::relations::{ColumnName, column_name_to_string};
@@ -364,6 +365,60 @@ impl Expression {
                 }
             }
         }
+    }
+
+    /// This method allows the entire expression tree to be traversed node by node, either for
+    /// analysis or for transformation. The [`ExpressionProcessor`] instance receives notifications
+    /// as each node in the expression is entered and left.
+    ///
+    /// The expression tree can also be manipulated by this traversal process, depending on what the
+    /// [`ExpressionProcessor`] wants to do. If the expression node that `traverse()` is invoked on,
+    /// needs to be replaced with a new expression node, the replacement is returned by the
+    /// `traverse` method. (The [`ExpressionProcessor`] specifies the replacement as the
+    /// return-value from the [`ExpressionProcessor.leave`] method.)
+    ///
+    /// [`ExpressionProcessor`]: ../processor/trait.Processor.html
+    /// [`ExpressionProcessor.leave`]: ../processor/trait.Processor.html#tymethod.leave
+    pub fn traverse(&mut self, processor: &mut ExpressionProcessor) -> Expression {
+        processor.enter(self);
+        match *self {
+            Expression::Arithmetic(ref mut left, _, ref mut right) => {
+                *left = Box::new(left.traverse(processor));
+                *right = Box::new(right.traverse(processor));
+            },
+            Expression::Compare(ref mut left, _, ref mut right) => {
+                *left = Box::new(left.traverse(processor));
+                *right = Box::new(right.traverse(processor));
+            },
+            Expression::OR(ref mut exprs) | Expression::AND(ref mut exprs) => {
+                for i in 0..exprs.len() {
+                    let e = exprs[i].traverse(processor);
+                    exprs[i] = e;
+                }
+            },
+            Expression::NOT(ref mut inner) | Expression::IsNull(ref mut inner) => {
+                *inner = Box::new(inner.traverse(processor));
+            },
+            Expression::ColumnValue(_) => {
+                // This is a leaf, don't traverse the inner node.
+            },
+            Expression::Function { ref mut args, .. } => {
+                for i in 0..args.len() {
+                    let e = args[i].traverse(processor);
+                    args[i] = e;
+                }
+            },
+            Expression::Subquery(_) => {
+                // We do not traverse the subquery; it is treated as a "black box" by the
+                // expression-traversal mechanism.
+            },
+            Expression::Null | Expression::True | Expression::False | Expression::Int(_)
+            | Expression::Long(_) | Expression::Float(_) | Expression::Double(_)
+            | Expression::String(_) => {
+                // These are literals so there's nothing else to do.
+            },
+        }
+        processor.leave(self)
     }
 }
 

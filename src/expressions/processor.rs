@@ -12,7 +12,7 @@ pub trait Processor {
     ///
     /// # Arguments
     /// * node - the `Expression` node being entered
-    fn enter(node: Expression);
+    fn enter(&mut self, node: &Expression);
 
 
     /// This method is called when expression-traversal is leaving a particular node in the
@@ -23,5 +23,5 @@ pub trait Processor {
     ///
     /// # Arguments
     /// * node - the `Expression` node being left
-    fn leave(node: Expression) -> Expression;
+    fn leave(&mut self, node: &Expression) -> Expression;
 }
