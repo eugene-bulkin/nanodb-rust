@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use ::expressions::Literal;
+use ::expressions::{Environment, Literal, SelectValue};
 
 /// A shorthand type for storing a column name in (table_name, column_name) form.
 pub type ColumnName = (Option<String>, Option<String>);
@@ -274,6 +274,43 @@ impl ColumnInfo {
     pub fn get_column_name(&self) -> ColumnName {
         (self.table_name.clone(), self.name.clone())
     }
+
+    /// Determines a column info object for a select value if it is possible to evaluate the select
+    /// value with an environment.
+    ///
+    /// Since the only reason for this to fail is if the select value is not evaluable over the
+    /// environment, we simply return None if the evaluation doesn't work.
+    pub fn from_select_value(value: &SelectValue, mut env: &mut Option<&mut Environment>) -> Option<ColumnInfo> {
+        match *value {
+            SelectValue::Expression { ref expression, ref alias } => {
+                // First, see if we can just figure out what it is without a tuple (e.g. it's a
+                // constant expression).
+                if let Ok(literal) = expression.evaluate(&mut None) {
+                    let col_type = literal.get_column_type();
+                    Some(ColumnInfo::with_name(col_type,
+                                               match *alias {
+                                                   Some(ref name) => name.clone(),
+                                                   None => format!("{}", literal),
+                                               }))
+                } else if env.is_some() {
+                    if let Ok(literal) = expression.evaluate(env) {
+                        let col_type = literal.get_column_type();
+                        Some(ColumnInfo::with_name(col_type,
+                                                   match *alias {
+                                                       Some(ref name) => name.clone(),
+                                                       None => format!("{}", expression),
+                                                   }))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            },
+            // No way to evaluate a wildcard here.
+            SelectValue::WildcardColumn { .. } => None,
+        }
+    }
 }
 
 impl fmt::Display for ColumnInfo {
@@ -297,49 +334,94 @@ impl fmt::Display for ColumnInfo {
 mod tests {
     use super::*;
 
+    use ::expressions::{ArithmeticType, Environment, Expression, SelectValue};
+    use ::relations::Schema;
+
     #[test]
     fn test_column_type_display() {
-        assert_eq!(format!("{}", ColumnType::Null), "NULL");
-        assert_eq!(format!("{}", ColumnType::Char { length: 12 }), "CHAR(12)");
-        assert_eq!(format!("{}", ColumnType::VarChar { length: 13 }),
-                   "VARCHAR(13)");
-        assert_eq!(format!("{}",
-                           ColumnType::Numeric {
-                               scale: 2,
-                               precision: 16,
-                           }),
-                   "NUMERIC(2, 16)");
+        assert_eq! (format!("{}", ColumnType::Null), "NULL");
+        assert_eq! (format!("{}", ColumnType::Char { length: 12 }), "CHAR(12)");
+        assert_eq! (format!("{}", ColumnType::VarChar { length: 13 }),
+        "VARCHAR(13)");
+        assert_eq! (format!("{}",
+                            ColumnType::Numeric {
+                                scale: 2,
+                                precision: 16,
+                            }),
+        "NUMERIC(2, 16)");
     }
 
     #[test]
     fn test_column_info_display() {
-        assert_eq!(format!("{}",
-                           ColumnInfo {
-                               column_type: ColumnType::Integer,
-                               name: None,
-                               table_name: None,
-                           }),
-                   "ColumnInfo[*:INTEGER]");
-        assert_eq!(format!("{}",
-                           ColumnInfo {
-                               column_type: ColumnType::Integer,
-                               name: Some("foo".into()),
-                               table_name: None,
-                           }),
-                   "ColumnInfo[foo:INTEGER]");
-        assert_eq!(format!("{}",
-                           ColumnInfo {
-                               column_type: ColumnType::Integer,
-                               name: None,
-                               table_name: Some("foo".into()),
-                           }),
-                   "ColumnInfo[foo.*:INTEGER]");
-        assert_eq!(format!("{}",
-                           ColumnInfo {
-                               column_type: ColumnType::Integer,
-                               name: Some("bar".into()),
-                               table_name: Some("foo".into()),
-                           }),
-                   "ColumnInfo[foo.bar:INTEGER]");
+        assert_eq! (format!("{}",
+                            ColumnInfo {
+                                column_type: ColumnType::Integer,
+                                name: None,
+                                table_name: None,
+                            }),
+        "ColumnInfo[*:INTEGER]");
+        assert_eq! (format!("{}",
+                            ColumnInfo {
+                                column_type: ColumnType::Integer,
+                                name: Some("foo".into()),
+                                table_name: None,
+                            }),
+        "ColumnInfo[foo:INTEGER]");
+        assert_eq! (format!("{}",
+                            ColumnInfo {
+                                column_type: ColumnType::Integer,
+                                name: None,
+                                table_name: Some("foo".into()),
+                            }),
+        "ColumnInfo[foo.*:INTEGER]");
+        assert_eq! (format!("{}",
+                            ColumnInfo {
+                                column_type: ColumnType::Integer,
+                                name: Some("bar".into()),
+                                table_name: Some("foo".into()),
+                            }),
+        "ColumnInfo[foo.bar:INTEGER]");
+    }
+
+    #[test]
+    fn test_from_select_value() {
+        let schema = Schema::with_columns(vec![ColumnInfo::with_name(ColumnType::Integer, "B")]).unwrap();
+        let mut env = {
+            let mut env = Environment::new();
+            let default_tuple = schema.default_tuple();
+            env.add_tuple(schema.clone(), default_tuple);
+            env
+        };
+
+        let value1 = SelectValue::Expression {
+            expression: Expression::Int(3),
+            alias: None,
+        };
+        let value2 = SelectValue::Expression {
+            expression: Expression::Float(234.0),
+            alias: Some("A".into()),
+        };
+        let value3 = SelectValue::Expression {
+            expression: Expression::Arithmetic(Box::new(Expression::Int(5)),
+                                               ArithmeticType::Plus,
+                                               Box::new(Expression::ColumnValue((None, Some("B".into()))))),
+            alias: None,
+        };
+        let value4 = SelectValue::Expression {
+            expression: Expression::Arithmetic(Box::new(Expression::Long(5)),
+                                               ArithmeticType::Plus,
+                                               Box::new(Expression::ColumnValue((None, Some("B".into()))))),
+            alias: Some("C".into()),
+        };
+
+        assert_eq!(Some(ColumnInfo::with_name(ColumnType::Integer, "3")), ColumnInfo::from_select_value(&value1, &mut None));
+        assert_eq!(Some(ColumnInfo::with_name(ColumnType::Float, "A")), ColumnInfo::from_select_value(&value2, &mut None));
+        assert_eq!(None, ColumnInfo::from_select_value(&value3, &mut None));
+        assert_eq!(None, ColumnInfo::from_select_value(&value4, &mut None));
+
+        assert_eq!(Some(ColumnInfo::with_name(ColumnType::Integer, "3")), ColumnInfo::from_select_value(&value1, &mut Some(&mut env)));
+        assert_eq!(Some(ColumnInfo::with_name(ColumnType::Float, "A")), ColumnInfo::from_select_value(&value2, &mut Some(&mut env)));
+        assert_eq!(Some(ColumnInfo::with_name(ColumnType::Integer, "5 + B")), ColumnInfo::from_select_value(&value3, &mut Some(&mut env)));
+        assert_eq!(Some(ColumnInfo::with_name(ColumnType::BigInt, "C")), ColumnInfo::from_select_value(&value4, &mut Some(&mut env)));
     }
 }

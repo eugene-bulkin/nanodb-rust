@@ -2,9 +2,9 @@
 
 use std::default::Default;
 
-use ::Schema;
 use ::commands::ExecutionError;
 use ::expressions::{Expression, FromClause, SelectValue};
+use ::relations::{ColumnInfo, Schema, SchemaError};
 use ::storage::{FileManager, TableManager};
 
 /// This class represents a single `SELECT ...` statement or clause. `SELECT` statements can appear
@@ -102,18 +102,16 @@ impl SelectClause {
                           -> Result<Schema, ExecutionError> {
         // TODO
         // For now, just return the from clause schema.
-        match self.from_clause {
+        let schema = match self.from_clause {
             Some(ref mut clause) => {
-                let schema = try!(clause.compute_schema(file_manager, table_manager));
-                self.from_schema = Some(schema.clone());
-                Ok(schema)
+                try!(clause.compute_schema(file_manager, table_manager))
             },
             None => {
-                // TODO
-                Err(ExecutionError::Unimplemented)
+                try!(Schema::from_select_values(self.values.clone(), &mut None))
             }
-        }
-
+        };
+        self.from_schema = Some(schema.clone());
+        Ok(schema)
     }
 }
 

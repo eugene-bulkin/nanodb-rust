@@ -54,7 +54,7 @@ impl<'a> SimplePlanner<'a> {
 
 impl<'a> Planner for SimplePlanner<'a> {
     fn make_plan(&mut self, clause: SelectClause) -> NodeResult {
-        match clause.from_clause {
+        let node = match clause.from_clause {
             Some(ref from_clause) => {
                 let mut cur_node = try!(self.make_join_tree(from_clause.clone()));
                 try!(cur_node.prepare());
@@ -70,12 +70,14 @@ impl<'a> Planner for SimplePlanner<'a> {
                     try!(cur_node.prepare());
                 }
 
-                Ok(cur_node)
+                cur_node
             },
             None => {
-                // TODO
-                Err(PlanError::Unimplemented)
+                let mut cur_node = Box::new(try!(ProjectNode::scalar(clause.values)));
+                try!(cur_node.prepare());
+                cur_node
             }
-        }
+        };
+        Ok(node)
     }
 }
