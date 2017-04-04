@@ -2,7 +2,47 @@
 
 use std::fmt;
 
-use ::expressions::{Environment, Literal, SelectValue};
+use ::expressions::{Environment, Expression, ExpressionProcessor, Literal, SelectValue};
+
+struct SubqueryProcessor {
+    pub has_valid_subqueries: bool
+}
+
+impl SubqueryProcessor {
+    fn new() -> SubqueryProcessor {
+        SubqueryProcessor { has_valid_subqueries: false }
+    }
+}
+
+impl ExpressionProcessor for SubqueryProcessor {
+    fn enter(&mut self, _node: &Expression) {
+        // We don't need to do anything with the nodes when they come in.
+    }
+
+    fn leave(&mut self, node: &Expression) -> Expression {
+        match *node {
+            Expression::Subquery(ref clause) => {
+                // If this is a scalar subquery with one value, then we return the default value of
+                // what that value would be. Otherwise, we just return the original expression.
+                // This allows us determine the column type of subquery expressions that would be
+                // valid because they are scalar.
+                if clause.values.len() == 1 {
+                    let ref value = clause.values[0];
+                    match ColumnInfo::from_select_value(value, &mut None) {
+                        Some(info) => {
+                            self.has_valid_subqueries = true;
+                            info.column_type.default_literal().into()
+                        },
+                        None => node.clone()
+                    }
+                } else {
+                    node.clone()
+                }
+            },
+            _ => node.clone(),
+        }
+    }
+}
 
 /// A shorthand type for storing a column name in (table_name, column_name) form.
 pub type ColumnName = (Option<String>, Option<String>);
@@ -283,9 +323,19 @@ impl ColumnInfo {
     pub fn from_select_value(value: &SelectValue, mut env: &mut Option<&mut Environment>) -> Option<ColumnInfo> {
         match *value {
             SelectValue::Expression { ref expression, ref alias } => {
-                // First, see if we can just figure out what it is without a tuple (e.g. it's a
-                // constant expression).
-                if let Ok(literal) = expression.evaluate(&mut None, &mut None) {
+                // Here we remove all scalar subqueries if possible. The way we do this is described
+                // in the leave() method of the SubqueryProcessor.
+                let mut processor = SubqueryProcessor::new();
+                let expr_no_subqueries = expression.clone().traverse(&mut processor);
+                // We do this in two ways. First, if there are subqueries, we check what the
+                // expression is with the subqueries replaced with their default values, since we
+                // only care about the type. If there aren't any, we use the regular expression.
+                let expr_to_evaluate: &Expression = if processor.has_valid_subqueries {
+                    &expr_no_subqueries
+                } else {
+                    expression
+                };
+                if let Ok(literal) = expr_to_evaluate.evaluate(&mut None, &mut None) {
                     let col_type = literal.get_column_type();
                     Some(ColumnInfo::with_name(col_type,
                                                match *alias {
@@ -293,7 +343,7 @@ impl ColumnInfo {
                                                    None => format!("{}", literal),
                                                }))
                 } else if env.is_some() {
-                    if let Ok(literal) = expression.evaluate(env, &mut None) {
+                    if let Ok(literal) = expr_to_evaluate.evaluate(env, &mut None) {
                         let col_type = literal.get_column_type();
                         Some(ColumnInfo::with_name(col_type,
                                                    match *alias {
@@ -334,7 +384,7 @@ impl fmt::Display for ColumnInfo {
 mod tests {
     use super::*;
 
-    use ::expressions::{ArithmeticType, Environment, Expression, SelectValue};
+    use ::expressions::{ArithmeticType, Environment, Expression, SelectClause, SelectValue};
     use ::relations::Schema;
 
     #[test]
@@ -423,5 +473,35 @@ mod tests {
         assert_eq!(Some(ColumnInfo::with_name(ColumnType::Float, "A")), ColumnInfo::from_select_value(&value2, &mut Some(&mut env)));
         assert_eq!(Some(ColumnInfo::with_name(ColumnType::Integer, "5 + B")), ColumnInfo::from_select_value(&value3, &mut Some(&mut env)));
         assert_eq!(Some(ColumnInfo::with_name(ColumnType::BigInt, "C")), ColumnInfo::from_select_value(&value4, &mut Some(&mut env)));
+
+        // Test subquery stuff
+        let scalar1 = SelectClause::scalar(vec![value1.clone()]); // single scalar value
+        let scalar2 = SelectClause::scalar(vec![value1.clone(), value2.clone()]); // multiple values
+        let scalar3 = SelectClause::scalar(vec![value3.clone()]); // non scalar value
+
+        let value_sub1 = SelectValue::Expression {
+            expression: Expression::Arithmetic(Box::new(Expression::Int(5)),
+                                               ArithmeticType::Plus,
+                                               Box::new(Expression::Subquery(Box::new(scalar1)))),
+            alias: None,
+        };
+
+        let value_sub2 = SelectValue::Expression {
+            expression: Expression::Arithmetic(Box::new(Expression::Int(5)),
+                                               ArithmeticType::Plus,
+                                               Box::new(Expression::Subquery(Box::new(scalar2)))),
+            alias: None,
+        };
+
+        let value_sub3 = SelectValue::Expression {
+            expression: Expression::Arithmetic(Box::new(Expression::Int(5)),
+                                               ArithmeticType::Plus,
+                                               Box::new(Expression::Subquery(Box::new(scalar3)))),
+            alias: None,
+        };
+
+        assert_eq!(Some(ColumnInfo::with_name(ColumnType::Integer, "5")), ColumnInfo::from_select_value(&value_sub1, &mut None));
+        assert_eq!(None, ColumnInfo::from_select_value(&value_sub2, &mut None));
+        assert_eq!(None, ColumnInfo::from_select_value(&value_sub3, &mut None));
     }
 }
