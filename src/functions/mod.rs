@@ -8,6 +8,7 @@ mod utils;
 
 mod arithmetic;
 mod coalesce;
+mod trig;
 
 pub use self::directory::Directory;
 pub use self::{Error as FunctionError};
