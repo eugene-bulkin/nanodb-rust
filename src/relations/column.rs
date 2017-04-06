@@ -18,13 +18,13 @@ pub fn column_name_to_string(name: &ColumnName) -> String {
 }
 
 /// An empty Char column type. Useful for comparing type IDs.
-pub static EMPTY_CHAR: ColumnType = ColumnType::Char { length: 0 };
+pub const EMPTY_CHAR: ColumnType = ColumnType::Char { length: 0 };
 
 /// An empty VarChar column type. Useful for comparing type IDs.
-pub static EMPTY_VARCHAR: ColumnType = ColumnType::VarChar { length: 0 };
+pub const EMPTY_VARCHAR: ColumnType = ColumnType::VarChar { length: 0 };
 
 /// An empty VarChar column type. Useful for comparing type IDs.
-pub static EMPTY_NUMERIC: ColumnType = ColumnType::Numeric {
+pub const EMPTY_NUMERIC: ColumnType = ColumnType::Numeric {
     scale: 0,
     precision: 0,
 };
