@@ -2,11 +2,11 @@ use super::{Function, FunctionError, FunctionResult};
 
 use ::expressions::{Environment, Expression, Literal};
 
-pub struct Coalesce {}
+pub struct Coalesce;
 
 impl Coalesce {
     pub fn new() -> Box<Function> {
-        Box::new(Coalesce {})
+        Box::new(Coalesce)
     }
 }
 
