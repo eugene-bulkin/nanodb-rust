@@ -1,6 +1,6 @@
 //! This module provides the project plan node.
 
-use ::expressions::{Environment, Expression, SelectValue};
+use ::expressions::{Environment, Expression, ExpressionError, SelectValue};
 use ::queries::plan_nodes::PlanNode;
 use ::queries::planning::{PlanError, PlanResult};
 use ::relations::{ColumnInfo, ColumnName, NameError, Schema, SchemaError, column_name_to_string};
@@ -14,7 +14,7 @@ pub enum Error {
     /// The specified column is ambiguous.
     ColumnAmbiguous(ColumnName),
     /// Unable to resolve the expression given.
-    CouldNotResolve(Expression),
+    CouldNotResolve(Expression, Box<ExpressionError>),
     /// Unable to read a column value due to some tuple error.
     CouldNotReadColumnValue(ColumnName, TupleError),
     /// Some other schema error occurred.
@@ -42,19 +42,19 @@ impl ::std::fmt::Display for Error {
         match *self {
             Error::ColumnDoesNotExist(ref col_name) => {
                 write!(f, "the column {} does not exist", column_name_to_string(col_name))
-            },
+            }
             Error::ColumnAmbiguous(ref col_name) => {
                 write!(f, "the column {} is ambiguous", column_name_to_string(col_name))
-            },
-            Error::CouldNotResolve(ref expr) => {
-                write!(f, "the expression {} could not be resolved", expr)
-            },
+            }
+            Error::CouldNotResolve(ref expr, ref e) => {
+                write!(f, "the expression {} could not be resolved: {}", expr, e)
+            }
             Error::CouldNotReadColumnValue(ref col_name, ref e) => {
                 write!(f, "the column value for column {} could not be read: {}", column_name_to_string(col_name), e)
-            },
+            }
             Error::SchemaError(ref e) => {
                 write!(f, "some schema error occurred: {}", e)
-            },
+            }
         }
     }
 }
@@ -109,7 +109,7 @@ impl<'a> ProjectNode<'a> {
                         let mut env = Environment::new();
                         env.add_tuple_ref(self.input_schema.clone(), tuple);
                         let value = try!(expression.evaluate(&mut Some(&mut env))
-                            .map_err(|_| ProjectError::CouldNotResolve(expression.clone())));
+                            .map_err(|e| ProjectError::CouldNotResolve(expression.clone(), Box::new(e))));
                         result.add_value(value);
                     }
                 }
@@ -219,15 +219,20 @@ impl<'a> PlanNode for ProjectNode<'a> {
                                                       Some(ref name) => name.clone(),
                                                       None => format!("{}", literal),
                                                   })
-                        } else if let Ok(literal) = expression.evaluate(&mut Some(&mut default_env)) {
-                            let col_type = literal.get_column_type();
-                            ColumnInfo::with_name(col_type,
-                                                  match *alias {
-                                                      Some(ref name) => name.clone(),
-                                                      None => format!("{}", expression),
-                                                  })
                         } else {
-                            return Err(ProjectError::CouldNotResolve(expression.clone()).into());
+                            match expression.evaluate(&mut Some(&mut default_env)) {
+                                Ok(literal) => {
+                                    let col_type = literal.get_column_type();
+                                    ColumnInfo::with_name(col_type,
+                                                          match *alias {
+                                                              Some(ref name) => name.clone(),
+                                                              None => format!("{}", expression),
+                                                          })
+                                }
+                                Err(e) => {
+                                    return Err(ProjectError::CouldNotResolve(expression.clone(), Box::new(e)).into());
+                                },
+                            }
                         }
                     };
                     result.add_column(col_info).map_err(Into::into)
