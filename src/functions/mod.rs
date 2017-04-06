@@ -3,8 +3,11 @@
 
 pub mod directory;
 
-mod coalesce;
+#[macro_use]
+mod utils;
+
 mod arithmetic;
+mod coalesce;
 
 pub use self::directory::Directory;
 pub use self::{Error as FunctionError};
