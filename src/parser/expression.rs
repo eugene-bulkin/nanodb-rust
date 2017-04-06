@@ -3,12 +3,25 @@ use ::parser::literal::literal;
 use ::parser::select::select_clause;
 use ::parser::utils::*;
 
+named!(function_call (&[u8]) -> Expression, do_parse!(
+    name: dbobj_ident >>
+    tag!("(") >>
+    distinct: opt!(ws!(tag_no_case!("DISTINCT"))) >>
+    args: separated_list!(ws!(tag!(",")), expression) >>
+    tag!(")") >>
+    (Expression::Function {
+        name: name,
+        distinct: distinct.is_some(),
+        args: args,
+    })
+));
+
 named!(subquery_expr (&[u8]) -> Expression, map!(select_clause, |clause| Expression::Subquery(Box::new(clause))));
 
 named!(base_expr (&[u8]) -> Expression, alt_complete!(
+    function_call |
     literal_expr |
     column_name_expr |
-    // TODO: Function calls
     do_parse!(
         ws!(tag!("(")) >>
         e: alt_complete!(subquery_expr | logical_or_expr) >>
@@ -210,5 +223,24 @@ mod tests {
 
         assert_eq!(Done(&[][..], Expression::Compare(Box::new(Expression::ColumnValue((None, Some("A".into())))), CompareType::LessThanEqual, Box::new(Expression::Int(4)))), relational_expr(b"a <= 4"));
         assert_eq!(Done(&[][..], Expression::Compare(Box::new(Expression::ColumnValue((Some("B".into()), Some("A".into())))), CompareType::GreaterThan, Box::new(Expression::Int(4)))), relational_expr(b"b.a > 4"));
+    }
+
+    #[test]
+    fn test_function_call() {
+        assert_eq!(Done(&[][..], Expression::Function {
+            name: "ABS".into(),
+            distinct: false,
+            args: vec![Expression::Int(5)]
+        }), function_call(b"ABS(5)"));
+        assert_eq!(Done(&[][..], Expression::Function {
+            name: "POWER".into(),
+            distinct: false,
+            args: vec![Expression::Int(3), Expression::Float(4.5)]
+        }), function_call(b"POWER(3, 4.5f)"));
+        assert_eq!(Done(&[][..], Expression::Function {
+            name: "COUNT".into(),
+            distinct: true,
+            args: vec![Expression::ColumnValue((None, Some("FOO".into())))]
+        }), function_call(b"count(distinct foo)"));
     }
 }

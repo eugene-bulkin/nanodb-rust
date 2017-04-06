@@ -20,6 +20,7 @@ pub use self::select_value::SelectValue;
 use ::ColumnName;
 use ::functions::FunctionError;
 use ::queries::{PlanError};
+use ::relations::ColumnType;
 use ::storage::TupleError;
 
 fn col_name_to_string(col_name: &ColumnName) -> String {
@@ -124,12 +125,18 @@ pub enum Error {
     NotNumeric(Literal),
     /// An expression was expecting a boolean value and received a non-boolean value.
     NotBoolean(Literal),
+    /// An expression requiring numeric expressions was provided with a non-numeric expression.
+    NotNumericExpr(Expression, ColumnType),
+    /// An expression was expecting a boolean expression and received a non-boolean expression.
+    NotBooleanExpr(Expression, ColumnType),
     /// The expression provided needs more than one clause.
     EmptyExpression,
     /// The expression tried to read a column value and failed.
     CouldNotRead(TupleError),
     /// A function error occurred during evaluation.
     FunctionError(FunctionError),
+    /// The function being called is not a scalar function.
+    NotScalarFunction(String),
     /// Subqueries must be evaluated using a planner.
     SubqueryNeedsPlanner,
     /// Could not evaluate a subquery.
@@ -165,18 +172,27 @@ impl ::std::fmt::Display for Error {
                 write!(f,
                        "The expression was expected to evaluate to a numeric literal, got {}.",
                        literal)
-            }
+            },
             Error::NotBoolean(ref literal) => {
                 write!(f,
                        "The expression was expected to evaluate to a boolean literal, got {}.",
                        literal)
-            }
+            },
+            Error::NotNumericExpr(ref expr, ref t) => {
+                write!(f, "The expression {} was expected to have a numeric type, but had type {}.",
+                       expr, t)
+            },
+            Error::NotBooleanExpr(ref expr, ref t) => {
+                write!(f, "The expression {} was expected to have a boolean type, but had type {}.",
+                       expr, t)
+            },
             Error::EmptyExpression => {
                 write!(f,
                        "The expression was expecting a set of clauses and got none.")
             }
             Error::CouldNotRead(ref e) => write!(f, "Could not read a value from a tuple: {}", e),
             Error::FunctionError(ref e) => write!(f, "{}", e),
+            Error::NotScalarFunction(ref name) => write!(f, "{} is not a scalar function.", name),
             Error::SubqueryNeedsPlanner => write!(f, "Subqueries require planners to evaluate."),
             Error::CouldNotEvaluateSubquery(ref clause, ref e) => {
                 write!(f, "Subquery {} could not be evaluated: {}", clause, e)

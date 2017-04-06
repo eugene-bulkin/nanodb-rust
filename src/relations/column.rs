@@ -58,13 +58,13 @@ pub fn column_name_to_string(name: &ColumnName) -> String {
 }
 
 /// An empty Char column type. Useful for comparing type IDs.
-pub static EMPTY_CHAR: ColumnType = ColumnType::Char { length: 0 };
+pub const EMPTY_CHAR: ColumnType = ColumnType::Char { length: 0 };
 
 /// An empty VarChar column type. Useful for comparing type IDs.
-pub static EMPTY_VARCHAR: ColumnType = ColumnType::VarChar { length: 0 };
+pub const EMPTY_VARCHAR: ColumnType = ColumnType::VarChar { length: 0 };
 
 /// An empty VarChar column type. Useful for comparing type IDs.
-pub static EMPTY_NUMERIC: ColumnType = ColumnType::Numeric {
+pub const EMPTY_NUMERIC: ColumnType = ColumnType::Numeric {
     scale: 0,
     precision: 0,
 };
@@ -247,6 +247,15 @@ impl ColumnType {
             _ => Literal::Null,
         }
     }
+
+    /// Whether the column type is numeric.
+    pub fn is_numeric(&self) -> bool {
+        match *self {
+            ColumnType::TinyInt | ColumnType::SmallInt | ColumnType::Integer | ColumnType::BigInt
+            | ColumnType::Float | ColumnType::Double | ColumnType::Numeric { .. } => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -389,47 +398,68 @@ mod tests {
 
     #[test]
     fn test_column_type_display() {
-        assert_eq! (format!("{}", ColumnType::Null), "NULL");
-        assert_eq! (format!("{}", ColumnType::Char { length: 12 }), "CHAR(12)");
-        assert_eq! (format!("{}", ColumnType::VarChar { length: 13 }),
+        assert_eq!(format!("{}", ColumnType::Null), "NULL");
+        assert_eq!(format!("{}", ColumnType::Char { length: 12 }), "CHAR(12)");
+        assert_eq!(format!("{}", ColumnType::VarChar { length: 13 }),
         "VARCHAR(13)");
-        assert_eq! (format!("{}",
-                            ColumnType::Numeric {
-                                scale: 2,
-                                precision: 16,
-                            }),
+        assert_eq!(format!("{}",
+                           ColumnType::Numeric {
+                               scale: 2,
+                               precision: 16,
+                           }),
         "NUMERIC(2, 16)");
     }
 
     #[test]
+    fn test_is_numeric() {
+        assert!(ColumnType::Integer.is_numeric());
+        assert!(ColumnType::BigInt.is_numeric());
+        assert!(ColumnType::TinyInt.is_numeric());
+        assert!(ColumnType::SmallInt.is_numeric());
+        assert!(ColumnType::Float.is_numeric());
+        assert!(ColumnType::Double.is_numeric());
+        assert!(ColumnType::Numeric { scale: 12, precision: 12 }.is_numeric());
+        assert!(!ColumnType::Date.is_numeric());
+        assert!(!ColumnType::DateTime.is_numeric());
+        assert!(!ColumnType::Time.is_numeric());
+        assert!(!ColumnType::Timestamp.is_numeric());
+        assert!(!ColumnType::Blob.is_numeric());
+        assert!(!ColumnType::Char { length: 1 }.is_numeric());
+        assert!(!ColumnType::VarChar { length: 1 }.is_numeric());
+        assert!(!ColumnType::FilePointer.is_numeric());
+        assert!(!ColumnType::Null.is_numeric());
+        assert!(!ColumnType::Text.is_numeric());
+    }
+
+    #[test]
     fn test_column_info_display() {
-        assert_eq! (format!("{}",
-                            ColumnInfo {
-                                column_type: ColumnType::Integer,
-                                name: None,
-                                table_name: None,
-                            }),
+        assert_eq!(format!("{}",
+                           ColumnInfo {
+                               column_type: ColumnType::Integer,
+                               name: None,
+                               table_name: None,
+                           }),
         "ColumnInfo[*:INTEGER]");
-        assert_eq! (format!("{}",
-                            ColumnInfo {
-                                column_type: ColumnType::Integer,
-                                name: Some("foo".into()),
-                                table_name: None,
-                            }),
+        assert_eq!(format!("{}",
+                           ColumnInfo {
+                               column_type: ColumnType::Integer,
+                               name: Some("foo".into()),
+                               table_name: None,
+                           }),
         "ColumnInfo[foo:INTEGER]");
-        assert_eq! (format!("{}",
-                            ColumnInfo {
-                                column_type: ColumnType::Integer,
-                                name: None,
-                                table_name: Some("foo".into()),
-                            }),
+        assert_eq!(format!("{}",
+                           ColumnInfo {
+                               column_type: ColumnType::Integer,
+                               name: None,
+                               table_name: Some("foo".into()),
+                           }),
         "ColumnInfo[foo.*:INTEGER]");
-        assert_eq! (format!("{}",
-                            ColumnInfo {
-                                column_type: ColumnType::Integer,
-                                name: Some("bar".into()),
-                                table_name: Some("foo".into()),
-                            }),
+        assert_eq!(format!("{}",
+                           ColumnInfo {
+                               column_type: ColumnType::Integer,
+                               name: Some("bar".into()),
+                               table_name: Some("foo".into()),
+                           }),
         "ColumnInfo[foo.bar:INTEGER]");
     }
 

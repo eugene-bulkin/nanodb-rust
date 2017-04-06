@@ -4,10 +4,43 @@ use ::expressions::{ArithmeticType, CompareType, Environment, ExpressionError, L
                     ExpressionProcessor, SelectClause};
 use ::functions::Directory;
 use ::queries::{Planner, get_plan_results};
-use ::relations::{ColumnName, column_name_to_string};
+use ::relations::{EMPTY_NUMERIC, ColumnName, ColumnType, Schema, column_name_to_string};
 
 lazy_static! {
     static ref DIRECTORY: Directory = Directory::new();
+}
+
+static TYPE_ORDER: &'static [ColumnType] = &[EMPTY_NUMERIC, ColumnType::Double, ColumnType::Float,
+    ColumnType::BigInt, ColumnType::Integer, ColumnType::SmallInt, ColumnType::TinyInt];
+
+fn arithmetic_result_type(op: ArithmeticType, left: ColumnType, right: ColumnType) -> ColumnType {
+    // This shouldn't be called with non-arithmetic types.
+    assert!(left.is_numeric());
+    assert!(right.is_numeric());
+
+    // We don't care what the precision/scale are.
+    let left = match left {
+        ColumnType::Numeric { .. } => EMPTY_NUMERIC,
+        _ => left
+    };
+    let right = match right {
+        ColumnType::Numeric { .. } => EMPTY_NUMERIC,
+        _ => right
+    };
+
+    match op {
+        ArithmeticType::Divide => ColumnType::Double,
+        _ => {
+            for t in TYPE_ORDER {
+                if &left == t || &right == t {
+                    return *t;
+                }
+            }
+
+            // Just guess INTEGER.  Works for C... (from original nanodb...)
+            ColumnType::Integer
+        }
+    }
 }
 
 fn coerce_literals(left: Literal, right: Literal) -> (Literal, Literal) {
@@ -213,12 +246,11 @@ impl Expression {
             },
             Expression::Function { ref name, ref args, .. } => {
                 let func = try!(DIRECTORY.get(name.as_ref()));
-                func.evaluate(&mut env, args.to_vec()).map_err(Into::into)
+                func.evaluate(&mut env, args.to_vec(), planner).map_err(Into::into)
             },
             Expression::Subquery(ref clause) => {
                 match *planner {
                     Some(ref planner) => {
-                        println!("{}", clause);
                         let mut plan = try!(planner.make_plan(*clause.clone())
                             .map_err(|e| ExpressionError::CouldNotEvaluateSubquery(*clause.clone(), Box::new(e))));
                         let results = try!(get_plan_results(&mut *plan)
@@ -233,7 +265,7 @@ impl Expression {
                     },
                     None => Err(ExpressionError::SubqueryNeedsPlanner)
                 }
-            }
+            },
             _ => Err(ExpressionError::Unimplemented),
         }
     }
@@ -430,6 +462,77 @@ impl Expression {
         }
         processor.leave(self)
     }
+
+    /// Returns a [`ColumnInfo`] object describing the type (and possibly the name) of the
+    /// expression's result.
+    ///
+    /// [`ColumnInfo`]: ../relations/relations/struct.ColumnInfo.html
+    pub fn get_column_type(&self, schema: &Schema) -> Result<ColumnType, ExpressionError> {
+        match *self {
+            Expression::Function { ref name, ref args, .. } => {
+                let func = try!(DIRECTORY.get(name.as_ref()));
+                match func.get_as_scalar() {
+                    Some(scalar_func) => {
+                        let result = try!(scalar_func.get_return_type(args.clone(), schema));
+                        Ok(result)
+                    }
+                    None => {
+                        Err(ExpressionError::NotScalarFunction(name.clone()))
+                    }
+                }
+            },
+            Expression::Subquery(ref clause) => {
+                // TODO
+                println!("{}", clause);
+                Err(ExpressionError::Unimplemented)
+            },
+            Expression::True | Expression::False => Ok(ColumnType::TinyInt),
+            Expression::Null => Ok(ColumnType::Null),
+            Expression::Int(_) => Ok(ColumnType::Integer),
+            Expression::Long(_) => Ok(ColumnType::BigInt),
+            Expression::Float(_) => Ok(ColumnType::Float),
+            Expression::Double(_) => Ok(ColumnType::Double),
+            Expression::String(ref s) => Ok(ColumnType::VarChar { length: s.len() as u16 }),
+            Expression::ColumnValue(ref name) => {
+                let columns = schema.find_columns(name);
+                if columns.len() != 1 {
+                    Err(ExpressionError::CouldNotResolve(name.clone()))
+                } else {
+                    let (_, ref info) = columns[0];
+                    Ok(info.column_type)
+                }
+            }
+            Expression::OR(ref exprs) | Expression::AND(ref exprs) => {
+                for expr in exprs {
+                    let expr_type = try!(expr.get_column_type(schema));
+                    if expr_type != ColumnType::TinyInt {
+                        return Err(ExpressionError::NotBooleanExpr(expr.clone(), expr_type));
+                    }
+                }
+                Ok(ColumnType::TinyInt)
+            }
+            Expression::NOT(ref inner) => {
+                match try!(inner.get_column_type(schema)) {
+                    ColumnType::TinyInt => Ok(ColumnType::TinyInt),
+                    t => Err(ExpressionError::NotBooleanExpr(*inner.clone(), t)),
+                }
+            }
+            Expression::IsNull(_) => Ok(ColumnType::TinyInt),
+            // TODO: Compare should actually check if they're comparable.
+            Expression::Compare(_, _, _) => Ok(ColumnType::TinyInt),
+            Expression::Arithmetic(ref left, op, ref right) => {
+                let left_type = try!(left.get_column_type(schema));
+                let right_type = try!(right.get_column_type(schema));
+                if !left_type.is_numeric() {
+                    Err(ExpressionError::NotNumericExpr(*left.clone(), left_type))
+                } else if !right_type.is_numeric() {
+                    Err(ExpressionError::NotNumericExpr(*right.clone(), right_type))
+                } else {
+                    Ok(arithmetic_result_type(op, left_type, right_type))
+                }
+            }
+        }
+    }
 }
 
 fn write_expr_parens(f: &mut ::std::fmt::Formatter, expr: &Expression) -> ::std::fmt::Result {
@@ -499,6 +602,7 @@ impl ::std::fmt::Display for Expression {
 mod tests {
     use super::*;
     use ::expressions::{ArithmeticType, CompareType, ExpressionError, Literal};
+    use ::relations::{ColumnInfo, ColumnType, Schema};
 
     #[test]
     fn test_arithmetic() {
@@ -608,5 +712,88 @@ mod tests {
         assert_eq!(Ok(Literal::True), Expression::Compare(left.clone(), CompareType::GreaterThanEqual, left2.clone()).evaluate(&mut None, &mut None));
         assert_eq!(Ok(Literal::True), Expression::Compare(left.clone(), CompareType::Equals, left2.clone()).evaluate(&mut None, &mut None));
         assert_eq!(Ok(Literal::False), Expression::Compare(left.clone(), CompareType::NotEquals, left2.clone()).evaluate(&mut None, &mut None));
+    }
+
+    #[test]
+    fn test_expr_column_type() {
+        let empty_schema = Schema::new();
+
+        assert_eq!(Ok(ColumnType::Integer), Expression::Int(3).get_column_type(&empty_schema));
+        assert_eq!(Ok(ColumnType::Double), Expression::Double(3.0).get_column_type(&empty_schema));
+        assert_eq!(Ok(ColumnType::BigInt), Expression::Long(30).get_column_type(&empty_schema));
+        assert_eq!(Ok(ColumnType::Float), Expression::Float(3.0).get_column_type(&empty_schema));
+
+        assert!(Expression::Function {
+            name: "ABS".into(),
+            distinct: false,
+            args: vec![],
+        }.get_column_type(&empty_schema).is_err());
+        assert_eq!(Ok(ColumnType::Integer), Expression::Function {
+            name: "ABS".into(),
+            distinct: false,
+            args: vec![Expression::Int(3)],
+        }.get_column_type(&empty_schema));
+        assert_eq!(Ok(ColumnType::Float), Expression::Function {
+            name: "ABS".into(),
+            distinct: false,
+            args: vec![Expression::Float(3.3)],
+        }.get_column_type(&empty_schema));
+        assert_eq!(Ok(ColumnType::Double), Expression::Function {
+            name: "ABS".into(),
+            distinct: false,
+            args: vec![Expression::String("s".into())],
+        }.get_column_type(&empty_schema));
+        assert_eq!(Err(ExpressionError::NotScalarFunction("COALESCE".into())), Expression::Function {
+            name: "COALESCE".into(),
+            distinct: false,
+            args: vec![],
+        }.get_column_type(&empty_schema));
+
+        let schema = Schema::with_columns(vec![ColumnInfo::with_name(ColumnType::Integer, "A")]).unwrap();
+        let col_name = (None, Some("A".into()));
+        let a_expr = Expression::ColumnValue(col_name.clone());
+        assert_eq!(Err(ExpressionError::CouldNotResolve(col_name.clone())), a_expr.get_column_type(&empty_schema));
+        assert_eq!(Ok(ColumnType::Integer), a_expr.get_column_type(&schema));
+
+        assert_eq!(Ok(ColumnType::BigInt), Expression::Arithmetic(Box::new(Expression::Int(6)),
+                                                                  ArithmeticType::Plus,
+                                                                  Box::new(Expression::Long(12304)))
+            .get_column_type(&empty_schema));
+        assert_eq!(Ok(ColumnType::Integer), Expression::Arithmetic(Box::new(Expression::Int(6)),
+                                                                   ArithmeticType::Plus,
+                                                                   Box::new(Expression::Int(12304)))
+            .get_column_type(&empty_schema));
+        assert_eq!(Ok(ColumnType::Float), Expression::Arithmetic(Box::new(Expression::Int(6)),
+                                                                 ArithmeticType::Plus,
+                                                                 Box::new(Expression::Float(123.4)))
+            .get_column_type(&empty_schema));
+        assert_eq!(Ok(ColumnType::Double), Expression::Arithmetic(Box::new(Expression::Int(6)),
+                                                                  ArithmeticType::Plus,
+                                                                  Box::new(Expression::Double(123.4)))
+            .get_column_type(&empty_schema));
+        assert_eq!(Ok(ColumnType::Double), Expression::Arithmetic(Box::new(Expression::Int(6)),
+                                                                  ArithmeticType::Divide,
+                                                                  Box::new(Expression::Int(124)))
+            .get_column_type(&empty_schema));
+        // No way to express NUMERIC types yet, so... nothing here.
+        assert_eq!(Err(ExpressionError::NotNumericExpr(Expression::Null, ColumnType::Null)),
+        Expression::Arithmetic(Box::new(Expression::Int(5)),
+                               ArithmeticType::Divide,
+                               Box::new(Expression::Null))
+            .get_column_type(&empty_schema));
+        assert_eq!(Err(ExpressionError::NotNumericExpr(Expression::Null, ColumnType::Null)),
+        Expression::Arithmetic(Box::new(Expression::Null),
+                               ArithmeticType::Divide,
+                               Box::new(Expression::Int(4)))
+            .get_column_type(&empty_schema));
+        assert_eq!(Err(ExpressionError::NotBooleanExpr(Expression::Int(6), ColumnType::Integer)),
+        Expression::NOT(Box::new(Expression::Int(6)))
+            .get_column_type(&empty_schema));
+        assert_eq!(Err(ExpressionError::NotBooleanExpr(Expression::Int(3), ColumnType::Integer)),
+        Expression::OR(vec![Expression::True, Expression::Int(3)])
+            .get_column_type(&empty_schema));
+        assert_eq!(Err(ExpressionError::NotBooleanExpr(Expression::Int(3), ColumnType::Integer)),
+        Expression::AND(vec![Expression::True, Expression::Int(3)])
+            .get_column_type(&empty_schema));
     }
 }
