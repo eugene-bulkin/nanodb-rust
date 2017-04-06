@@ -4,11 +4,13 @@
 pub mod directory;
 
 mod coalesce;
+mod arithmetic;
 
 pub use self::directory::Directory;
 pub use self::{Error as FunctionError};
 
-use ::expressions::{Environment, Expression, Literal};
+use ::expressions::{Environment, Expression, ExpressionError, Literal};
+use ::relations::{ColumnType, Schema};
 
 /// This is the root class of all kinds of functions in NanoDB.
 ///
@@ -20,6 +22,16 @@ use ::expressions::{Environment, Expression, Literal};
 pub trait Function: Sync {
     /// Evaluates a function given an environment (if one exists) and some arguments.
     fn evaluate(&self, env: &mut Option<&mut Environment>, args: Vec<Expression>) -> FunctionResult;
+
+    /// Returns the function as a ScalarFunction if possible. By default this doesn't work.
+    fn get_as_scalar(&self) -> Option<Box<ScalarFunction>> { None }
+}
+
+/// This is a function that returns a scalar, and thus has a specific return column type.
+pub trait ScalarFunction: Function {
+    /// Returns the column type the function should typically return, given the table schema the
+    /// function is being used on.
+    fn get_return_type(&self, args: Vec<Expression>, schema: &Schema) -> Result<ColumnType, FunctionError>;
 }
 
 /// An error that can occur while calling or retrieving a function.
@@ -29,6 +41,16 @@ pub enum Error {
     DoesNotExist(String),
     /// The function provided cannot take zero arguments.
     NeedsArguments(String),
+    /// The function provided does not have enough arguments.
+    NeedsMoreArguments(String, usize, usize),
+    /// Could not retrieve a column type for an expression.
+    CouldNotRetrieveExpressionColumnType(Expression, Box<ExpressionError>),
+    /// Could not evaluate an expression.
+    CouldNotEvaluateExpression(Expression, Box<ExpressionError>),
+    /// The expression provided is not numeric.
+    ExpressionNotNumeric(Expression),
+    /// The function has not been implemented yet.
+    Unimplemented(String),
 }
 
 impl ::std::fmt::Display for Error {
@@ -39,6 +61,21 @@ impl ::std::fmt::Display for Error {
             },
             Error::NeedsArguments(ref name) => {
                 write!(f, "The function {} requires at least one argument.", name)
+            },
+            Error::NeedsMoreArguments(ref name, ref needs, ref got) => {
+                write!(f, "The function {} requires {} arguments, got {}.", name, needs, got)
+            },
+            Error::CouldNotRetrieveExpressionColumnType(ref expr, ref e) => {
+                write!(f, "Could not determine the column type for {}: {}", expr, e)
+            },
+            Error::CouldNotEvaluateExpression(ref expr, ref e) => {
+                write!(f, "Could not evaluate the expression {}: {}", expr, e)
+            },
+            Error::ExpressionNotNumeric(ref expr) => {
+                write!(f, "The expression {} is not numeric.", expr)
+            },
+            Error::Unimplemented(ref name) => {
+                write!(f, "The function {} is not implmented.", name)
             }
         }
     }
