@@ -47,19 +47,10 @@ impl_scalar_func!(Power, |env, args| {
             Err(FunctionError::CouldNotEvaluateExpression(exp.clone(), Box::new(e)))
         },
         (Ok(base_value), Ok(exp_value)) => {
-            if !base_value.is_numeric() {
-                return Err(FunctionError::ExpressionNotNumeric(base.clone()));
-            }
+            let base_num = as_double!(base_value, base);
             if !exp_value.is_numeric() {
                 return Err(FunctionError::ExpressionNotNumeric(exp.clone()));
             }
-            let base_num: f64 = match base_value {
-                Literal::Int(i) => i as f64,
-                Literal::Long(l) => l as f64,
-                Literal::Float(f) => f as f64,
-                Literal::Double(d) => d,
-                _ => unreachable!()
-            };
             match exp_value {
                 Literal::Int(i) => Ok(base_num.powi(i).into()),
                 Literal::Long(l) => Ok(base_num.powi(l as i32).into()),

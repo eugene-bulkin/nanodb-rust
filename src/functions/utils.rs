@@ -33,6 +33,24 @@ macro_rules! return_arithmetic_eval {
     );
 }
 
+macro_rules! as_double {
+    ($num:ident, $expr:ident) => {{
+        if !$num.is_numeric() {
+                return Err(FunctionError::ExpressionNotNumeric($expr.clone()));
+        }
+        as_double!($num)
+    }};
+    ($num:ident) => {{
+        match $num {
+            Literal::Int(i) => i as f64,
+            Literal::Long(l) => l as f64,
+            Literal::Float(f) => f as f64,
+            Literal::Double(d) => d,
+            _ => unreachable!()
+        }
+    }};
+}
+
 macro_rules! check_has_args {
     ($args:ident, $func_name:ident) => {
         if $args.len() < 1 {
