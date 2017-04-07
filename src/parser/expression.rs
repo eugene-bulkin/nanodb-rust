@@ -163,7 +163,7 @@ mod tests {
                                                                                 Some("FOO".into()))),
                                            alias: None
                                        }],
-                                       None, None, None);
+                                       None, None, None, None, None);
         assert_eq!(Done(&[][..], Expression::Subquery(Box::new(clause))), base_expr(b"(SELECT foo FROM bar)"));
     }
 

@@ -178,12 +178,25 @@ named!(pub select_clause (&[u8]) -> SelectClause, do_parse!(
             e: dbg!(ws!(expression)) >>
             (e)
         ))) >>
+        group_by: opt!(complete!(do_parse!(
+            ws!(tag_no_case!("GROUP")) >>
+            ws!(tag_no_case!("BY")) >>
+            exprs: separated_nonempty_list!(ws!(tag!(",")), expression) >>
+            having: opt!(preceded!(ws!(tag_no_case!("HAVING")), expression)) >>
+            (exprs, having)
+        ))) >>
         limit: opt!(complete!(limit)) >>
         offset: opt!(complete!(offset)) >>
-        (from_clause, where_expr, limit, offset)
+        ({
+            if let Some((group_exprs, having)) = group_by {
+                (from_clause, where_expr, Some(group_exprs), having, limit, offset)
+            } else {
+                (from_clause, where_expr, None, None, limit, offset)
+            }
+        })
     ))) >>
     ({
-        if let Some((from_clause, where_expr, limit, offset)) = from {
+        if let Some((from_clause, where_expr, group_exprs, having, limit, offset)) = from {
             SelectClause::new(from_clause, match distinct {
                     Some(modifier) => modifier,
                     None => false
@@ -191,6 +204,8 @@ named!(pub select_clause (&[u8]) -> SelectClause, do_parse!(
                 limit.and_then(|v| v).map(|v| v as u32),
                 offset.and_then(|v| v).map(|v| v as u32),
                 where_expr,
+                group_exprs,
+                having
             )
         } else {
             SelectClause::scalar(select_values)
@@ -298,10 +313,14 @@ mod tests {
                                         vec![SelectValue::WildcardColumn { table: None }],
                                         None,
                                         None,
+                                        None,
+                                        None,
                                         None);
         let result2 = SelectClause::new(fc2,
                                         false,
                                         vec![SelectValue::WildcardColumn { table: None }],
+                                        None,
+                                        None,
                                         None,
                                         None,
                                         None);
