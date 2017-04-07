@@ -2,47 +2,8 @@
 
 use std::fmt;
 
-use ::expressions::{Environment, Expression, ExpressionProcessor, Literal, SelectValue};
-
-struct SubqueryProcessor {
-    pub has_valid_subqueries: bool
-}
-
-impl SubqueryProcessor {
-    fn new() -> SubqueryProcessor {
-        SubqueryProcessor { has_valid_subqueries: false }
-    }
-}
-
-impl ExpressionProcessor for SubqueryProcessor {
-    fn enter(&mut self, _node: &Expression) {
-        // We don't need to do anything with the nodes when they come in.
-    }
-
-    fn leave(&mut self, node: &Expression) -> Expression {
-        match *node {
-            Expression::Subquery(ref clause) => {
-                // If this is a scalar subquery with one value, then we return the default value of
-                // what that value would be. Otherwise, we just return the original expression.
-                // This allows us determine the column type of subquery expressions that would be
-                // valid because they are scalar.
-                if clause.values.len() == 1 {
-                    let ref value = clause.values[0];
-                    match ColumnInfo::from_select_value(value, &mut None) {
-                        Some(info) => {
-                            self.has_valid_subqueries = true;
-                            info.column_type.default_literal().into()
-                        },
-                        None => node.clone()
-                    }
-                } else {
-                    node.clone()
-                }
-            },
-            _ => node.clone(),
-        }
-    }
-}
+use ::expressions::{Environment, Literal, SelectValue};
+use ::relations::Schema;
 
 /// A shorthand type for storing a column name in (table_name, column_name) form.
 pub type ColumnName = (Option<String>, Option<String>);
@@ -70,7 +31,7 @@ pub const EMPTY_NUMERIC: ColumnType = ColumnType::Numeric {
 };
 
 /// The type of a single column in a relation.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ColumnType {
     /// A placeholder type for `NULL` literals.
     Null,
@@ -258,7 +219,7 @@ impl ColumnType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// Basic information about a table column, including its name and SQL type.
 /// Constraints, even
 /// `NOT NULL` constraints, appear at the table level, since some constraints
@@ -329,39 +290,25 @@ impl ColumnInfo {
     ///
     /// Since the only reason for this to fail is if the select value is not evaluable over the
     /// environment, we simply return None if the evaluation doesn't work.
-    pub fn from_select_value(value: &SelectValue, mut env: &mut Option<&mut Environment>) -> Option<ColumnInfo> {
+    pub fn from_select_value(value: &SelectValue, env: &mut Option<&mut Environment>) -> Option<ColumnInfo> {
         match *value {
             SelectValue::Expression { ref expression, ref alias } => {
-                // Here we remove all scalar subqueries if possible. The way we do this is described
-                // in the leave() method of the SubqueryProcessor.
-                let mut processor = SubqueryProcessor::new();
-                let expr_no_subqueries = expression.clone().traverse(&mut processor);
-                // We do this in two ways. First, if there are subqueries, we check what the
-                // expression is with the subqueries replaced with their default values, since we
-                // only care about the type. If there aren't any, we use the regular expression.
-                let expr_to_evaluate: &Expression = if processor.has_valid_subqueries {
-                    &expr_no_subqueries
+                let schema = if let Some(ref env) = *env {
+                    env.get_common_schema()
                 } else {
-                    expression
+                    Schema::new()
                 };
-                if let Ok(literal) = expr_to_evaluate.evaluate(&mut None, &mut None) {
-                    let col_type = literal.get_column_type();
+                if let Ok(col_type) = expression.get_column_type(&schema) {
+                    let default_name = if let Ok(literal) = expression.evaluate(&mut None, &mut None) {
+                        format!("{}", literal)
+                    } else {
+                        format!("{}", expression)
+                    };
                     Some(ColumnInfo::with_name(col_type,
                                                match *alias {
                                                    Some(ref name) => name.clone(),
-                                                   None => format!("{}", literal),
+                                                   None => default_name,
                                                }))
-                } else if env.is_some() {
-                    if let Ok(literal) = expr_to_evaluate.evaluate(env, &mut None) {
-                        let col_type = literal.get_column_type();
-                        Some(ColumnInfo::with_name(col_type,
-                                                   match *alias {
-                                                       Some(ref name) => name.clone(),
-                                                       None => format!("{}", expression),
-                                                   }))
-                    } else {
-                        None
-                    }
                 } else {
                     None
                 }
@@ -512,7 +459,7 @@ mod tests {
         let value_sub1 = SelectValue::Expression {
             expression: Expression::Arithmetic(Box::new(Expression::Int(5)),
                                                ArithmeticType::Plus,
-                                               Box::new(Expression::Subquery(Box::new(scalar1)))),
+                                               Box::new(Expression::Subquery(Box::new(scalar1.clone())))),
             alias: None,
         };
 
@@ -530,7 +477,7 @@ mod tests {
             alias: None,
         };
 
-        assert_eq!(Some(ColumnInfo::with_name(ColumnType::Integer, "5")), ColumnInfo::from_select_value(&value_sub1, &mut None));
+        assert_eq!(Some(ColumnInfo::with_name(ColumnType::Integer, format!("5 + ({})", scalar1))), ColumnInfo::from_select_value(&value_sub1, &mut None));
         assert_eq!(None, ColumnInfo::from_select_value(&value_sub2, &mut None));
         assert_eq!(None, ColumnInfo::from_select_value(&value_sub3, &mut None));
     }

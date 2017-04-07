@@ -4,7 +4,7 @@ use ::expressions::{ArithmeticType, CompareType, Environment, ExpressionError, L
                     ExpressionProcessor, SelectClause};
 use ::functions::Directory;
 use ::queries::{Planner, get_plan_results};
-use ::relations::{EMPTY_NUMERIC, ColumnName, ColumnType, Schema, column_name_to_string};
+use ::relations::{EMPTY_NUMERIC, ColumnInfo, ColumnName, ColumnType, Schema, column_name_to_string};
 
 lazy_static! {
     static ref DIRECTORY: Directory = Directory::new();
@@ -243,11 +243,11 @@ impl Expression {
                 } else {
                     Err(ExpressionError::CouldNotResolve(name.clone()))
                 }
-            },
+            }
             Expression::Function { ref name, ref args, .. } => {
                 let func = try!(DIRECTORY.get(name.as_ref()));
                 func.evaluate(&mut env, args.to_vec(), planner).map_err(Into::into)
-            },
+            }
             Expression::Subquery(ref clause) => {
                 match *planner {
                     Some(ref planner) => {
@@ -262,10 +262,10 @@ impl Expression {
                         } else {
                             Ok(results[0][0].clone().into())
                         }
-                    },
+                    }
                     None => Err(ExpressionError::SubqueryNeedsPlanner)
                 }
-            },
+            }
             _ => Err(ExpressionError::Unimplemented),
         }
     }
@@ -427,38 +427,38 @@ impl Expression {
             Expression::Arithmetic(ref mut left, _, ref mut right) => {
                 *left = Box::new(left.traverse(processor));
                 *right = Box::new(right.traverse(processor));
-            },
+            }
             Expression::Compare(ref mut left, _, ref mut right) => {
                 *left = Box::new(left.traverse(processor));
                 *right = Box::new(right.traverse(processor));
-            },
+            }
             Expression::OR(ref mut exprs) | Expression::AND(ref mut exprs) => {
                 for i in 0..exprs.len() {
                     let e = exprs[i].traverse(processor);
                     exprs[i] = e;
                 }
-            },
+            }
             Expression::NOT(ref mut inner) | Expression::IsNull(ref mut inner) => {
                 *inner = Box::new(inner.traverse(processor));
-            },
+            }
             Expression::ColumnValue(_) => {
                 // This is a leaf, don't traverse the inner node.
-            },
+            }
             Expression::Function { ref mut args, .. } => {
                 for i in 0..args.len() {
                     let e = args[i].traverse(processor);
                     args[i] = e;
                 }
-            },
+            }
             Expression::Subquery(_) => {
                 // We do not traverse the subquery; it is treated as a "black box" by the
                 // expression-traversal mechanism.
-            },
+            }
             Expression::Null | Expression::True | Expression::False | Expression::Int(_)
             | Expression::Long(_) | Expression::Float(_) | Expression::Double(_)
             | Expression::String(_) => {
                 // These are literals so there's nothing else to do.
-            },
+            }
         }
         processor.leave(self)
     }
@@ -480,12 +480,18 @@ impl Expression {
                         Err(ExpressionError::NotScalarFunction(name.clone()))
                     }
                 }
-            },
+            }
             Expression::Subquery(ref clause) => {
-                // TODO
-                println!("{}", clause);
-                Err(ExpressionError::Unimplemented)
-            },
+                if clause.values.is_empty() {
+                    Err(ExpressionError::SubqueryEmpty(*clause.clone()))
+                } else if clause.values.len() > 1 {
+                    Err(ExpressionError::SubqueryNotScalar(*clause.clone()))
+                } else if let Some(info) = ColumnInfo::from_select_value(&clause.values[0], &mut None) {
+                    Ok(info.column_type)
+                } else {
+                    Err(ExpressionError::CannotDetermineSubqueryType(*clause.clone()))
+                }
+            }
             Expression::True | Expression::False => Ok(ColumnType::TinyInt),
             Expression::Null => Ok(ColumnType::Null),
             Expression::Int(_) => Ok(ColumnType::Integer),

@@ -145,6 +145,8 @@ pub enum Error {
     SubqueryNotScalar(SelectClause),
     /// The subquery given was empty.
     SubqueryEmpty(SelectClause),
+    /// Could not determine the type of the scalar subquery given.
+    CannotDetermineSubqueryType(SelectClause),
     /// This expression's evaluation has not been implemented yet.
     Unimplemented,
 }
@@ -199,6 +201,7 @@ impl ::std::fmt::Display for Error {
             },
             Error::SubqueryNotScalar(ref clause) => write!(f, "The subquery {} is not scalar.", clause),
             Error::SubqueryEmpty(ref clause) => write!(f, "The subquery {} is empty.", clause),
+            Error::CannotDetermineSubqueryType(ref clause) => write!(f, "Could not determine the return type of scalar subquery {}.", clause),
             Error::Unimplemented => {
                 write!(f,
                        "The expression's evaluation has not yet been implemented.")
