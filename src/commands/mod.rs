@@ -56,7 +56,7 @@ use std::any::Any;
 use std::io::Write;
 
 use ::{Server};
-use ::expressions::{Expression, ExpressionError};
+use ::expressions::{Expression, ExpressionError, SelectValue};
 use ::queries::PlanError;
 use ::relations::SchemaError;
 use ::storage::{PinError, TupleLiteral, file_manager, table_manager};
@@ -150,6 +150,9 @@ pub enum ExecutionError {
     ExpressionError(ExpressionError),
     /// The table could not be deleted.
     CouldNotDeleteTable(file_manager::Error),
+    /// When trying to create a scalar select, a select value was provided that could not be a
+    /// scalar (e.g. `SELECT 1 + a`).
+    ExpectedScalarValue(SelectValue),
     /// A pinning error occurred.
     PinError(PinError),
     /// An error occurred while trying to print the results of a query. This error would be an
@@ -208,6 +211,7 @@ impl ::std::fmt::Display for ExecutionError {
             ExecutionError::CouldNotExecutePlan(ref e) => write!(f, "Unable to execute plan. {}", e),
             ExecutionError::Unimplemented => write!(f, "The requested command is not yet implemented."),
             ExecutionError::TableDoesNotExist(ref name) => write!(f, "The table {} does not exist.", name),
+            ExecutionError::ExpectedScalarValue(ref value) => write!(f, "The select value {} cannot be evaluated to a scalar.", value),
             ExecutionError::ExpressionError(ref e) => write!(f, "{}", e),
             ExecutionError::PinError(ref e) => write!(f, "{}", e),
             ExecutionError::PrintError(ref e) => write!(f, "Unable to print results: {}.", e),

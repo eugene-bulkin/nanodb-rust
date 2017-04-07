@@ -19,6 +19,7 @@ pub use self::select_value::SelectValue;
 
 use ::ColumnName;
 use ::functions::FunctionError;
+use ::queries::{PlanError};
 use ::relations::ColumnType;
 use ::storage::TupleError;
 
@@ -136,6 +137,16 @@ pub enum Error {
     FunctionError(FunctionError),
     /// The function being called is not a scalar function.
     NotScalarFunction(String),
+    /// Subqueries must be evaluated using a planner.
+    SubqueryNeedsPlanner,
+    /// Could not evaluate a subquery.
+    CouldNotEvaluateSubquery(SelectClause, Box<PlanError>),
+    /// The subquery given needed to be scalar, but it was not.
+    SubqueryNotScalar(SelectClause),
+    /// The subquery given was empty.
+    SubqueryEmpty(SelectClause),
+    /// Could not determine the type of the scalar subquery given.
+    CannotDetermineSubqueryType(SelectClause),
     /// This expression's evaluation has not been implemented yet.
     Unimplemented,
 }
@@ -184,6 +195,13 @@ impl ::std::fmt::Display for Error {
             Error::CouldNotRead(ref e) => write!(f, "Could not read a value from a tuple: {}", e),
             Error::FunctionError(ref e) => write!(f, "{}", e),
             Error::NotScalarFunction(ref name) => write!(f, "{} is not a scalar function.", name),
+            Error::SubqueryNeedsPlanner => write!(f, "Subqueries require planners to evaluate."),
+            Error::CouldNotEvaluateSubquery(ref clause, ref e) => {
+                write!(f, "Subquery {} could not be evaluated: {}", clause, e)
+            },
+            Error::SubqueryNotScalar(ref clause) => write!(f, "The subquery {} is not scalar.", clause),
+            Error::SubqueryEmpty(ref clause) => write!(f, "The subquery {} is empty.", clause),
+            Error::CannotDetermineSubqueryType(ref clause) => write!(f, "Could not determine the return type of scalar subquery {}.", clause),
             Error::Unimplemented => {
                 write!(f,
                        "The expression's evaluation has not yet been implemented.")

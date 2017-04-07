@@ -15,6 +15,7 @@ pub use self::{Error as FunctionError};
 
 use ::expressions::{Environment, Expression, ExpressionError, Literal};
 use ::relations::{ColumnType, Schema};
+use ::queries::Planner;
 
 /// This is the root class of all kinds of functions in NanoDB.
 ///
@@ -25,7 +26,7 @@ use ::relations::{ColumnType, Schema};
 /// retrieved from the {@link FunctionDirectory}.
 pub trait Function: Sync {
     /// Evaluates a function given an environment (if one exists) and some arguments.
-    fn evaluate(&self, env: &mut Option<&mut Environment>, args: Vec<Expression>) -> FunctionResult;
+    fn evaluate(&self, env: &mut Option<&mut Environment>, args: Vec<Expression>, planner: &Option<&Planner>) -> FunctionResult;
 
     /// Returns the function as a ScalarFunction if possible. By default this doesn't work.
     fn get_as_scalar(&self) -> Option<Box<ScalarFunction>> { None }

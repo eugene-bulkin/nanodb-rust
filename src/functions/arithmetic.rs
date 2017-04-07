@@ -2,44 +2,45 @@ use super::{Function, FunctionError, FunctionResult, ScalarFunction};
 
 use ::expressions::{Environment, Expression, Literal};
 use ::relations::{ColumnType, Schema};
+use ::queries::Planner;
 
-impl_scalar_func!(Abs, |env, args| {
+impl_scalar_func!(Abs, |env, args, planner| {
     let first_arg = args[0].clone();
-    return_arithmetic_eval!(first_arg, env, |n| n.abs())
+    return_arithmetic_eval!(first_arg, env, planner, |n| n.abs())
 });
 
-impl_scalar_func!(Ceil, |env, args| {
+impl_scalar_func!(Ceil, |env, args, planner| {
     let first_arg = args[0].clone();
-    return_arithmetic_eval!(first_arg, env, (|n| n, |n| n.ceil()))
+    return_arithmetic_eval!(first_arg, env, planner, (|n| n, |n| n.ceil()))
 });
 
-impl_scalar_func!(Floor, |env, args| {
+impl_scalar_func!(Floor, |env, args, planner| {
     let first_arg = args[0].clone();
-    return_arithmetic_eval!(first_arg, env, (|n| n, |n| n.floor()))
+    return_arithmetic_eval!(first_arg, env, planner, (|n| n, |n| n.floor()))
 });
 
-impl_scalar_func!(Exp, |env, args| {
+impl_scalar_func!(Exp, |env, args, planner| {
     let first_arg = args[0].clone();
-    return_arithmetic_eval!(first_arg, env, (|n| (n as f64).exp(), |n| n.exp()))
+    return_arithmetic_eval!(first_arg, env, planner, (|n| (n as f64).exp(), |n| n.exp()))
 });
 
-impl_scalar_func!(Ln, |env, args| {
+impl_scalar_func!(Ln, |env, args, planner| {
     let first_arg = args[0].clone();
-    return_arithmetic_eval!(first_arg, env, (|n| (n as f64).ln(), |n| n.ln()))
+    return_arithmetic_eval!(first_arg, env, planner, (|n| (n as f64).ln(), |n| n.ln()))
 });
 
-impl_scalar_func!(Sqrt, |env, args| {
+impl_scalar_func!(Sqrt, |env, args, planner| {
     let first_arg = args[0].clone();
-    return_arithmetic_eval!(first_arg, env, (|n| (n as f64).sqrt(), |n| n.sqrt()))
+    return_arithmetic_eval!(first_arg, env, planner, (|n| (n as f64).sqrt(), |n| n.sqrt()))
 });
 
-impl_scalar_func!(Power, |env, args| {
+impl_scalar_func!(Power, |env, args, planner| {
     if args.len() < 2 {
         return Err(FunctionError::NeedsMoreArguments("$func_name".to_string().to_uppercase(), 2, args.len()));
     }
     let base = args[0].clone();
     let exp = args[1].clone();
-    match (base.evaluate(env), exp.evaluate(env)) {
+    match (base.evaluate(env, planner), exp.evaluate(env, planner)) {
         (Err(e), _) => {
             Err(FunctionError::CouldNotEvaluateExpression(base.clone(), Box::new(e)))
         },

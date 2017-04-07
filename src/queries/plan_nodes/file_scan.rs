@@ -20,7 +20,7 @@ fn is_tuple_selected(predicate: Option<&Expression>,
         Some(ref expr) => {
             let mut env = Environment::new();
             env.add_tuple(schema, tuple);
-            match expr.evaluate(&mut Some(&mut env)) {
+            match expr.evaluate(&mut Some(&mut env), &mut None) {
                 Ok(Literal::True) => Ok(true),
                 Ok(Literal::False) => Ok(false),
                 Ok(_) => Err(PlanError::InvalidPredicate),

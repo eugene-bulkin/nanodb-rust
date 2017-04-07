@@ -173,7 +173,7 @@ impl<'a> NestedLoopJoinNode<'a> {
         if let Some(mut boxed) = self.right_tuple.as_mut() {
             env.add_tuple_ref(self.right.get_schema(), &mut *boxed);
         }
-        let result = predicate.evaluate(&mut Some(&mut env));
+        let result = predicate.evaluate(&mut Some(&mut env), &mut None);
         match result {
             Ok(l) => {
                 match l {

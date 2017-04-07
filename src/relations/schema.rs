@@ -11,6 +11,7 @@ use std::slice::Iter;
 
 use byteorder::{BigEndian, ReadBytesExt};
 
+use ::expressions::{Environment, SelectValue};
 use ::relations::{ColumnInfo, ColumnName, ColumnType, EMPTY_CHAR, EMPTY_NUMERIC, EMPTY_VARCHAR};
 use ::storage::{DBPage, ReadNanoDBExt, TupleLiteral, WriteNanoDBExt};
 use ::storage::header_page::OFFSET_SCHEMA_START;
@@ -55,6 +56,8 @@ pub enum Error {
     /// Setting all of the tables on the schema to a certain name would result in ambiguous column
     /// names.
     AmbiguousColumnsAfterTableRename(String, Vec<String>),
+    /// A select value could not be resolved.
+    CouldNotResolveSelectValue(SelectValue),
 }
 
 impl ::std::fmt::Display for Error {
@@ -73,6 +76,9 @@ impl ::std::fmt::Display for Error {
             Error::AmbiguousColumnsAfterTableRename(ref table_name, ref ambiguous_columns) => {
                 write!(f, "Overriding table-name to \"{}\" would produce ambiguous columns: {}",
                        table_name, ambiguous_columns.join(", "))
+            },
+            Error::CouldNotResolveSelectValue(ref value) => {
+                write!(f, "The select value {} could not be resolved.", value)
             }
         }
     }
@@ -178,6 +184,22 @@ impl Schema {
             try!(result.add_column(ColumnInfo::with_table_name(col_type, col_name.as_ref(), table_name.as_ref())));
         }
 
+        Ok(result)
+    }
+
+    /// Creates a new schema from select values by attempting to evaluate them.
+    pub fn from_select_values(values: Vec<SelectValue>, mut env: &mut Option<&mut Environment>) -> Result<Schema, Error> {
+        let mut result = Schema::new();
+        for value in values.iter() {
+            match ColumnInfo::from_select_value(value, env) {
+                Some(info) => {
+                    try!(result.add_column(info));
+                },
+                None => {
+                    return Err(Error::CouldNotResolveSelectValue(value.clone()));
+                }
+            }
+        }
         Ok(result)
     }
 

@@ -1,8 +1,10 @@
 //! This module provides the project plan node.
 
+use std::default::Default;
+
 use ::expressions::{Environment, Expression, ExpressionError, SelectValue};
 use ::queries::plan_nodes::PlanNode;
-use ::queries::planning::{PlanError, PlanResult};
+use ::queries::planning::{PlanError, Planner, PlanResult};
 use ::relations::{ColumnInfo, ColumnName, NameError, Schema, SchemaError, column_name_to_string};
 use ::storage::{Tuple, TupleLiteral, TupleError};
 
@@ -15,6 +17,8 @@ pub enum Error {
     ColumnAmbiguous(ColumnName),
     /// Unable to resolve the expression given.
     CouldNotResolve(Expression, Box<ExpressionError>),
+    /// Unable to determine the type of the expression given.
+    CouldNotResolveType(Expression),
     /// Unable to read a column value due to some tuple error.
     CouldNotReadColumnValue(ColumnName, TupleError),
     /// Some other schema error occurred.
@@ -48,7 +52,10 @@ impl ::std::fmt::Display for Error {
             }
             Error::CouldNotResolve(ref expr, ref e) => {
                 write!(f, "the expression {} could not be resolved: {}", expr, e)
-            }
+            },
+            Error::CouldNotResolveType(ref expr) => {
+                write!(f, "the type of expression {} could not be resolved", expr)
+            },
             Error::CouldNotReadColumnValue(ref col_name, ref e) => {
                 write!(f, "the column value for column {} could not be read: {}", column_name_to_string(col_name), e)
             }
@@ -64,11 +71,25 @@ pub use self::Error as ProjectError;
 /// PlanNode representing the `SELECT` clause in a SQL query. This is the relational algebra Project
 /// operator.
 pub struct ProjectNode<'a> {
-    child: Box<PlanNode + 'a>,
+    child: Option<Box<PlanNode + 'a>>,
     values: Vec<SelectValue>,
     current_tuple: Option<Box<Tuple>>,
     input_schema: Schema,
     output_schema: Option<Schema>,
+    planner: Option<&'a Planner>,
+}
+
+impl<'a> Default for ProjectNode<'a> {
+    fn default() -> ProjectNode<'a> {
+        ProjectNode {
+            child: None,
+            values: vec![],
+            current_tuple: None,
+            input_schema: Schema::new(),
+            output_schema: None,
+            planner: None,
+        }
+    }
 }
 
 impl<'a> ProjectNode<'a> {
@@ -77,16 +98,26 @@ impl<'a> ProjectNode<'a> {
     /// # Argument
     /// * child - The child of the node.
     /// * values - The select values of the query.
-    pub fn new(child: Box<PlanNode + 'a>, values: Vec<SelectValue>) -> ProjectNode<'a> {
+    pub fn new(child: Box<PlanNode + 'a>, values: Vec<SelectValue>, planner: &'a Planner) -> ProjectNode<'a> {
         let schema = child.get_schema();
         ProjectNode {
-            child: child,
+            child: Some(child),
             values: values,
-            current_tuple: None,
             input_schema: schema,
-            // This will only be Some(...) if the node has been prepared!
-            output_schema: None,
+            planner: Some(planner),
+            ..Default::default()
         }
+    }
+
+    /// Instantiate a project node that only acts on scalar values.
+    pub fn scalar(values: Vec<SelectValue>, planner: &'a Planner) -> Result<ProjectNode<'a>, SchemaError> {
+        let schema = try!(Schema::from_select_values(values.clone(), &mut None));
+        Ok(ProjectNode {
+            values: values,
+            input_schema: schema,
+            planner: Some(planner),
+            ..Default::default()
+        })
     }
 
     fn project_tuple(&self, tuple: &mut Tuple) -> PlanResult<TupleLiteral> {
@@ -108,7 +139,7 @@ impl<'a> ProjectNode<'a> {
                     } else {
                         let mut env = Environment::new();
                         env.add_tuple_ref(self.input_schema.clone(), tuple);
-                        let value = try!(expression.evaluate(&mut Some(&mut env))
+                        let value = try!(expression.evaluate(&mut Some(&mut env), &self.planner)
                             .map_err(|e| ProjectError::CouldNotResolve(expression.clone(), Box::new(e))));
                         result.add_value(value);
                     }
@@ -144,15 +175,31 @@ impl<'a> ProjectNode<'a> {
         if self.output_schema.is_none() {
             return Err(PlanError::NodeNotPrepared);
         }
-        let mut next = {
-            let next = try!(self.child.get_next_tuple());
-            if next.is_none() {
+
+        if self.child.is_some() {
+            let mut next = {
+                let mut child = self.child.take().unwrap();
+                let result = {
+                    let next = try!(child.get_next_tuple());
+                    if next.is_none() {
+                        self.current_tuple = None;
+                        return Ok(());
+                    }
+                    TupleLiteral::from_tuple(next.unwrap())
+                };
+                self.child = Some(child);
+                result
+            };
+            self.current_tuple = Some(Box::new(try!(self.project_tuple(&mut next))));
+        } else {
+            if self.current_tuple.is_some() {
+                // Only return one row
                 self.current_tuple = None;
-                return Ok(());
+            } else {
+                let mut default = TupleLiteral::null(self.input_schema.num_columns());
+                self.current_tuple = Some(Box::new(try!(self.project_tuple(&mut default))));
             }
-            TupleLiteral::from_tuple(next.unwrap())
-        };
-        self.current_tuple = Some(Box::new(try!(self.project_tuple(&mut next))));
+        }
         Ok(())
     }
 }
@@ -210,29 +257,10 @@ impl<'a> PlanNode for ProjectNode<'a> {
                                                   None => column_name.1.clone().unwrap(),
                                               })
                     } else {
-                        // First, see if we can just figure out what it is without a tuple (e.g. it's a
-                        // constant expression).
-                        if let Ok(literal) = expression.evaluate(&mut None) {
-                            let col_type = literal.get_column_type();
-                            ColumnInfo::with_name(col_type,
-                                                  match *alias {
-                                                      Some(ref name) => name.clone(),
-                                                      None => format!("{}", literal),
-                                                  })
+                        if let Some(info) = ColumnInfo::from_select_value(select_value, &mut Some(&mut default_env)) {
+                            info
                         } else {
-                            match expression.evaluate(&mut Some(&mut default_env)) {
-                                Ok(literal) => {
-                                    let col_type = literal.get_column_type();
-                                    ColumnInfo::with_name(col_type,
-                                                          match *alias {
-                                                              Some(ref name) => name.clone(),
-                                                              None => format!("{}", expression),
-                                                          })
-                                }
-                                Err(e) => {
-                                    return Err(ProjectError::CouldNotResolve(expression.clone(), Box::new(e)).into());
-                                },
-                            }
+                            return Err(ProjectError::CouldNotResolveType(expression.clone()).into());
                         }
                     };
                     result.add_column(col_info).map_err(Into::into)

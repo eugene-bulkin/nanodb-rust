@@ -1,8 +1,8 @@
 //! This module contains the classes and functions needed for a simple query planner.
 
 use ::expressions::{FromClause, FromClauseType, SelectClause};
-use ::queries::{NestedLoopJoinNode, NodeResult, PlanNode, Planner, ProjectNode, make_simple_select,
-                RenameNode};
+use ::queries::{NestedLoopJoinNode, NodeResult, PlanNode, Planner, ProjectNode,
+                make_simple_select, RenameNode};
 use ::storage::{FileManager, TableManager};
 
 /// This class generates execution plannodes for performing SQL queries. The primary responsibility
@@ -42,7 +42,7 @@ impl<'a> SimplePlanner<'a> {
                 try!(cur_node.prepare());
 
                 if let Some(values) = clause.get_computed_select_values() {
-                    cur_node = Box::new(ProjectNode::new(cur_node, values));
+                    cur_node = Box::new(ProjectNode::new(cur_node, values, self));
                     try!(cur_node.prepare());
                 }
 
@@ -53,21 +53,31 @@ impl<'a> SimplePlanner<'a> {
 }
 
 impl<'a> Planner for SimplePlanner<'a> {
-    fn make_plan(&mut self, clause: SelectClause) -> NodeResult {
-        let mut cur_node = try!(self.make_join_tree(clause.from_clause.clone()));
-        try!(cur_node.prepare());
+    fn make_plan(&self, clause: SelectClause) -> NodeResult {
+        let node = match clause.from_clause {
+            Some(ref from_clause) => {
+                let mut cur_node = try!(self.make_join_tree(from_clause.clone()));
+                try!(cur_node.prepare());
 
-        if cur_node.has_predicate() {
-            if let Some(ref expr) = clause.where_expr {
-                try!(cur_node.as_mut().set_predicate(expr.clone()));
+                if cur_node.has_predicate() {
+                    if let Some(ref expr) = clause.where_expr {
+                        try!(cur_node.as_mut().set_predicate(expr.clone()));
+                    }
+                }
+
+                if !clause.is_trivial_project() {
+                    cur_node = Box::new(ProjectNode::new(cur_node, clause.values, self));
+                    try!(cur_node.prepare());
+                }
+
+                cur_node
+            },
+            None => {
+                let mut cur_node = Box::new(try!(ProjectNode::scalar(clause.values, self)));
+                try!(cur_node.prepare());
+                cur_node
             }
-        }
-
-        if !clause.is_trivial_project() {
-            cur_node = Box::new(ProjectNode::new(cur_node, clause.values));
-            try!(cur_node.prepare());
-        }
-
-        Ok(cur_node)
+        };
+        Ok(node)
     }
 }

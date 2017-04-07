@@ -1,5 +1,6 @@
 use ::expressions::{ArithmeticType, Expression};
 use ::parser::literal::literal;
+use ::parser::select::select_clause;
 use ::parser::utils::*;
 
 named!(function_call (&[u8]) -> Expression, do_parse!(
@@ -15,13 +16,15 @@ named!(function_call (&[u8]) -> Expression, do_parse!(
     })
 ));
 
+named!(subquery_expr (&[u8]) -> Expression, map!(select_clause, |clause| Expression::Subquery(Box::new(clause))));
+
 named!(base_expr (&[u8]) -> Expression, alt_complete!(
     function_call |
     literal_expr |
     column_name_expr |
     do_parse!(
         ws!(tag!("(")) >>
-        e: logical_or_expr >>
+        e: alt_complete!(subquery_expr | logical_or_expr) >>
         ws!(tag!(")")) >>
         (e)
     )
@@ -143,7 +146,7 @@ mod tests {
     use nom::IResult::*;
 
     use super::*;
-    use ::expressions::{ArithmeticType, CompareType, Expression};
+    use ::expressions::{ArithmeticType, CompareType, Expression, FromClause, SelectClause, SelectValue};
 
     #[test]
     fn test_base_expr() {
@@ -151,6 +154,17 @@ mod tests {
         assert_eq!(Done(&[][..], Expression::ColumnValue((None, Some("A".into())))), base_expr(b"a"));
         assert_eq!(Done(&[][..], Expression::ColumnValue((Some("B".into()), Some("A".into())))), base_expr(b"b.a"));
         assert_eq!(Done(&[][..], Expression::ColumnValue((Some("B".into()), None))), base_expr(b"b.*"));
+        assert_eq!(Done(&[][..], Expression::OR(vec![Expression::Int(3), Expression::Int(4)])), base_expr(b"(3 OR 4)"));
+
+        let clause = SelectClause::new(FromClause::base_table("BAR".into(), None),
+                                       false,
+                                       vec![SelectValue::Expression {
+                                           expression: Expression::ColumnValue((None,
+                                                                                Some("FOO".into()))),
+                                           alias: None
+                                       }],
+                                       None, None, None);
+        assert_eq!(Done(&[][..], Expression::Subquery(Box::new(clause))), base_expr(b"(SELECT foo FROM bar)"));
     }
 
     #[test]

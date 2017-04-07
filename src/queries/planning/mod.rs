@@ -9,7 +9,8 @@ use ::relations::SchemaError;
 use ::expressions::{Expression, ExpressionError, SelectClause};
 use ::queries::{FileScanNode, NodeResult, PlanNode};
 use ::queries::plan_nodes::ProjectError;
-use ::storage::{FileManager, PinError, TableManager, TupleError, file_manager, table_manager};
+use ::storage::{FileManager, PinError, TableManager, TupleError, TupleLiteral, file_manager,
+                table_manager};
 
 /// An error that could occur during planning.
 #[derive(Clone, Debug, PartialEq)]
@@ -95,6 +96,19 @@ pub use self::Error as PlanError;
 /// A result that returns something and has a plan error.
 pub type PlanResult<T> = Result<T, Error>;
 
+/// Executes a plan node and returns a vector of tuple literals that came from the plan.
+pub fn get_plan_results(plan: &mut PlanNode) -> PlanResult<Vec<TupleLiteral>> {
+    let mut tuples: Vec<TupleLiteral> = Vec::new();
+    plan.initialize();
+
+    while let Some(mut boxed_tuple) = try!(plan.get_next_tuple()) {
+        let literal = TupleLiteral::from_tuple(&mut *boxed_tuple);
+        tuples.push(literal);
+    }
+
+    Ok(tuples)
+}
+
 /// Returns a plan tree for executing a simple select against a single table, whose tuples can
 /// also be used for updating and deletion.
 ///
@@ -123,5 +137,5 @@ pub fn make_simple_select<'table, S: Into<String>>(file_manager: &FileManager,
 /// each query being planned.
 pub trait Planner {
     /// Create a plan given a SELECT clause.
-    fn make_plan(&mut self, clause: SelectClause) -> NodeResult;
+    fn make_plan(&self, clause: SelectClause) -> NodeResult;
 }

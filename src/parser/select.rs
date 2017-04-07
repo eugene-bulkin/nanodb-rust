@@ -163,35 +163,46 @@ named!(from_clause (&[u8]) -> FromClause, do_parse!(
     })
 ));
 
-/// Parses a `SELECT` statement into a `SelectCommand`.
-named!(pub parse (&[u8]) -> Box<SelectCommand>, do_parse!(
+/// Parses a `SELECT` statement into a `SelectClause`.
+named!(pub select_clause (&[u8]) -> SelectClause, do_parse!(
     ws!(tag_no_case!("SELECT")) >>
     distinct: opt!(ws!(alt!(
             tag_no_case!("ALL")         => { |_| false }
         |   tag_no_case!("DISTINCT")    => { |_| true }
     ))) >>
     select_values: select_values >>
-    ws!(tag_no_case!("FROM")) >>
-    from_clause: ws!(from_clause) >>
-    where_expr: opt!(complete!(do_parse!(
-        ws!(tag_no_case!("WHERE")) >>
-        e: dbg!(ws!(expression)) >>
-        (e)
+    from: opt!(complete!(do_parse!(
+        from_clause: preceded!(ws!(tag_no_case!("FROM")), ws!(from_clause)) >>
+        where_expr: opt!(complete!(do_parse!(
+            ws!(tag_no_case!("WHERE")) >>
+            e: dbg!(ws!(expression)) >>
+            (e)
+        ))) >>
+        limit: opt!(complete!(limit)) >>
+        offset: opt!(complete!(offset)) >>
+        (from_clause, where_expr, limit, offset)
     ))) >>
-    limit: opt!(complete!(limit)) >>
-    offset: opt!(complete!(offset)) >>
-    alt!(eof!() | peek!(tag!(";"))) >>
     ({
-        let clause = SelectClause::new(from_clause, match distinct {
-                Some(modifier) => modifier,
-                None => false
-            }, select_values,
-            limit.and_then(|v| v).map(|v| v as u32),
-            offset.and_then(|v| v).map(|v| v as u32),
-            where_expr,
-        );
-        Box::new(SelectCommand::new(clause))
+        if let Some((from_clause, where_expr, limit, offset)) = from {
+            SelectClause::new(from_clause, match distinct {
+                    Some(modifier) => modifier,
+                    None => false
+                }, select_values,
+                limit.and_then(|v| v).map(|v| v as u32),
+                offset.and_then(|v| v).map(|v| v as u32),
+                where_expr,
+            )
+        } else {
+            SelectClause::scalar(select_values)
+        }
     })
+));
+
+/// Parses a `SELECT` statement into a `SelectCommand`.
+named!(pub parse (&[u8]) -> Box<SelectCommand>, do_parse!(
+    clause: select_clause >>
+    alt!(eof!() | peek!(tag!(";"))) >>
+    (Box::new(SelectCommand::new(clause)))
 ));
 
 #[cfg(test)]
@@ -199,7 +210,6 @@ mod tests {
     use nom::IResult::*;
 
     use super::*;
-    use ::commands::SelectCommand;
     use ::expressions::{Expression, FromClause, JoinConditionType, JoinType, SelectClause, SelectValue};
 
     #[test]
@@ -275,25 +285,31 @@ mod tests {
     }
 
     #[test]
-    fn test_parse() {
+    fn test_parse_clause() {
+        // We don't bother testing parse() now because that's just a wrapper around SelectClause.
         let kw1 = String::from("FOO");
         let kw2 = String::from("BAR");
 
         let fc1 = FromClause::base_table(kw1, None);
         let fc2 = FromClause::base_table(kw2, None);
 
-        let result1 = SelectCommand::new(SelectClause::new(fc1,
-                                                           false,
-                                                           vec![SelectValue::WildcardColumn { table: None }],
-                                                           None,
-                                                           None,
-                                                           None));
-        let result2 = SelectCommand::new(SelectClause::new(fc2,
-                                                           false,
-                                                           vec![SelectValue::WildcardColumn { table: None }],
-                                                           None,
-                                                           None,
-                                                           None));
+        let result1 = SelectClause::new(fc1,
+                                        false,
+                                        vec![SelectValue::WildcardColumn { table: None }],
+                                        None,
+                                        None,
+                                        None);
+        let result2 = SelectClause::new(fc2,
+                                        false,
+                                        vec![SelectValue::WildcardColumn { table: None }],
+                                        None,
+                                        None,
+                                        None);
+        let result3 = SelectClause::scalar(vec![SelectValue::Expression {
+            expression: Expression::Int(3),
+            alias: None,
+        }]);
+        // TODO: Fix these tests!!
         //        let result3 = Statement::Select {
         //            value: Value::All,
         //            distinct: false,
@@ -337,12 +353,16 @@ mod tests {
         //            offset: Some(4),
         //        };
         {
-            let (left, output) = parse(b"SELECT  * FROM   foo").unwrap();
-            assert_eq!((&b""[..], &result1), (left, &*output));
+            let (left, output) = select_clause(b"SELECT  * FROM   foo").unwrap();
+            assert_eq!((&b""[..], result1), (left, output));
         }
         {
-            let (left, output) = parse(b"  SELECT  * FROM  bar").unwrap();
-            assert_eq!((&b""[..], &result2), (left, &*output));
+            let (left, output) = select_clause(b"  SELECT  * FROM  bar").unwrap();
+            assert_eq!((&b""[..], result2), (left, output));
+        }
+        {
+            let (left, output) = select_clause(b"SELECT 3").unwrap();
+            assert_eq!((&b""[..], result3), (left, output));
         }
         // assert_eq!(Done(&b""[..], result3.clone()), parse(b"SELECT  * FROM
         // baz  "));

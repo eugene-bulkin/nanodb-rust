@@ -1,6 +1,7 @@
 use super::{Function, FunctionError, FunctionResult};
 
 use ::expressions::{Environment, Expression, Literal};
+use ::queries::Planner;
 
 pub struct Coalesce;
 
@@ -11,13 +12,13 @@ impl Coalesce {
 }
 
 impl Function for Coalesce {
-    fn evaluate(&self, mut env: &mut Option<&mut Environment>, args: Vec<Expression>) -> FunctionResult {
+    fn evaluate(&self, mut env: &mut Option<&mut Environment>, args: Vec<Expression>, _planner: &Option<&Planner>) -> FunctionResult {
         if args.is_empty() {
             return Err(FunctionError::NeedsArguments("COALESCE".into()));
         }
 
         for arg in args.iter() {
-            if let Ok(value) = arg.evaluate(env) {
+            if let Ok(value) = arg.evaluate(env, &None) {
                 if value != Literal::Null {
                     return Ok(value);
                 }
@@ -60,30 +61,30 @@ mod tests {
         let e3 = Expression::Null;
         let e4 = Expression::Double(9.0);
 
-        assert_eq!(Ok(Literal::Null), func.evaluate(&mut None, vec![e1.clone()]));
-        assert_eq!(Ok(Literal::Int(5)), func.evaluate(&mut None, vec![e2.clone()]));
-        assert_eq!(Ok(Literal::Null), func.evaluate(&mut None, vec![e3.clone()]));
+        assert_eq!(Ok(Literal::Null), func.evaluate(&mut None, vec![e1.clone()], &None));
+        assert_eq!(Ok(Literal::Int(5)), func.evaluate(&mut None, vec![e2.clone()], &None));
+        assert_eq!(Ok(Literal::Null), func.evaluate(&mut None, vec![e3.clone()], &None));
 
-        assert_eq!(Ok(Literal::Int(5)), func.evaluate(&mut None, vec![e1.clone(), e2.clone()]));
-        assert_eq!(Ok(Literal::Int(5)), func.evaluate(&mut None, vec![e3.clone(), e2.clone()]));
-        assert_eq!(Ok(Literal::Double(9.0)), func.evaluate(&mut None, vec![e4.clone(), e2.clone()]));
+        assert_eq!(Ok(Literal::Int(5)), func.evaluate(&mut None, vec![e1.clone(), e2.clone()], &None));
+        assert_eq!(Ok(Literal::Int(5)), func.evaluate(&mut None, vec![e3.clone(), e2.clone()], &None));
+        assert_eq!(Ok(Literal::Double(9.0)), func.evaluate(&mut None, vec![e4.clone(), e2.clone()], &None));
 
-        assert_eq!(Ok(Literal::Int(47)), func.evaluate(&mut Some(&mut env1), vec![e1.clone()]));
-        assert_eq!(Ok(Literal::Int(5)), func.evaluate(&mut Some(&mut env1), vec![e2.clone()]));
-        assert_eq!(Ok(Literal::Null), func.evaluate(&mut Some(&mut env1), vec![e3.clone()]));
+        assert_eq!(Ok(Literal::Int(47)), func.evaluate(&mut Some(&mut env1), vec![e1.clone()], &None));
+        assert_eq!(Ok(Literal::Int(5)), func.evaluate(&mut Some(&mut env1), vec![e2.clone()], &None));
+        assert_eq!(Ok(Literal::Null), func.evaluate(&mut Some(&mut env1), vec![e3.clone()], &None));
 
-        assert_eq!(Ok(Literal::Int(47)), func.evaluate(&mut Some(&mut env1), vec![e1.clone(), e2.clone()]));
-        assert_eq!(Ok(Literal::Int(5)), func.evaluate(&mut Some(&mut env1), vec![e3.clone(), e2.clone()]));
-        assert_eq!(Ok(Literal::Double(9.0)), func.evaluate(&mut Some(&mut env1), vec![e4.clone(), e2.clone()]));
+        assert_eq!(Ok(Literal::Int(47)), func.evaluate(&mut Some(&mut env1), vec![e1.clone(), e2.clone()], &None));
+        assert_eq!(Ok(Literal::Int(5)), func.evaluate(&mut Some(&mut env1), vec![e3.clone(), e2.clone()], &None));
+        assert_eq!(Ok(Literal::Double(9.0)), func.evaluate(&mut Some(&mut env1), vec![e4.clone(), e2.clone()], &None));
 
-        assert_eq!(Ok(Literal::Null), func.evaluate(&mut Some(&mut env2), vec![e1.clone()]));
-        assert_eq!(Ok(Literal::Int(5)), func.evaluate(&mut Some(&mut env2), vec![e2.clone()]));
-        assert_eq!(Ok(Literal::Null), func.evaluate(&mut Some(&mut env2), vec![e3.clone()]));
+        assert_eq!(Ok(Literal::Null), func.evaluate(&mut Some(&mut env2), vec![e1.clone()], &None));
+        assert_eq!(Ok(Literal::Int(5)), func.evaluate(&mut Some(&mut env2), vec![e2.clone()], &None));
+        assert_eq!(Ok(Literal::Null), func.evaluate(&mut Some(&mut env2), vec![e3.clone()], &None));
 
-        assert_eq!(Ok(Literal::Int(5)), func.evaluate(&mut Some(&mut env2), vec![e1.clone(), e2.clone()]));
-        assert_eq!(Ok(Literal::Int(5)), func.evaluate(&mut Some(&mut env2), vec![e3.clone(), e2.clone()]));
-        assert_eq!(Ok(Literal::Double(9.0)), func.evaluate(&mut Some(&mut env2), vec![e4.clone(), e2.clone()]));
+        assert_eq!(Ok(Literal::Int(5)), func.evaluate(&mut Some(&mut env2), vec![e1.clone(), e2.clone()], &None));
+        assert_eq!(Ok(Literal::Int(5)), func.evaluate(&mut Some(&mut env2), vec![e3.clone(), e2.clone()], &None));
+        assert_eq!(Ok(Literal::Double(9.0)), func.evaluate(&mut Some(&mut env2), vec![e4.clone(), e2.clone()], &None));
 
-        assert_eq!(Err(FunctionError::NeedsArguments("COALESCE".into())), func.evaluate(&mut None, vec![]));
+        assert_eq!(Err(FunctionError::NeedsArguments("COALESCE".into())), func.evaluate(&mut None, vec![], &None));
     }
 }

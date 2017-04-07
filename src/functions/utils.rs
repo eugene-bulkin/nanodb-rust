@@ -1,6 +1,6 @@
 macro_rules! return_arithmetic_eval {
-    ($to_eval:ident, $env:ident, (|$int_name:ident| $int_expr:expr, |$dec_name:ident| $dec_expr:expr)) => (
-        match $to_eval.evaluate($env) {
+    ($to_eval:ident, $env:ident, $planner:ident, (|$int_name:ident| $int_expr:expr, |$dec_name:ident| $dec_expr:expr)) => (
+        match $to_eval.evaluate($env, $planner) {
             Ok(value) => {
                 match value {
                     Literal::Int($int_name) => Ok($int_expr.into()),
@@ -15,8 +15,8 @@ macro_rules! return_arithmetic_eval {
             }
         }
     );
-    ($to_eval:ident, $env:ident, | $var_name:ident | $expr:expr) => (
-        match $to_eval.evaluate($env) {
+    ($to_eval:ident, $env:ident, $planner:ident, | $var_name:ident | $expr:expr) => (
+        match $to_eval.evaluate($env, $planner) {
             Ok(value) => {
                 match value {
                     Literal::Int($var_name) => Ok($expr.into()),
@@ -60,7 +60,7 @@ macro_rules! check_has_args {
 }
 
 macro_rules! impl_scalar_func {
-    ($name:ident, | $env:ident, $args:ident | $eval:block) => {
+    ($name:ident, | $env:ident, $args:ident, $planner:ident | $eval:block) => {
         pub struct $name;
 
         impl $name {
@@ -70,7 +70,7 @@ macro_rules! impl_scalar_func {
         }
 
         impl Function for $name {
-            fn evaluate(&self, $env: &mut Option<&mut Environment>, $args: Vec<Expression>) -> FunctionResult {
+            fn evaluate(&self, $env: &mut Option<&mut Environment>, $args: Vec<Expression>, $planner: &Option<&Planner>) -> FunctionResult {
                 check_has_args!($args, $name);
 
                 $eval

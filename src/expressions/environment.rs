@@ -1,10 +1,11 @@
 //! This module contains classes and utilities for storing environment information for NanoDB. These
 //! environments are used for evaluating expressions.
 
+use std::collections::HashSet;
 use std::default::Default;
 
-use ::{ColumnName, Schema};
 use ::expressions::{ExpressionError, Literal};
+use ::relations::{ColumnInfo, ColumnName, Schema};
 use ::storage::{Tuple, TupleError, TupleLiteral};
 
 /// This class holds the environment for evaluating expressions that include symbols. For example,
@@ -91,6 +92,19 @@ impl Environment {
     pub fn get_current_tuples(&self) -> Vec<TupleLiteral> {
         self.current_tuples.clone()
     }
+
+    /// Returns the common schema among the current schemas.
+    pub fn get_common_schema(&self) -> Schema {
+        let mut infos: HashSet<ColumnInfo> = HashSet::new();
+        for schema in self.current_schemas.iter() {
+            for info in schema.iter() {
+                infos.insert(info.clone());
+            }
+        }
+        let info_vec: Vec<ColumnInfo> = infos.into_iter().collect();
+        Schema::with_columns(info_vec).unwrap()
+    }
+
     /// Get the actual value at the specified column.
     ///
     /// # Arguments
