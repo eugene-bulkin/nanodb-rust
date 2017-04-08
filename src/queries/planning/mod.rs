@@ -35,6 +35,10 @@ pub enum Error {
     CouldNotAdvanceTuple(TupleError),
     /// The node was not prepared before using.
     NodeNotPrepared,
+    /// Aggregates are not allowed in WHERE expressions.
+    AggregatesInWhereExpr(Vec<Expression>),
+    /// An expression error occurred while processing aggregates.
+    CouldNotProcessAggregates(ExpressionError),
     /// A tuple was found in a plan that did not match the schema size. In the form of
     /// `(tuple size, schema size)`.
     WrongArity(usize, usize),
@@ -83,6 +87,11 @@ impl ::std::fmt::Display for Error {
             Error::CouldNotAdvanceTuple(ref e) => write!(f, "Unable to advance to next tuple in node: {}", e),
             Error::ProjectError(ref e) => write!(f, "Projection failed because {}.", e),
             Error::NodeNotPrepared => write!(f, "A node was not prepared."),
+            Error::AggregatesInWhereExpr(ref exprs) => {
+                let values: Vec<String> = exprs.iter().map(|e| format!("{}", e)).collect();
+                write!(f, "WHERE clause cannot contain aggregates. Found: {}", values.join(", "))
+            },
+            Error::CouldNotProcessAggregates(ref e) => write!(f, "Could not process aggregates: {}.", e),
             Error::WrongArity(tup_size, schema_size) => {
                 write!(f, "Tuple has different arity ({} columns) than target schema ({} columns).",
                        tup_size, schema_size)
