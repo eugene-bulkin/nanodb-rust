@@ -2,6 +2,7 @@
 
 use super::coalesce::Coalesce;
 use super::arithmetic::*;
+use super::count::*;
 use super::trig::*;
 use super::{Function, FunctionError};
 
@@ -41,6 +42,8 @@ impl Directory {
         self.add_function("ACOS", Box::new(ACos::new));
         self.add_function("ATAN", Box::new(ATan::new));
         self.add_function("ATAN2", Box::new(ATan2::new));
+
+        self.add_function("COUNT", Box::new(CountAggregate::count))
     }
 
     fn add_function<S: Into<String>, F: Fn() -> Box<Function> + 'static + Sync>(&mut self, name: S, f: Box<F>) {

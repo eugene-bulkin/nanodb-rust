@@ -8,6 +8,7 @@ mod utils;
 
 mod arithmetic;
 mod coalesce;
+mod count;
 mod trig;
 
 pub use self::directory::Directory;
@@ -30,6 +31,15 @@ pub trait Function: Sync {
 
     /// Returns the function as a ScalarFunction if possible. By default this doesn't work.
     fn get_as_scalar(&self) -> Option<Box<ScalarFunction>> { None }
+
+    /// Returns the function as an AggregateFunction if possible. By default this doesn't work.
+    fn get_as_aggregate(&self) -> Option<Box<AggregateFunction>> { None }
+
+    /// Whether the function can be taken as a scalar function.
+    fn is_scalar(&self) -> bool { false }
+
+    /// Whether the function can be taken as an aggregate function.
+    fn is_aggregate(&self) -> bool { false }
 }
 
 /// This is a function that returns a scalar, and thus has a specific return column type.
@@ -39,6 +49,26 @@ pub trait ScalarFunction: Function {
     fn get_return_type(&self, args: Vec<Expression>, schema: &Schema) -> Result<ColumnType, FunctionError>;
 }
 
+/// This is a function that aggregates data.
+pub trait AggregateFunction: ScalarFunction {
+    /// Whether the function supports the DISTINCT operator.
+    fn supports_distinct(&self) -> bool;
+
+    /// Clears the aggregate function's current state so that the object can be reused to compute an
+    /// aggregate on another set of input values.
+    fn clear_result(&mut self);
+
+    /// Adds a value to the aggregate function so that it can update its internal state. Generally,
+    /// aggregate functions ignore `null` inputs (which represent SQL `NULL` values) when computing
+    /// their results.
+    fn add_value(&mut self, value: Literal);
+
+    /// Returns the aggregated result computed for this aggregate function. Generally, if aggregate
+    /// functions receive no non-`null` inputs then they should produce a `null` result. (`COUNT`
+    /// is an exception to this rule, producing 0 in that case.)
+    fn get_result(&self) -> Literal;
+}
+
 /// An error that can occur while calling or retrieving a function.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Error {
@@ -46,6 +76,8 @@ pub enum Error {
     DoesNotExist(String),
     /// The function provided cannot take zero arguments.
     NeedsArguments(String),
+    /// The function takes exactly N arguments.
+    TakesArguments(String, usize, usize),
     /// The function provided does not have enough arguments.
     NeedsMoreArguments(String, usize, usize),
     /// Could not retrieve a column type for an expression.
@@ -69,6 +101,9 @@ impl ::std::fmt::Display for Error {
             },
             Error::NeedsMoreArguments(ref name, ref needs, ref got) => {
                 write!(f, "The function {} requires {} arguments, got {}.", name, needs, got)
+            },
+            Error::TakesArguments(ref name, ref needed, ref count) => {
+                write!(f, "The function {} takes {} arguments; got {}.", name, needed, count)
             },
             Error::CouldNotRetrieveExpressionColumnType(ref expr, ref e) => {
                 write!(f, "Could not determine the column type for {}: {}", expr, e)
