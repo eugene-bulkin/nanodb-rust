@@ -1,6 +1,6 @@
 //! This module contains utilities for processing expressions.
 
-use ::expressions::Expression;
+use ::expressions::{Expression, ExpressionError};
 
 /// This trait is used to implement scans or transformations of expression trees by specifying what
 /// to do when entering or leaving each expression node. When leaving an expression node, a
@@ -12,7 +12,7 @@ pub trait Processor {
     ///
     /// # Arguments
     /// * node - the `Expression` node being entered
-    fn enter(&mut self, node: &Expression);
+    fn enter(&mut self, node: &Expression) -> Result<(), ExpressionError>;
 
 
     /// This method is called when expression-traversal is leaving a particular node in the
@@ -23,5 +23,5 @@ pub trait Processor {
     ///
     /// # Arguments
     /// * node - the `Expression` node being left
-    fn leave(&mut self, node: &Expression) -> Expression;
+    fn leave(&mut self, node: &Expression) -> Result<Expression, ExpressionError>;
 }

@@ -421,32 +421,32 @@ impl Expression {
     ///
     /// [`ExpressionProcessor`]: ../processor/trait.Processor.html
     /// [`ExpressionProcessor.leave`]: ../processor/trait.Processor.html#tymethod.leave
-    pub fn traverse(&mut self, processor: &mut ExpressionProcessor) -> Expression {
-        processor.enter(self);
+    pub fn traverse(&mut self, processor: &mut ExpressionProcessor) -> Result<Expression, ExpressionError> {
+        try!(processor.enter(self));
         match *self {
             Expression::Arithmetic(ref mut left, _, ref mut right) => {
-                *left = Box::new(left.traverse(processor));
-                *right = Box::new(right.traverse(processor));
+                *left = Box::new(try!(left.traverse(processor)));
+                *right = Box::new(try!(right.traverse(processor)));
             }
             Expression::Compare(ref mut left, _, ref mut right) => {
-                *left = Box::new(left.traverse(processor));
-                *right = Box::new(right.traverse(processor));
+                *left = Box::new(try!(left.traverse(processor)));
+                *right = Box::new(try!(right.traverse(processor)));
             }
             Expression::OR(ref mut exprs) | Expression::AND(ref mut exprs) => {
                 for i in 0..exprs.len() {
-                    let e = exprs[i].traverse(processor);
+                    let e = try!(exprs[i].traverse(processor));
                     exprs[i] = e;
                 }
             }
             Expression::NOT(ref mut inner) | Expression::IsNull(ref mut inner) => {
-                *inner = Box::new(inner.traverse(processor));
+                *inner = Box::new(try!(inner.traverse(processor)));
             }
             Expression::ColumnValue(_) => {
                 // This is a leaf, don't traverse the inner node.
             }
             Expression::Function { ref mut args, .. } => {
                 for i in 0..args.len() {
-                    let e = args[i].traverse(processor);
+                    let e = try!(args[i].traverse(processor));
                     args[i] = e;
                 }
             }
