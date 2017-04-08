@@ -147,6 +147,20 @@ pub enum Error {
     SubqueryEmpty(SelectClause),
     /// Could not determine the type of the scalar subquery given.
     CannotDetermineSubqueryType(SelectClause),
+    /// Aggregate calls cannot be nested.
+    NestedAggregateCall {
+        /// The parent call (i.e. the already traversed one).
+        parent: Expression,
+        /// The nested call.
+        nested: Expression
+    },
+    /// The aggregate expected was not traversed.
+    UnexpectedAggregate {
+        /// The expression expected.
+        expected: Expression,
+        /// The expression given.
+        received: Expression
+    },
     /// This expression's evaluation has not been implemented yet.
     Unimplemented,
 }
@@ -174,20 +188,20 @@ impl ::std::fmt::Display for Error {
                 write!(f,
                        "The expression was expected to evaluate to a numeric literal, got {}.",
                        literal)
-            },
+            }
             Error::NotBoolean(ref literal) => {
                 write!(f,
                        "The expression was expected to evaluate to a boolean literal, got {}.",
                        literal)
-            },
+            }
             Error::NotNumericExpr(ref expr, ref t) => {
                 write!(f, "The expression {} was expected to have a numeric type, but had type {}.",
                        expr, t)
-            },
+            }
             Error::NotBooleanExpr(ref expr, ref t) => {
                 write!(f, "The expression {} was expected to have a boolean type, but had type {}.",
                        expr, t)
-            },
+            }
             Error::EmptyExpression => {
                 write!(f,
                        "The expression was expecting a set of clauses and got none.")
@@ -198,10 +212,17 @@ impl ::std::fmt::Display for Error {
             Error::SubqueryNeedsPlanner => write!(f, "Subqueries require planners to evaluate."),
             Error::CouldNotEvaluateSubquery(ref clause, ref e) => {
                 write!(f, "Subquery {} could not be evaluated: {}", clause, e)
-            },
+            }
             Error::SubqueryNotScalar(ref clause) => write!(f, "The subquery {} is not scalar.", clause),
             Error::SubqueryEmpty(ref clause) => write!(f, "The subquery {} is empty.", clause),
             Error::CannotDetermineSubqueryType(ref clause) => write!(f, "Could not determine the return type of scalar subquery {}.", clause),
+            Error::NestedAggregateCall { ref parent, ref nested } => {
+                write!(f, "Found aggregate function call {} nested \
+                within another aggregate call {}", nested, parent)
+            }
+            Error::UnexpectedAggregate { ref expected, ref received } => {
+                write!(f, "Expected to find aggregate {} but found {} instead.", expected, received)
+            }
             Error::Unimplemented => {
                 write!(f,
                        "The expression's evaluation has not yet been implemented.")
