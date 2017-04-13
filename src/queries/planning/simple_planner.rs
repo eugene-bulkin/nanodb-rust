@@ -1,6 +1,6 @@
 //! This module contains the classes and functions needed for a simple query planner.
 
-use ::expressions::{FromClause, FromClauseType, SelectClause, SelectValue};
+use ::expressions::{Expression, FromClause, FromClauseType, SelectClause, SelectValue};
 use ::queries::{AggregateFunctionExtractor, HashedGroupAggregateNode, NestedLoopJoinNode,
                 NodeResult, PlanError, PlanNode, Planner, PlanResult, ProjectNode,
                 make_simple_select, RenameNode};
@@ -154,8 +154,52 @@ impl<'a> Planner for SimplePlanner<'a> {
                     try!(cur_node.prepare());
                 }
 
-                if !clause.is_trivial_project() {
-                    cur_node = Box::new(ProjectNode::new(cur_node, clause.values, self));
+                // Here we handle any non-trivial projection. Essentially, the only time we don't
+                // project our results is when we select a wildcard that is not table specific by
+                // itself. So `SELECT foo.*` does not count, and neither does `SELECT COUNT(*)`.
+                // Only `SELECT *` counts as a trivial projection.
+                //
+                // If the projection is non-trivial and doesn't involve aggregates, then we just
+                // take the values the user provided. If there are aggregates, however, we replace
+                // the temporary aggregate name with the original expression, e.g. `COUNT(foo.a)`.
+                // Otherwise we proceed as before.
+                if !clause.is_trivial_project() || extractor.found_aggregates() {
+                    let values = if !extractor.found_aggregates() {
+                        clause.values.clone()
+                    } else {
+                        let aggregates = extractor.get_aggregate_call_map();
+                        let mut values: Vec<SelectValue> = Vec::new();
+                        for value in clause.values.iter() {
+                            match *value {
+                                SelectValue::Expression { ref expression, ref alias } => {
+                                    match *alias {
+                                        Some(_) => values.push(value.clone()),
+                                        None => {
+                                            if let Expression::ColumnValue(ref col_name) = *expression {
+                                                // shouldn't be able to get this far without actually having a column name
+                                                debug_assert!(col_name.1.is_some());
+
+                                                let name = col_name.1.clone().unwrap();
+                                                if let Some(ref expr) = aggregates.get(&name) {
+                                                    values.push(SelectValue::Expression {
+                                                        expression: Expression::ColumnValue(col_name.clone()),
+                                                        alias: Some(format!("{}", expr))
+                                                    });
+                                                } else {
+                                                    values.push(value.clone());
+                                                }
+                                            } else {
+                                                values.push(value.clone());
+                                            }
+                                        }
+                                    }
+                                }
+                                SelectValue::WildcardColumn { .. } => values.push(value.clone())
+                            }
+                        }
+                        values
+                    };
+                    cur_node = Box::new(ProjectNode::new(cur_node, values, self));
                     try!(cur_node.prepare());
                 }
 

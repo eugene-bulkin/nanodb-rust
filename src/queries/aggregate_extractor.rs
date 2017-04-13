@@ -43,6 +43,12 @@ impl AggregateFunctionExtractor {
     pub fn get_aggregate_calls(&self) -> Vec<(String, Expression)> {
         self.aggregate_calls.clone().into_iter().collect()
     }
+
+    /// Returns a map of the aggregate calls.
+    #[inline]
+    pub fn get_aggregate_call_map(&self) -> &HashMap<String, Expression> {
+        &self.aggregate_calls
+    }
 }
 
 impl ExpressionProcessor for AggregateFunctionExtractor {
