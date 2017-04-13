@@ -1,6 +1,7 @@
 //! This module contains all plan nodes.
 
 mod file_scan;
+mod hashed_group_aggregate;
 mod project;
 #[cfg(test)]
 mod literal;
@@ -8,6 +9,7 @@ mod nested_loop_join;
 mod rename;
 
 pub use self::file_scan::FileScanNode;
+pub use self::hashed_group_aggregate::HashedGroupAggregateNode;
 #[cfg(test)]
 pub use self::literal::LiteralNode;
 pub use self::nested_loop_join::NestedLoopJoinNode;

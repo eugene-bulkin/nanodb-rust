@@ -1,8 +1,9 @@
 //! This module contains the classes and functions needed for a simple query planner.
 
 use ::expressions::{FromClause, FromClauseType, SelectClause, SelectValue};
-use ::queries::{AggregateFunctionExtractor, NestedLoopJoinNode, NodeResult, PlanError, PlanNode,
-                Planner, PlanResult, ProjectNode, make_simple_select, RenameNode};
+use ::queries::{AggregateFunctionExtractor, HashedGroupAggregateNode, NestedLoopJoinNode,
+                NodeResult, PlanError, PlanNode, Planner, PlanResult, ProjectNode,
+                make_simple_select, RenameNode};
 use ::storage::{FileManager, TableManager};
 
 fn prepare_aggregates(mut clause: &mut SelectClause) -> PlanResult<AggregateFunctionExtractor> {
@@ -35,7 +36,7 @@ fn prepare_aggregates(mut clause: &mut SelectClause) -> PlanResult<AggregateFunc
             SelectValue::Expression { ref mut expression, .. } => {
                 *expression = try!(expression.traverse(&mut extractor).map_err(PlanError::CouldNotProcessAggregates));
             }
-            SelectValue::WildcardColumn { .. } => {},
+            SelectValue::WildcardColumn { .. } => {}
         }
     }
 
@@ -140,11 +141,17 @@ impl<'a> Planner for SimplePlanner<'a> {
                 };
                 if extractor.found_aggregates() || has_group_by_exprs {
                     // Get the aggregates too (if present).
-                    let _aggregates = extractor.get_aggregate_calls();
+                    let aggregates = extractor.get_aggregate_calls();
 
                     // By default, use a hash-based grouping/aggregate node. Later we can replace
                     // with a sort-based grouping/aggregate node if it would be more efficient.
-                    // TODO
+                    let node = HashedGroupAggregateNode::new(cur_node,
+                                                             clause.group_by_exprs
+                                                                 .clone()
+                                                                 .unwrap_or(vec![]),
+                                                             aggregates);
+                    cur_node = Box::new(node);
+                    try!(cur_node.prepare());
                 }
 
                 if !clause.is_trivial_project() {
@@ -153,7 +160,7 @@ impl<'a> Planner for SimplePlanner<'a> {
                 }
 
                 cur_node
-            },
+            }
             None => {
                 let mut cur_node = Box::new(try!(ProjectNode::scalar(clause.values, self)));
                 try!(cur_node.prepare());

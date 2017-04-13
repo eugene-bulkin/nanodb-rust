@@ -3,6 +3,7 @@ use super::{Function, FunctionError, FunctionResult};
 use ::expressions::{Environment, Expression, Literal};
 use ::queries::Planner;
 
+#[derive(Debug, Clone)]
 pub struct Coalesce;
 
 impl Coalesce {
@@ -26,6 +27,10 @@ impl Function for Coalesce {
         }
 
         Ok(Literal::Null)
+    }
+
+    fn clone(&self) -> Self where Self: Sized {
+        Coalesce
     }
 }
 

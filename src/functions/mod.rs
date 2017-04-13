@@ -25,7 +25,10 @@ use ::queries::Planner;
 /// query, or being invoked concurrently by two different queries, shouldn't have a single shared
 /// set of state values. So, the simple thing to do is to just clone functions when they are
 /// retrieved from the {@link FunctionDirectory}.
-pub trait Function: Sync {
+pub trait Function: Sync + ::std::fmt::Debug {
+    /// Clones the function.
+    fn clone(&self) -> Self where Self: Sized;
+
     /// Evaluates a function given an environment (if one exists) and some arguments.
     fn evaluate(&self, env: &mut Option<&mut Environment>, args: Vec<Expression>, planner: &Option<&Planner>) -> FunctionResult;
 

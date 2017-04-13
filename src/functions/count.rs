@@ -6,6 +6,7 @@ use ::functions::{AggregateFunction, Function, FunctionError, FunctionResult, Sc
 use ::queries::Planner;
 use ::relations::{ColumnType, Schema};
 
+#[derive(Debug, Clone)]
 pub struct CountAggregate {
     count: Option<i32>,
     values_seen: HashSet<Literal>,
@@ -58,6 +59,10 @@ impl Function for CountAggregate {
     fn is_scalar(&self) -> bool { true }
 
     fn is_aggregate(&self) -> bool { true }
+
+    fn clone(&self) -> Self where Self: Sized {
+        Clone::clone(&self)
+    }
 }
 
 impl ScalarFunction for CountAggregate {
@@ -107,5 +112,50 @@ impl AggregateFunction for CountAggregate {
             Some(count) => Literal::Int(count),
             None => Literal::Null,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tempdir::TempDir;
+
+    use std::collections::HashSet;
+    use std::iter::FromIterator;
+
+    use ::parser::statements;
+    use ::server::Server;
+    use ::storage::TupleLiteral;
+
+    #[test]
+    fn test_count() {
+        let dir = TempDir::new("test_dbfiles").unwrap();
+        let mut server = Server::with_data_path(dir.path());
+
+        let stmts = statements(b"CREATE TABLE foo (a integer, b integer, c varchar(20));\
+                                 INSERT INTO foo VALUES (3, 6, 'bar');\
+                                 INSERT INTO foo VALUES (3, 7, 'baz');\
+                                 INSERT INTO foo VALUES (2, 10, 'baz');\
+                                 INSERT INTO foo VALUES (1, 9, 'foo');\
+                                 INSERT INTO foo VALUES (1, 13, 'foo');\
+        ").unwrap().1;
+        for stmt in stmts {
+            server.handle_command(stmt);
+        }
+
+        let ref mut select_command = statements(b"SELECT COUNT(B) FROM foo;").unwrap().1[0];
+        assert_eq!(Ok(Some(vec![TupleLiteral::from_iter(vec![5.into()])])),
+        select_command.execute(&mut server, &mut ::std::io::sink()));
+
+        let ref mut select_command = statements(b"SELECT A, COUNT(B) FROM foo GROUP BY A;").unwrap().1[0];
+
+        let result: Vec<TupleLiteral> = select_command.execute(&mut server, &mut ::std::io::sink()).unwrap().unwrap();
+        let expected: Vec<TupleLiteral> = vec![TupleLiteral::from_iter(vec![3.into(), 2.into()]),
+                            TupleLiteral::from_iter(vec![2.into(), 1.into()]),
+                            TupleLiteral::from_iter(vec![1.into(), 2.into()]),
+        ];
+
+        let expected_set: HashSet<TupleLiteral> = HashSet::from_iter(expected);
+        let result_set: HashSet<TupleLiteral> = HashSet::from_iter(result);
+        assert_eq!(expected_set, result_set);
     }
 }

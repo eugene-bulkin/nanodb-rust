@@ -29,14 +29,17 @@ impl AggregateFunctionExtractor {
     }
 
     /// Whether aggregates were found or not.
+    #[inline]
     pub fn found_aggregates(&self) -> bool { self.found }
 
     /// Clears the found flag.
+    #[inline]
     pub fn clear_found_flag(&mut self) {
         self.found = false;
     }
 
     /// Returns a map of the aggregate calls.
+    #[inline]
     pub fn get_aggregate_calls(&self) -> Vec<(String, Expression)> {
         self.aggregate_calls.clone().into_iter().collect()
     }

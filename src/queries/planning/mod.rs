@@ -39,6 +39,8 @@ pub enum Error {
     AggregatesInWhereExpr(Vec<Expression>),
     /// An expression error occurred while processing aggregates.
     CouldNotProcessAggregates(ExpressionError),
+    /// GROUP BY expressions must be simple column references.
+    SimpleColumnReferenceGroupBy(Expression),
     /// A tuple was found in a plan that did not match the schema size. In the form of
     /// `(tuple size, schema size)`.
     WrongArity(usize, usize),
@@ -92,6 +94,10 @@ impl ::std::fmt::Display for Error {
                 write!(f, "WHERE clause cannot contain aggregates. Found: {}", values.join(", "))
             },
             Error::CouldNotProcessAggregates(ref e) => write!(f, "Could not process aggregates: {}.", e),
+            Error::SimpleColumnReferenceGroupBy(ref expr) => {
+                write!(f, "NanoDB does not yet support GROUP BY expressions that are not simple \
+                column references; got {}", expr)
+            },
             Error::WrongArity(tup_size, schema_size) => {
                 write!(f, "Tuple has different arity ({} columns) than target schema ({} columns).",
                        tup_size, schema_size)
