@@ -242,5 +242,15 @@ mod tests {
             distinct: true,
             args: vec![Expression::ColumnValue((None, Some("FOO".into())))]
         }), function_call(b"count(distinct foo)"));
+        assert_eq!(Done(&[][..], Expression::Function {
+            name: "COUNT".into(),
+            distinct: false,
+            args: vec![Expression::ColumnValue((None, None))]
+        }), function_call(b"count(*)"));
+        assert_eq!(Done(&[][..], Expression::Function {
+            name: "COUNT".into(),
+            distinct: false,
+            args: vec![Expression::ColumnValue((Some("FOO".into()), None))]
+        }), function_call(b"count(foo.*)"));
     }
 }

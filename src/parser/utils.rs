@@ -39,18 +39,21 @@ named!(pub quoted_ident (&[u8]) -> String, do_parse!(
 
 named!(pub dbobj_ident (&[u8]) -> String, alt_complete!(ident | quoted_ident));
 
-named!(pub column_name (&[u8]) -> ColumnName, do_parse!(
-    n1: dbobj_ident >>
-    n2: opt!(complete!(preceded!(tag!("."), alt!(map!(dbobj_ident, |i| Some(i)) |
-                                                 map!(tag!("*"), |_| None)
-                                                )))) >>
-    ({
-        match n2 {
-            Some(col_name) => (Some(n1), col_name),
-            None => (None, Some(n1))
-        }
-    })
-));
+named!(pub column_name (&[u8]) -> ColumnName, alt_complete!(
+    do_parse!(
+        n1: dbobj_ident >>
+        n2: opt!(complete!(preceded!(tag!("."), alt!(map!(dbobj_ident, |i| Some(i)) |
+                                                     map!(tag!("*"), |_| None)
+                                                    )))) >>
+        ({
+            match n2 {
+                Some(col_name) => (Some(n1), col_name),
+                None => (None, Some(n1))
+            }
+        })
+    ) |
+    value!((None, None), tag!("*")))
+);
 
 named!(pub alpha_s (&[u8]) -> String, map!(map_res!(alpha, str::from_utf8), String::from));
 
