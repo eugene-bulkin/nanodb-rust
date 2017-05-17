@@ -43,7 +43,8 @@ impl Directory {
         self.add_function("ATAN", Box::new(ATan::new));
         self.add_function("ATAN2", Box::new(ATan2::new));
 
-        self.add_function("COUNT", Box::new(CountAggregate::count))
+        self.add_function("COUNT", Box::new(CountAggregate::count));
+        self.add_function("COUNT#STAR", Box::new(CountStar::count));
     }
 
     fn add_function<S: Into<String>, F: Fn() -> Box<Function> + 'static + Sync>(&mut self, name: S, f: Box<F>) {

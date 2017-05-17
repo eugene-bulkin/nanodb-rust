@@ -145,11 +145,11 @@ impl<'a> Planner for SimplePlanner<'a> {
 
                     // By default, use a hash-based grouping/aggregate node. Later we can replace
                     // with a sort-based grouping/aggregate node if it would be more efficient.
-                    let node = HashedGroupAggregateNode::new(cur_node,
+                    let node = try!(HashedGroupAggregateNode::new(cur_node,
                                                              clause.group_by_exprs
                                                                  .clone()
                                                                  .unwrap_or(vec![]),
-                                                             aggregates);
+                                                             aggregates));
                     cur_node = Box::new(node);
                     try!(cur_node.prepare());
                 }

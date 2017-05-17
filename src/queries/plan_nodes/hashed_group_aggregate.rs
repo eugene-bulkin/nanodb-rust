@@ -1,13 +1,33 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 
-use ::expressions::{Environment, Expression, ExpressionError};
-use ::functions::{AggregateFunction, Directory};
+use ::expressions::{Environment, Expression, ExpressionError, Literal};
+use ::functions::{AggregateFunction, Directory, Function};
 use ::queries::{PlanError, PlanNode, PlanResult};
 use ::relations::{ColumnInfo, Schema};
 use ::storage::{Tuple, TupleLiteral};
 
 lazy_static! {
     static ref DIRECTORY: Directory = Directory::new();
+}
+
+fn get_aggregate_function<I: Iterator<Item=Expression>>(func_name: &str, mut args: I) -> Box<Function> {
+    // No need to make another allocation if we don't need to update the function name.
+    let mut func_name = Cow::from(func_name);
+    // This shouldn't panic (this constructor should only be called after an actual
+    // aggregate extraction, which will not allow unknown functions).
+    // Only COUNT can take * as an argument.
+    let has_wildcard_arg = args.any(|arg| arg == Expression::ColumnValue((None, None)));
+    if has_wildcard_arg && func_name == "COUNT" {
+        func_name = "COUNT#STAR".into();
+    }
+
+    // Doesn't need to be mutable anymore.
+    let func_name = func_name;
+
+    // This shouldn't panic (this constructor should only be called after an actual
+    // aggregate extraction, which will not allow unknown functions).
+    DIRECTORY.get(func_name.as_ref()).unwrap()
 }
 
 #[derive(Debug)]
@@ -21,9 +41,7 @@ struct FunctionCall {
 impl Clone for FunctionCall {
     fn clone(&self) -> Self {
         if let Expression::Function { name: ref func_name, ref distinct, ref args } = self.expr {
-            // This shouldn't panic (this constructor should only be called after an actual
-            // aggregate extraction, which will not allow unknown functions).
-            let func = DIRECTORY.get(func_name.as_ref()).unwrap();
+            let func = get_aggregate_function(func_name, args.clone().into_iter());
             if func.is_aggregate() {
                 FunctionCall {
                     expr: self.expr.clone(),
@@ -61,10 +79,19 @@ fn update_aggregates(aggregates: &mut HashMap<String, FunctionCall>, mut env: &m
                 // TODO
                 return Err(PlanError::Unimplemented);
             }
-            let value = try!(call.args[0].evaluate(&mut Some(env), &None)
-                .map_err(PlanError::CouldNotProcessAggregates));
-            call.function.add_value(value.clone());
-            debug!("Argument to aggregate function = {}, new aggregate result = {}", value, call.function.get_result());
+            if let Expression::Function { ref name, .. } = call.expr {
+                // Special case for COUNT(*), since we don't actually care what the value is.
+                let value = if *name == "COUNT" && call.args[0] == Expression::ColumnValue((None, None)) {
+                    Literal::Null
+                } else {
+                    try!(call.args[0].evaluate(&mut Some(env), &None)
+                        .map_err(PlanError::CouldNotProcessAggregates))
+                };
+                call.function.add_value(value.clone());
+                debug!("Argument to aggregate function = {}, new aggregate result = {}", value, call.function.get_result());
+            } else {
+                unreachable!()
+            }
         }
     }
     Ok(())
@@ -139,13 +166,20 @@ impl<'a> HashedGroupAggregateNode<'a> {
     /// * child - The child of the node.
     /// * group_by_exprs - The group by expressions.
     /// * aggregates - A list of aggregate function calls along with their projection name.
-    pub fn new(child: Box<PlanNode + 'a>, group_by_exprs: Vec<Expression>, aggregates: Vec<(String, Expression)>) -> HashedGroupAggregateNode<'a> {
+    pub fn new(child: Box<PlanNode + 'a>, group_by_exprs: Vec<Expression>, aggregates: Vec<(String, Expression)>) -> PlanResult<HashedGroupAggregateNode<'a>> {
         let mut map = HashMap::new();
         for &(ref name, ref expr) in aggregates.iter() {
             if let Expression::Function { name: ref func_name, ref distinct, ref args } = *expr {
-                // This shouldn't panic (this constructor should only be called after an actual
-                // aggregate extraction, which will not allow unknown functions).
-                let func = DIRECTORY.get(func_name.as_ref()).unwrap();
+                let has_wildcard_arg = args.iter().any(|arg| *arg == Expression::ColumnValue((None, None)));
+                if has_wildcard_arg && &*func_name != "COUNT" {
+                    // Theoretically, this usually won't be triggered since we usually try to
+                    // resolve the type of the function expression first... but if a function always
+                    // returns the same type, then this may happen if someone tried to use a wild
+                    // card argument.
+                    return Err(PlanError::WildCardInNonCountFunction(func_name.clone()));
+                }
+
+                let func = get_aggregate_function(func_name, args.clone().into_iter());
                 if func.is_aggregate() {
                     map.insert(name.clone(), FunctionCall {
                         expr: expr.clone(),
@@ -164,7 +198,7 @@ impl<'a> HashedGroupAggregateNode<'a> {
         }
 
         let input_schema = child.get_schema();
-        HashedGroupAggregateNode {
+        Ok(HashedGroupAggregateNode {
             child: child,
             input_schema: input_schema,
             output_schema: None,
@@ -175,7 +209,7 @@ impl<'a> HashedGroupAggregateNode<'a> {
             group_idx: 0,
             current_tuple: None,
             done: false
-        }
+        })
     }
 
     fn generate_output_tuple(&self, mut group: &mut TupleLiteral, aggregates: &HashMap<String, FunctionCall>) -> TupleLiteral {

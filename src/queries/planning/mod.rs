@@ -41,6 +41,8 @@ pub enum Error {
     CouldNotProcessAggregates(ExpressionError),
     /// GROUP BY expressions must be simple column references.
     SimpleColumnReferenceGroupBy(Expression),
+    /// Only the COUNT function can take * as an argument.
+    WildCardInNonCountFunction(String),
     /// A tuple was found in a plan that did not match the schema size. In the form of
     /// `(tuple size, schema size)`.
     WrongArity(usize, usize),
@@ -101,6 +103,9 @@ impl ::std::fmt::Display for Error {
             Error::WrongArity(tup_size, schema_size) => {
                 write!(f, "Tuple has different arity ({} columns) than target schema ({} columns).",
                        tup_size, schema_size)
+            },
+            Error::WildCardInNonCountFunction(ref func_name) => {
+                write!(f, "Function {} does not allow wildcard arguments, only COUNT does.", func_name)
             }
         }
     }

@@ -7,6 +7,76 @@ use ::queries::Planner;
 use ::relations::{ColumnType, Schema};
 
 #[derive(Debug, Clone)]
+pub struct CountStar {
+    count: i32,
+}
+
+impl Default for CountStar {
+    fn default() -> CountStar {
+        CountStar {
+            count: 0,
+        }
+    }
+}
+
+impl CountStar {
+    /// Creates a new count function.
+    pub fn count() -> Box<Function> {
+        Box::new(CountStar::default())
+    }
+}
+
+impl Function for CountStar {
+    fn evaluate(&self, _env: &mut Option<&mut Environment>, _args: Vec<Expression>, _planner: &Option<&Planner>) -> FunctionResult {
+        Ok(self.get_result())
+    }
+
+    fn get_as_scalar(&self) -> Option<Box<ScalarFunction>> {
+        Some(Box::new(CountStar {
+            count: self.count
+        }))
+    }
+
+    fn get_as_aggregate(&self) -> Option<Box<AggregateFunction>> {
+        Some(Box::new(CountStar {
+            count: self.count
+        }))
+    }
+
+    fn is_scalar(&self) -> bool { true }
+
+    fn is_aggregate(&self) -> bool { true }
+
+    fn clone(&self) -> Self where Self: Sized {
+        Clone::clone(&self)
+    }
+}
+
+impl ScalarFunction for CountStar {
+    fn get_return_type(&self, args: Vec<Expression>, _schema: &Schema) -> Result<ColumnType, FunctionError> {
+        if args.len() != 1 {
+            Err(FunctionError::TakesArguments("COUNT".into(), 1, args.len()))
+        } else {
+            Ok(ColumnType::Integer)
+        }
+    }
+}
+
+impl AggregateFunction for CountStar {
+    fn supports_distinct(&self) -> bool { false }
+
+    fn clear_result(&mut self) {
+        self.count = 0;
+    }
+
+    fn add_value(&mut self, _value: Literal) {
+        self.count += 1;
+    }
+
+    fn get_result(&self) -> Literal { Literal::Int(self.count) }
+}
+
+#[derive(Debug, Clone)]
 pub struct CountAggregate {
     count: Option<i32>,
     values_seen: HashSet<Literal>,
@@ -110,7 +180,7 @@ impl AggregateFunction for CountAggregate {
     fn get_result(&self) -> Literal {
         match self.count {
             Some(count) => Literal::Int(count),
-            None => Literal::Null,
+            None => Literal::Int(0),
         }
     }
 }
@@ -122,6 +192,7 @@ mod tests {
     use std::collections::HashSet;
     use std::iter::FromIterator;
 
+    use ::expressions::Literal;
     use ::parser::statements;
     use ::server::Server;
     use ::storage::TupleLiteral;
@@ -137,6 +208,7 @@ mod tests {
                                  INSERT INTO foo VALUES (2, 10, 'baz');\
                                  INSERT INTO foo VALUES (1, 9, 'foo');\
                                  INSERT INTO foo VALUES (1, 13, 'foo');\
+                                 INSERT INTO foo VALUES (NULL, NULL, NULL);\
         ").unwrap().1;
         for stmt in stmts {
             server.handle_command(stmt);
@@ -146,12 +218,18 @@ mod tests {
         assert_eq!(Ok(Some(vec![TupleLiteral::from_iter(vec![5.into()])])),
         select_command.execute(&mut server, &mut ::std::io::sink()));
 
+        let ref mut select_command = statements(b"SELECT COUNT(*) FROM foo;").unwrap().1[0];
+        assert_eq!(Ok(Some(vec![TupleLiteral::from_iter(vec![6.into()])])),
+        select_command.execute(&mut server, &mut ::std::io::sink()));
+
         let ref mut select_command = statements(b"SELECT A, COUNT(B) FROM foo GROUP BY A;").unwrap().1[0];
 
         let result: Vec<TupleLiteral> = select_command.execute(&mut server, &mut ::std::io::sink()).unwrap().unwrap();
-        let expected: Vec<TupleLiteral> = vec![TupleLiteral::from_iter(vec![3.into(), 2.into()]),
-                            TupleLiteral::from_iter(vec![2.into(), 1.into()]),
-                            TupleLiteral::from_iter(vec![1.into(), 2.into()]),
+        let expected: Vec<TupleLiteral> = vec![
+            TupleLiteral::from_iter(vec![3.into(), 2.into()]),
+            TupleLiteral::from_iter(vec![2.into(), 1.into()]),
+            TupleLiteral::from_iter(vec![1.into(), 2.into()]),
+            TupleLiteral::from_iter(vec![Literal::Null, 0.into()]),
         ];
 
         let expected_set: HashSet<TupleLiteral> = HashSet::from_iter(expected);
