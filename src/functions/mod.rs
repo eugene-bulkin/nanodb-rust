@@ -9,6 +9,7 @@ mod utils;
 mod arithmetic;
 mod coalesce;
 mod count;
+mod stats;
 mod trig;
 
 pub use self::directory::Directory;
@@ -89,6 +90,12 @@ pub enum Error {
     CouldNotEvaluateExpression(Expression, Box<ExpressionError>),
     /// The expression provided is not numeric.
     ExpressionNotNumeric(Expression),
+    /// The given function requires a column value argument.
+    ColumnValueArgumentNeeded(String, Expression),
+    /// The function using a column value could not find it in the input schema.
+    ColumnValueNotInSchema(Expression),
+    /// The function using a column value found multiple possibilities in the input schema.
+    ColumnValueAmbiguous(Expression),
     /// The function has not been implemented yet.
     Unimplemented(String),
 }
@@ -116,6 +123,15 @@ impl ::std::fmt::Display for Error {
             },
             Error::ExpressionNotNumeric(ref expr) => {
                 write!(f, "The expression {} is not numeric.", expr)
+            },
+            Error::ColumnValueArgumentNeeded(ref name, ref expr) => {
+                write!(f, "Function {} requires a column value argument; got {}.", name, expr)
+            },
+            Error::ColumnValueNotInSchema(ref expr) => {
+                write!(f, "The column value {} is not in the schema.", expr)
+            },
+            Error::ColumnValueAmbiguous(ref expr) => {
+                write!(f, "The column value {} is ambiguous.", expr)
             },
             Error::Unimplemented(ref name) => {
                 write!(f, "The function {} is not implmented.", name)

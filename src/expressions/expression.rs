@@ -59,6 +59,59 @@ fn coerce_literals(left: Literal, right: Literal) -> (Literal, Literal) {
     }
 }
 
+/// Perform arithmetic on literals given an arithmetic operator. This handles coercion of literals
+/// properly.
+pub fn literal_arithmetic(left: Literal, right: Literal, op: ArithmeticType) -> Result<Literal, ExpressionError> {
+    let (left, right) = coerce_literals(left, right);
+    match op {
+        ArithmeticType::Plus => {
+            match (left, right) {
+                (Literal::Int(l), Literal::Int(r)) => Ok(Literal::Int(l + r)),
+                (Literal::Double(l), Literal::Double(r)) => Ok(Literal::Double(l + r)),
+                (Literal::Float(l), Literal::Float(r)) => Ok(Literal::Float(l + r)),
+                (Literal::Long(l), Literal::Long(r)) => Ok(Literal::Long(l + r)),
+                _ => Err(ExpressionError::Unimplemented),
+            }
+        }
+        ArithmeticType::Minus => {
+            match (left, right) {
+                (Literal::Int(l), Literal::Int(r)) => Ok(Literal::Int(l - r)),
+                (Literal::Double(l), Literal::Double(r)) => Ok(Literal::Double(l - r)),
+                (Literal::Float(l), Literal::Float(r)) => Ok(Literal::Float(l - r)),
+                (Literal::Long(l), Literal::Long(r)) => Ok(Literal::Long(l - r)),
+                _ => Err(ExpressionError::Unimplemented),
+            }
+        }
+        ArithmeticType::Multiply => {
+            match (left, right) {
+                (Literal::Int(l), Literal::Int(r)) => Ok(Literal::Int(l * r)),
+                (Literal::Double(l), Literal::Double(r)) => Ok(Literal::Double(l * r)),
+                (Literal::Float(l), Literal::Float(r)) => Ok(Literal::Float(l * r)),
+                (Literal::Long(l), Literal::Long(r)) => Ok(Literal::Long(l * r)),
+                _ => Err(ExpressionError::Unimplemented),
+            }
+        }
+        ArithmeticType::Divide => {
+            match (left, right) {
+                (Literal::Int(l), Literal::Int(r)) => Ok(Literal::Int(l / r)),
+                (Literal::Double(l), Literal::Double(r)) => Ok(Literal::Double(l / r)),
+                (Literal::Float(l), Literal::Float(r)) => Ok(Literal::Float(l / r)),
+                (Literal::Long(l), Literal::Long(r)) => Ok(Literal::Long(l / r)),
+                _ => Err(ExpressionError::Unimplemented),
+            }
+        }
+        ArithmeticType::Remainder => {
+            match (left, right) {
+                (Literal::Int(l), Literal::Int(r)) => Ok(Literal::Int(l % r)),
+                (Literal::Double(l), Literal::Double(r)) => Ok(Literal::Double(l % r)),
+                (Literal::Float(l), Literal::Float(r)) => Ok(Literal::Float(l % r)),
+                (Literal::Long(l), Literal::Long(r)) => Ok(Literal::Long(l % r)),
+                _ => Err(ExpressionError::Unimplemented),
+            }
+        }
+    }
+}
+
 /// A SQL-supported expression.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
@@ -285,54 +338,7 @@ impl Expression {
         if !right_val.is_numeric() {
             return Err(ExpressionError::NotNumeric(right_val.clone()));
         }
-        let (left_val, right_val) = coerce_literals(left_val, right_val);
-        match op {
-            ArithmeticType::Plus => {
-                match (left_val, right_val) {
-                    (Literal::Int(l), Literal::Int(r)) => Ok(Literal::Int(l + r)),
-                    (Literal::Double(l), Literal::Double(r)) => Ok(Literal::Double(l + r)),
-                    (Literal::Float(l), Literal::Float(r)) => Ok(Literal::Float(l + r)),
-                    (Literal::Long(l), Literal::Long(r)) => Ok(Literal::Long(l + r)),
-                    _ => Err(ExpressionError::Unimplemented),
-                }
-            }
-            ArithmeticType::Minus => {
-                match (left_val, right_val) {
-                    (Literal::Int(l), Literal::Int(r)) => Ok(Literal::Int(l - r)),
-                    (Literal::Double(l), Literal::Double(r)) => Ok(Literal::Double(l - r)),
-                    (Literal::Float(l), Literal::Float(r)) => Ok(Literal::Float(l - r)),
-                    (Literal::Long(l), Literal::Long(r)) => Ok(Literal::Long(l - r)),
-                    _ => Err(ExpressionError::Unimplemented),
-                }
-            }
-            ArithmeticType::Multiply => {
-                match (left_val, right_val) {
-                    (Literal::Int(l), Literal::Int(r)) => Ok(Literal::Int(l * r)),
-                    (Literal::Double(l), Literal::Double(r)) => Ok(Literal::Double(l * r)),
-                    (Literal::Float(l), Literal::Float(r)) => Ok(Literal::Float(l * r)),
-                    (Literal::Long(l), Literal::Long(r)) => Ok(Literal::Long(l * r)),
-                    _ => Err(ExpressionError::Unimplemented),
-                }
-            }
-            ArithmeticType::Divide => {
-                match (left_val, right_val) {
-                    (Literal::Int(l), Literal::Int(r)) => Ok(Literal::Int(l / r)),
-                    (Literal::Double(l), Literal::Double(r)) => Ok(Literal::Double(l / r)),
-                    (Literal::Float(l), Literal::Float(r)) => Ok(Literal::Float(l / r)),
-                    (Literal::Long(l), Literal::Long(r)) => Ok(Literal::Long(l / r)),
-                    _ => Err(ExpressionError::Unimplemented),
-                }
-            }
-            ArithmeticType::Remainder => {
-                match (left_val, right_val) {
-                    (Literal::Int(l), Literal::Int(r)) => Ok(Literal::Int(l % r)),
-                    (Literal::Double(l), Literal::Double(r)) => Ok(Literal::Double(l % r)),
-                    (Literal::Float(l), Literal::Float(r)) => Ok(Literal::Float(l % r)),
-                    (Literal::Long(l), Literal::Long(r)) => Ok(Literal::Long(l % r)),
-                    _ => Err(ExpressionError::Unimplemented),
-                }
-            }
-        }
+        literal_arithmetic(left_val, right_val, op)
     }
 
     fn evaluate_compare(&self,

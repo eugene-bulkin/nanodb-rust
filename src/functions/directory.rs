@@ -3,6 +3,7 @@
 use super::coalesce::Coalesce;
 use super::arithmetic::*;
 use super::count::*;
+use super::stats::*;
 use super::trig::*;
 use super::{Function, FunctionError};
 
@@ -45,6 +46,10 @@ impl Directory {
 
         self.add_function("COUNT", Box::new(CountAggregate::count));
         self.add_function("COUNT#STAR", Box::new(CountStar::count));
+        self.add_function("AVERAGE", Box::new(SumAverage::average));
+        self.add_function("AVG", Box::new(SumAverage::average));
+        self.add_function("MEAN", Box::new(SumAverage::average));
+        self.add_function("SUM", Box::new(SumAverage::sum));
     }
 
     fn add_function<S: Into<String>, F: Fn() -> Box<Function> + 'static + Sync>(&mut self, name: S, f: Box<F>) {
