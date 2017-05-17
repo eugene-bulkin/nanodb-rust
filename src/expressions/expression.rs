@@ -108,6 +108,24 @@ pub fn literal_arithmetic(left: Literal, right: Literal, op: ArithmeticType) -> 
                 (Literal::Long(l), Literal::Long(r)) => Ok(Literal::Long(l % r)),
                 _ => Err(ExpressionError::Unimplemented),
             }
+        },
+        ArithmeticType::Min => {
+            match (left, right) {
+                (Literal::Int(l), Literal::Int(r)) => Ok(Literal::Int(if l < r { l } else { r })),
+                (Literal::Double(l), Literal::Double(r)) => Ok(Literal::Double(if l < r { l } else { r })),
+                (Literal::Float(l), Literal::Float(r)) => Ok(Literal::Float(if l < r { l } else { r })),
+                (Literal::Long(l), Literal::Long(r)) => Ok(Literal::Long(if l < r { l } else { r })),
+                _ => Err(ExpressionError::Unimplemented),
+            }
+        },
+        ArithmeticType::Max => {
+            match (left, right) {
+                (Literal::Int(l), Literal::Int(r)) => Ok(Literal::Int(if l > r { l } else { r })),
+                (Literal::Double(l), Literal::Double(r)) => Ok(Literal::Double(if l > r { l } else { r })),
+                (Literal::Float(l), Literal::Float(r)) => Ok(Literal::Float(if l > r { l } else { r })),
+                (Literal::Long(l), Literal::Long(r)) => Ok(Literal::Long(if l > r { l } else { r })),
+                _ => Err(ExpressionError::Unimplemented),
+            }
         }
     }
 }

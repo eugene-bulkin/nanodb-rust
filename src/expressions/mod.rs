@@ -88,6 +88,10 @@ pub enum ArithmeticType {
     Divide,
     /// Modulo
     Remainder,
+    /// Minimum (used for functions)
+    Min,
+    /// Maximum (used for functions)
+    Max,
 }
 
 impl<'a> From<&'a [u8]> for ArithmeticType {
@@ -110,6 +114,8 @@ impl ::std::fmt::Display for ArithmeticType {
             ArithmeticType::Divide => write!(f, "/"),
             ArithmeticType::Remainder => write!(f, "%"),
             ArithmeticType::Plus => write!(f, "+"),
+            ArithmeticType::Min => write!(f, "%min%"),
+            ArithmeticType::Max => write!(f, "%max%"),
         }
     }
 }

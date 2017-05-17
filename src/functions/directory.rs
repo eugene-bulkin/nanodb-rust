@@ -50,6 +50,8 @@ impl Directory {
         self.add_function("AVG", Box::new(SumAverage::average));
         self.add_function("MEAN", Box::new(SumAverage::average));
         self.add_function("SUM", Box::new(SumAverage::sum));
+        self.add_function("MIN", Box::new(MinMax::min));
+        self.add_function("MAX", Box::new(MinMax::max));
     }
 
     fn add_function<S: Into<String>, F: Fn() -> Box<Function> + 'static + Sync>(&mut self, name: S, f: Box<F>) {
