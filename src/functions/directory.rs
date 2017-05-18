@@ -57,6 +57,10 @@ impl Directory {
         self.add_function("SUM#DISTINCT", Box::new(SumAverage::sum_distinct));
         self.add_function("MIN", Box::new(MinMax::min));
         self.add_function("MAX", Box::new(MinMax::max));
+        self.add_function("STDDEV", Box::new(StdDevVariance::std_dev));
+        self.add_function("VARIANCE", Box::new(StdDevVariance::variance));
+        self.add_function("STDDEVP", Box::new(StdDevVariance::std_dev_population));
+        self.add_function("VARIANCEP", Box::new(StdDevVariance::variance_population));
     }
 
     fn add_function<S: Into<String>, F: Fn() -> Box<Function> + 'static + Sync>(&mut self, name: S, f: Box<F>) {

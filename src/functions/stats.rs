@@ -277,6 +277,173 @@ impl AggregateFunction for MinMax {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StdDevVarType {
+    StdDev,
+    Variance,
+    StdDevPopulation,
+    VariancePopulation,
+}
+
+impl ::std::fmt::Display for StdDevVarType {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            StdDevVarType::StdDev => write!(f, "STDDEV"),
+            StdDevVarType::Variance => write!(f, "VARIANCE"),
+            StdDevVarType::StdDevPopulation => write!(f, "STDDEVP"),
+            StdDevVarType::VariancePopulation => write!(f, "VARIANCEP"),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StdDevVariance {
+    count: u32,
+    mean: f64,
+    m2: f64,
+    func_type: StdDevVarType,
+}
+
+impl StdDevVariance {
+    pub fn std_dev() -> Box<Function> {
+        Box::new(StdDevVariance {
+            func_type: StdDevVarType::StdDev,
+            ..Default::default()
+        })
+    }
+
+    pub fn std_dev_population() -> Box<Function> {
+        Box::new(StdDevVariance {
+            func_type: StdDevVarType::StdDevPopulation,
+            ..Default::default()
+        })
+    }
+    pub fn variance() -> Box<Function> {
+        Box::new(StdDevVariance {
+            func_type: StdDevVarType::Variance,
+            ..Default::default()
+        })
+    }
+
+    pub fn variance_population() -> Box<Function> {
+        Box::new(StdDevVariance {
+            func_type: StdDevVarType::VariancePopulation,
+            ..Default::default()
+        })
+    }
+}
+
+impl Default for StdDevVariance {
+    fn default() -> StdDevVariance {
+        StdDevVariance {
+            count: 0,
+            mean: 0.0,
+            m2: 0.0,
+            func_type: StdDevVarType::StdDev,
+        }
+    }
+}
+
+impl Function for StdDevVariance {
+    fn evaluate(&self, _env: &mut Option<&mut Environment>, _args: Vec<Expression>, _planner: &Option<&Planner>) -> FunctionResult {
+        Ok(self.get_result())
+    }
+
+    fn get_as_scalar(&self) -> Option<Box<ScalarFunction>> {
+        Some(Box::new(StdDevVariance {
+            count: self.count,
+            mean: self.mean,
+            m2: self.m2,
+            func_type: self.func_type,
+        }))
+    }
+
+    fn get_as_aggregate(&self) -> Option<Box<AggregateFunction>> {
+        Some(Box::new(StdDevVariance {
+            count: self.count,
+            mean: self.mean,
+            m2: self.m2,
+            func_type: self.func_type,
+        }))
+    }
+
+    fn is_scalar(&self) -> bool { true }
+
+    fn is_aggregate(&self) -> bool { true }
+
+    fn clone(&self) -> Self where Self: Sized {
+        Clone::clone(&self)
+    }
+}
+
+impl ScalarFunction for StdDevVariance {
+    fn get_return_type(&self, args: Vec<Expression>, _schema: &Schema) -> Result<ColumnType, FunctionError> {
+        let func_name = format!("{}", self.func_type);
+        if args.len() != 1 {
+            Err(FunctionError::TakesArguments(func_name, 1, args.len()))
+        } else {
+            Ok(ColumnType::Double)
+        }
+    }
+}
+
+impl AggregateFunction for StdDevVariance {
+    fn supports_distinct(&self) -> bool {
+        // TODO: We can support this if we want.
+        false
+    }
+
+    fn clear_result(&mut self) {
+        self.count = 0;
+        self.mean = 0.0;
+        self.m2 = 0.0;
+    }
+
+    fn add_value(&mut self, value: Literal) {
+        if value == Literal::Null {
+            return;
+        }
+
+        // This algorithm is due to Welford, 1962.
+        self.count += 1;
+        let delta = literal_arithmetic(&value, &Literal::Double(self.mean), ArithmeticType::Minus).unwrap();
+        if let Literal::Double(delta) = delta {
+            self.mean += delta / (self.count as f64);
+            let delta2 = literal_arithmetic(&value, &Literal::Double(self.mean), ArithmeticType::Minus).unwrap();
+            if let Literal::Double(delta2) = delta2 {
+                self.m2 += delta * delta2;
+            } else {
+                // See below.
+                unreachable!()
+            }
+        } else {
+            // Because the mean is a double, delta will always coerce to a double.
+            unreachable!()
+        }
+    }
+
+    fn get_result(&self) -> Literal {
+        if self.count < 2 {
+            return Literal::Double(::std::f64::NAN);
+        }
+        let count: f64 = self.count as f64;
+        match self.func_type {
+            StdDevVarType::StdDev => {
+                Literal::Double((self.m2 / (count - 1.0)).sqrt())
+            },
+            StdDevVarType::Variance => {
+                Literal::Double(self.m2 / (count - 1.0))
+            },
+            StdDevVarType::StdDevPopulation => {
+                Literal::Double((self.m2 / count).sqrt())
+            },
+            StdDevVarType::VariancePopulation => {
+                Literal::Double(self.m2 / count)
+            },
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use tempdir::TempDir;
@@ -284,6 +451,7 @@ mod tests {
     use std::collections::HashSet;
     use std::iter::FromIterator;
 
+    use ::expressions::Literal;
     use ::parser::statements;
     use ::server::Server;
     use ::storage::TupleLiteral;
@@ -465,6 +633,124 @@ mod tests {
             let expected_set: HashSet<TupleLiteral> = HashSet::from_iter(expected);
             let result_set: HashSet<TupleLiteral> = HashSet::from_iter(result);
             assert_eq!(expected_set, result_set);
+        }
+    }
+
+    fn assert_double_sets_equal(left: HashSet<TupleLiteral>, right: HashSet<TupleLiteral>) {
+        const EPSILON: f64 = 1.0e-6;
+
+        let mut left_set: Vec<f64> = Vec::new();
+        let mut right_set: Vec<f64> = Vec::new();
+
+        for row in left.iter() {
+            if let Literal::Double(value) = row[0] {
+                left_set.push(value);
+            }
+        }
+
+        for row in right.iter() {
+            if let Literal::Double(value) = row[0] {
+                right_set.push(value);
+            }
+        }
+
+        assert_eq!(left_set.len(), right_set.len());
+
+        for value in left_set.iter() {
+            assert!(right_set.iter().any(|rval| (rval - value).abs() < EPSILON));
+        }
+    }
+
+    #[test]
+    fn test_stddev_variance() {
+
+        let dir = TempDir::new("test_dbfiles").unwrap();
+        let mut server = Server::with_data_path(dir.path());
+
+        {
+            let stmts = statements(b"CREATE TABLE small (a integer);\
+                                     INSERT INTO small VALUES (1);\
+            ").unwrap().1;
+            for stmt in stmts {
+                server.handle_command(stmt);
+            }
+
+            let ref mut select_command = statements(b"SELECT VARIANCE(A) FROM small;").unwrap().1[0];
+            let result = select_command.execute(&mut server, &mut ::std::io::sink()).unwrap().unwrap();
+            let ref row = result[0];
+            if let Literal::Double(value) = row[0] {
+                assert!(value.is_nan(), "expected NaN, got {}", value);
+            } else {
+                panic!("expected double, got {}", row[0])
+            }
+        }
+
+        {
+            let stmts = statements(b"CREATE TABLE foo (a integer, b integer);\
+                                     INSERT INTO foo VALUES (1, 1);\
+                                     INSERT INTO foo VALUES (2, 1);\
+                                     INSERT INTO foo VALUES (3, 1);\
+                                     INSERT INTO foo VALUES (4, 1);\
+                                     INSERT INTO foo VALUES (6, 2);\
+                                     INSERT INTO foo VALUES (4, 2);\
+                                     INSERT INTO foo VALUES (1, 2);\
+                                     INSERT INTO foo VALUES (2, 2);\
+            ").unwrap().1;
+            for stmt in stmts {
+                server.handle_command(stmt);
+            }
+
+            let ref mut select_command = statements(b"SELECT VARIANCE(A) FROM foo;").unwrap().1[0];
+            assert_eq!(Ok(Some(vec![TupleLiteral::from_iter(vec![(167f64 / 56f64).into()])])),
+            select_command.execute(&mut server, &mut ::std::io::sink()));
+
+            let ref mut select_command = statements(b"SELECT VARIANCE(A) FROM foo GROUP BY B;").unwrap().1[0];
+            let result: Vec<TupleLiteral> = select_command.execute(&mut server, &mut ::std::io::sink()).unwrap().unwrap();
+            let expected: Vec<TupleLiteral> = vec![TupleLiteral::from_iter(vec![(5f64 / 3f64).into()]),
+                                                   TupleLiteral::from_iter(vec![(59f64 / 12f64).into()])];
+
+            let expected_set: HashSet<TupleLiteral> = HashSet::from_iter(expected);
+            let result_set: HashSet<TupleLiteral> = HashSet::from_iter(result);
+            assert_double_sets_equal(expected_set, result_set);
+
+            let ref mut select_command = statements(b"SELECT STDDEV(A) FROM foo;").unwrap().1[0];
+            assert_eq!(Ok(Some(vec![TupleLiteral::from_iter(vec![(167f64 / 56f64).sqrt().into()])])),
+            select_command.execute(&mut server, &mut ::std::io::sink()));
+
+            let ref mut select_command = statements(b"SELECT STDDEV(A) FROM foo GROUP BY B;").unwrap().1[0];
+            let result: Vec<TupleLiteral> = select_command.execute(&mut server, &mut ::std::io::sink()).unwrap().unwrap();
+            let expected: Vec<TupleLiteral> = vec![TupleLiteral::from_iter(vec![(5f64 / 3f64).sqrt().into()]),
+                                                   TupleLiteral::from_iter(vec![(59f64 / 12f64).sqrt().into()])];
+
+            let expected_set: HashSet<TupleLiteral> = HashSet::from_iter(expected);
+            let result_set: HashSet<TupleLiteral> = HashSet::from_iter(result);
+            assert_double_sets_equal(expected_set, result_set);
+
+            let ref mut select_command = statements(b"SELECT VARIANCEP(A) FROM foo;").unwrap().1[0];
+            assert_eq!(Ok(Some(vec![TupleLiteral::from_iter(vec![(167f64 / 64f64).into()])])),
+            select_command.execute(&mut server, &mut ::std::io::sink()));
+
+            let ref mut select_command = statements(b"SELECT VARIANCEP(A) FROM foo GROUP BY B;").unwrap().1[0];
+            let result: Vec<TupleLiteral> = select_command.execute(&mut server, &mut ::std::io::sink()).unwrap().unwrap();
+            let expected: Vec<TupleLiteral> = vec![TupleLiteral::from_iter(vec![(5f64 / 4f64).into()]),
+                                                   TupleLiteral::from_iter(vec![(59f64 / 16f64).into()])];
+
+            let expected_set: HashSet<TupleLiteral> = HashSet::from_iter(expected);
+            let result_set: HashSet<TupleLiteral> = HashSet::from_iter(result);
+            assert_double_sets_equal(expected_set, result_set);
+
+            let ref mut select_command = statements(b"SELECT STDDEVP(A) FROM foo;").unwrap().1[0];
+            assert_eq!(Ok(Some(vec![TupleLiteral::from_iter(vec![(167f64 / 64f64).sqrt().into()])])),
+            select_command.execute(&mut server, &mut ::std::io::sink()));
+
+            let ref mut select_command = statements(b"SELECT STDDEVP(A) FROM foo GROUP BY B;").unwrap().1[0];
+            let result: Vec<TupleLiteral> = select_command.execute(&mut server, &mut ::std::io::sink()).unwrap().unwrap();
+            let expected: Vec<TupleLiteral> = vec![TupleLiteral::from_iter(vec![(5f64 / 4f64).sqrt().into()]),
+                                                   TupleLiteral::from_iter(vec![(59f64 / 16f64).sqrt().into()])];
+
+            let expected_set: HashSet<TupleLiteral> = HashSet::from_iter(expected);
+            let result_set: HashSet<TupleLiteral> = HashSet::from_iter(result);
+            assert_double_sets_equal(expected_set, result_set);
         }
     }
 }
