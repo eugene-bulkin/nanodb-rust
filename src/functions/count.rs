@@ -78,7 +78,7 @@ impl AggregateFunction for CountStar {
 
 #[derive(Debug, Clone)]
 pub struct CountAggregate {
-    count: Option<i32>,
+    count: i32,
     values_seen: HashSet<Literal>,
     last_value_seen: Option<Literal>,
     distinct: bool,
@@ -89,7 +89,7 @@ impl Default for CountAggregate {
     fn default() -> CountAggregate {
         CountAggregate {
             distinct: false,
-            count: None,
+            count: 0,
             values_seen: HashSet::new(),
             last_value_seen: None,
             sorted_inputs: false,
@@ -157,7 +157,7 @@ impl AggregateFunction for CountAggregate {
     fn supports_distinct(&self) -> bool { true }
 
     fn clear_result(&mut self) {
-        self.count = None;
+        self.count = 0;
 
         if self.distinct {
             if self.sorted_inputs {
@@ -173,10 +173,6 @@ impl AggregateFunction for CountAggregate {
             return;
         }
 
-        if self.count.is_none() {
-            self.count = Some(0);
-        }
-
         // Counting distinct values requires more checking than just counting
         // any value that comes through.
         if self.distinct {
@@ -187,28 +183,23 @@ impl AggregateFunction for CountAggregate {
                     Some(ref last_seen) if *last_seen == value => {},
                     _ => {
                         self.last_value_seen = Some(value);
-                        self.count = self.count.map(|n| n + 1);
+                        self.count += 1;
                     },
                 }
             } else {
                 // If the inputs are hashed then we increment the count every
                 // time the value isn't already in the hash-set.
                 if self.values_seen.insert(value) {
-                    self.count = self.count.map(|n| n + 1);
+                    self.count += 1;
                 }
             }
         } else {
             // Non-distinct count.  Just increment on any non-null value.
-            self.count = self.count.map(|n| n + 1);
+            self.count += 1;
         }
     }
 
-    fn get_result(&self) -> Literal {
-        match self.count {
-            Some(count) => Literal::Int(count),
-            None => Literal::Int(0),
-        }
-    }
+    fn get_result(&self) -> Literal { Literal::Int(self.count) }
 }
 
 #[cfg(test)]
