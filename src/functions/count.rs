@@ -105,6 +105,14 @@ impl CountAggregate {
             ..Default::default()
         })
     }
+
+    /// Creates a count distinct function.
+    pub fn distinct() -> Box<Function> {
+        Box::new(CountAggregate {
+            distinct: true,
+            ..Default::default()
+        })
+    }
 }
 
 impl Function for CountAggregate {
@@ -169,8 +177,26 @@ impl AggregateFunction for CountAggregate {
             self.count = Some(0);
         }
 
+        // Counting distinct values requires more checking than just counting
+        // any value that comes through.
         if self.distinct {
-            // TODO
+            if self.sorted_inputs {
+                // If the inputs are sorted then we increment the count every
+                // time we see a new value.
+                match self.last_value_seen {
+                    Some(ref last_seen) if *last_seen == value => {},
+                    _ => {
+                        self.last_value_seen = Some(value);
+                        self.count = self.count.map(|n| n + 1);
+                    },
+                }
+            } else {
+                // If the inputs are hashed then we increment the count every
+                // time the value isn't already in the hash-set.
+                if self.values_seen.insert(value) {
+                    self.count = self.count.map(|n| n + 1);
+                }
+            }
         } else {
             // Non-distinct count.  Just increment on any non-null value.
             self.count = self.count.map(|n| n + 1);
@@ -230,6 +256,41 @@ mod tests {
             TupleLiteral::from_iter(vec![2.into(), 1.into()]),
             TupleLiteral::from_iter(vec![1.into(), 2.into()]),
             TupleLiteral::from_iter(vec![Literal::Null, 0.into()]),
+        ];
+
+        let expected_set: HashSet<TupleLiteral> = HashSet::from_iter(expected);
+        let result_set: HashSet<TupleLiteral> = HashSet::from_iter(result);
+        assert_eq!(expected_set, result_set);
+    }
+
+    #[test]
+    fn test_count_distinct() {
+        let dir = TempDir::new("test_dbfiles").unwrap();
+        let mut server = Server::with_data_path(dir.path());
+
+        let stmts = statements(b"CREATE TABLE foo (a integer, b integer, c integer);\
+                                 INSERT INTO foo VALUES (3, 6, 1);\
+                                 INSERT INTO foo VALUES (3, 6, 2);\
+                                 INSERT INTO foo VALUES (2, 10, 3);\
+                                 INSERT INTO foo VALUES (1, 9, 4);\
+                                 INSERT INTO foo VALUES (1, 6, 5);\
+                                 INSERT INTO foo VALUES (NULL, 6, 5);\
+        ").unwrap().1;
+        for stmt in stmts {
+            server.handle_command(stmt);
+        }
+
+        let ref mut select_command = statements(b"SELECT COUNT(DISTINCT A) FROM foo;").unwrap().1[0];
+        assert_eq!(Ok(Some(vec![TupleLiteral::from_iter(vec![3.into()])])),
+        select_command.execute(&mut server, &mut ::std::io::sink()));
+
+        let ref mut select_command = statements(b"SELECT COUNT(DISTINCT A), B FROM foo GROUP BY B;").unwrap().1[0];
+
+        let result: Vec<TupleLiteral> = select_command.execute(&mut server, &mut ::std::io::sink()).unwrap().unwrap();
+        let expected: Vec<TupleLiteral> = vec![
+            TupleLiteral::from_iter(vec![2.into(), 6.into()]),
+            TupleLiteral::from_iter(vec![1.into(), 9.into()]),
+            TupleLiteral::from_iter(vec![1.into(), 10.into()]),
         ];
 
         let expected_set: HashSet<TupleLiteral> = HashSet::from_iter(expected);

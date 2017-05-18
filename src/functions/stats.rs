@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::default::Default;
 
 use ::expressions::{ArithmeticType, Environment, Expression, Literal};
@@ -12,6 +13,7 @@ pub struct SumAverage {
     count: i32,
     compute_average: bool,
     distinct: bool,
+    values_seen: HashSet<Literal>,
 }
 
 impl Default for SumAverage {
@@ -21,6 +23,7 @@ impl Default for SumAverage {
             count: 0,
             compute_average: false,
             distinct: false,
+            values_seen: Default::default(),
         }
     }
 }
@@ -39,6 +42,21 @@ impl SumAverage {
             ..Default::default()
         })
     }
+    pub fn sum_distinct() -> Box<Function> {
+        Box::new(SumAverage {
+            compute_average: false,
+            distinct: true,
+            ..Default::default()
+        })
+    }
+
+    pub fn average_distinct() -> Box<Function> {
+        Box::new(SumAverage {
+            compute_average: true,
+            distinct: true,
+            ..Default::default()
+        })
+    }
 }
 
 impl Function for SumAverage {
@@ -52,6 +70,7 @@ impl Function for SumAverage {
             count: self.count,
             compute_average: self.compute_average,
             distinct: self.distinct,
+            values_seen: self.values_seen.clone(),
         }))
     }
 
@@ -61,6 +80,7 @@ impl Function for SumAverage {
             count: self.count,
             compute_average: self.compute_average,
             distinct: self.distinct,
+            values_seen: self.values_seen.clone(),
         }))
     }
 
@@ -107,6 +127,7 @@ impl AggregateFunction for SumAverage {
     fn clear_result(&mut self) {
         self.sum = Literal::Int(0);
         self.count = 0;
+        self.values_seen.clear();
     }
 
     fn add_value(&mut self, value: Literal) {
@@ -114,15 +135,15 @@ impl AggregateFunction for SumAverage {
             return;
         }
 
-        if self.compute_average {
-            self.count += 1;
-        }
-
-        if self.distinct {
-            // TODO
-        } else {
+        // If we are not looking at distinct values, or the value has not been seen yet, add it to
+        // the sum.
+        if !self.distinct || (self.distinct && self.values_seen.insert(value.clone())) {
             // We assume this can't fail because we are using numeric literals throughout.
             self.sum = literal_arithmetic(self.sum.clone(), value, ArithmeticType::Plus).unwrap();
+
+            if self.compute_average {
+                self.count += 1;
+            }
         }
     }
 
@@ -347,6 +368,50 @@ mod tests {
         let result: Vec<TupleLiteral> = select_command.execute(&mut server, &mut ::std::io::sink()).unwrap().unwrap();
         let expected: Vec<TupleLiteral> = vec![TupleLiteral::from_iter(vec![4.0f64.into()]),
                                                TupleLiteral::from_iter(vec![17.0f64.into()])];
+
+        let expected_set: HashSet<TupleLiteral> = HashSet::from_iter(expected);
+        let result_set: HashSet<TupleLiteral> = HashSet::from_iter(result);
+        assert_eq!(expected_set, result_set);
+    }
+
+    #[test]
+    fn test_sum_avg_distinct() {
+        let dir = TempDir::new("test_dbfiles").unwrap();
+        let mut server = Server::with_data_path(dir.path());
+
+        let stmts = statements(b"CREATE TABLE foo (a integer, b integer, c integer);\
+                                 INSERT INTO foo VALUES (3, 1, 1);\
+                                 INSERT INTO foo VALUES (3, 1, 2);\
+                                 INSERT INTO foo VALUES (5, 1, 3);\
+                                 INSERT INTO foo VALUES (5, 2, 4);\
+                                 INSERT INTO foo VALUES (7, 2, 5);\
+                                 INSERT INTO foo VALUES (12, 2, 6);\
+        ").unwrap().1;
+        for stmt in stmts {
+            server.handle_command(stmt);
+        }
+
+        let ref mut select_command = statements(b"SELECT SUM(DISTINCT A) FROM foo;").unwrap().1[0];
+        assert_eq!(Ok(Some(vec![TupleLiteral::from_iter(vec![27.into()])])),
+        select_command.execute(&mut server, &mut ::std::io::sink()));
+
+        let ref mut select_command = statements(b"SELECT AVERAGE(DISTINCT A) FROM foo;").unwrap().1[0];
+        assert_eq!(Ok(Some(vec![TupleLiteral::from_iter(vec![6.75f64.into()])])),
+        select_command.execute(&mut server, &mut ::std::io::sink()));
+
+        let ref mut select_command = statements(b"SELECT SUM(DISTINCT A), B FROM foo GROUP BY B;").unwrap().1[0];
+        let result: Vec<TupleLiteral> = select_command.execute(&mut server, &mut ::std::io::sink()).unwrap().unwrap();
+        let expected: Vec<TupleLiteral> = vec![TupleLiteral::from_iter(vec![8.into(), 1.into()]),
+                                               TupleLiteral::from_iter(vec![24.into(), 2.into()])];
+
+        let expected_set: HashSet<TupleLiteral> = HashSet::from_iter(expected);
+        let result_set: HashSet<TupleLiteral> = HashSet::from_iter(result);
+        assert_eq!(expected_set, result_set);
+
+        let ref mut select_command = statements(b"SELECT AVERAGE(DISTINCT A), B FROM foo GROUP BY B;").unwrap().1[0];
+        let result: Vec<TupleLiteral> = select_command.execute(&mut server, &mut ::std::io::sink()).unwrap().unwrap();
+        let expected: Vec<TupleLiteral> = vec![TupleLiteral::from_iter(vec![4.0f64.into(), 1.into()]),
+                                               TupleLiteral::from_iter(vec![8.0f64.into(), 2.into()])];
 
         let expected_set: HashSet<TupleLiteral> = HashSet::from_iter(expected);
         let result_set: HashSet<TupleLiteral> = HashSet::from_iter(result);

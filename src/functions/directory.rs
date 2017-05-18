@@ -45,11 +45,16 @@ impl Directory {
         self.add_function("ATAN2", Box::new(ATan2::new));
 
         self.add_function("COUNT", Box::new(CountAggregate::count));
+        self.add_function("COUNT#DISTINCT", Box::new(CountAggregate::distinct));
         self.add_function("COUNT#STAR", Box::new(CountStar::count));
         self.add_function("AVERAGE", Box::new(SumAverage::average));
         self.add_function("AVG", Box::new(SumAverage::average));
         self.add_function("MEAN", Box::new(SumAverage::average));
+        self.add_function("AVERAGE#DISTINCT", Box::new(SumAverage::average_distinct));
+        self.add_function("AVG#DISTINCT", Box::new(SumAverage::average_distinct));
+        self.add_function("MEAN#DISTINCT", Box::new(SumAverage::average_distinct));
         self.add_function("SUM", Box::new(SumAverage::sum));
+        self.add_function("SUM#DISTINCT", Box::new(SumAverage::sum_distinct));
         self.add_function("MIN", Box::new(MinMax::min));
         self.add_function("MAX", Box::new(MinMax::max));
     }

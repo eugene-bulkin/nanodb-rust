@@ -11,11 +11,14 @@ lazy_static! {
     static ref DIRECTORY: Directory = Directory::new();
 }
 
-fn get_aggregate_function<I: Iterator<Item=Expression>>(func_name: &str, mut args: I) -> Box<Function> {
+fn get_aggregate_function<I: Iterator<Item=Expression>>(func_name: &str, mut args: I, distinct: bool) -> Box<Function> {
     // No need to make another allocation if we don't need to update the function name.
     let mut func_name = Cow::from(func_name);
-    // This shouldn't panic (this constructor should only be called after an actual
-    // aggregate extraction, which will not allow unknown functions).
+
+    if distinct {
+        func_name += "#DISTINCT";
+    }
+
     // Only COUNT can take * as an argument.
     let has_wildcard_arg = args.any(|arg| arg == Expression::ColumnValue((None, None)));
     if has_wildcard_arg && func_name == "COUNT" {
@@ -41,7 +44,7 @@ struct FunctionCall {
 impl Clone for FunctionCall {
     fn clone(&self) -> Self {
         if let Expression::Function { name: ref func_name, ref distinct, ref args } = self.expr {
-            let func = get_aggregate_function(func_name, args.clone().into_iter());
+            let func = get_aggregate_function(func_name, args.clone().into_iter(), *distinct);
             if func.is_aggregate() {
                 FunctionCall {
                     expr: self.expr.clone(),
@@ -179,7 +182,7 @@ impl<'a> HashedGroupAggregateNode<'a> {
                     return Err(PlanError::WildCardInNonCountFunction(func_name.clone()));
                 }
 
-                let func = get_aggregate_function(func_name, args.clone().into_iter());
+                let func = get_aggregate_function(func_name, args.clone().into_iter(), *distinct);
                 if func.is_aggregate() {
                     map.insert(name.clone(), FunctionCall {
                         expr: expr.clone(),
