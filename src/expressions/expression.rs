@@ -43,7 +43,7 @@ fn arithmetic_result_type(op: ArithmeticType, left: ColumnType, right: ColumnTyp
     }
 }
 
-fn coerce_literals(left: Literal, right: Literal) -> (Literal, Literal) {
+fn coerce_literals(left: &Literal, right: &Literal) -> (Literal, Literal) {
     // WE ASSUME THAT BOTH LITERALS ARE ARITHMETIC HERE.
     if left.is_double() || right.is_double() {
         // If either is a double, coerce both to doubles.
@@ -61,7 +61,7 @@ fn coerce_literals(left: Literal, right: Literal) -> (Literal, Literal) {
 
 /// Perform arithmetic on literals given an arithmetic operator. This handles coercion of literals
 /// properly.
-pub fn literal_arithmetic(left: Literal, right: Literal, op: ArithmeticType) -> Result<Literal, ExpressionError> {
+pub fn literal_arithmetic(left: &Literal, right: &Literal, op: ArithmeticType) -> Result<Literal, ExpressionError> {
     let (left, right) = coerce_literals(left, right);
     match op {
         ArithmeticType::Plus => {
@@ -356,7 +356,7 @@ impl Expression {
         if !right_val.is_numeric() {
             return Err(ExpressionError::NotNumeric(right_val.clone()));
         }
-        literal_arithmetic(left_val, right_val, op)
+        literal_arithmetic(&left_val, &right_val, op)
     }
 
     fn evaluate_compare(&self,
@@ -374,7 +374,7 @@ impl Expression {
         if !right_val.is_numeric() {
             return Err(ExpressionError::NotNumeric(right_val.clone()));
         }
-        let (left_val, right_val) = coerce_literals(left_val, right_val);
+        let (left_val, right_val) = coerce_literals(&left_val, &right_val);
         match op {
             CompareType::GreaterThan => {
                 match (left_val, right_val) {

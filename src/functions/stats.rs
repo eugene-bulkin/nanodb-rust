@@ -139,7 +139,7 @@ impl AggregateFunction for SumAverage {
         // the sum.
         if !self.distinct || (self.distinct && self.values_seen.insert(value.clone())) {
             // We assume this can't fail because we are using numeric literals throughout.
-            self.sum = literal_arithmetic(self.sum.clone(), value, ArithmeticType::Plus).unwrap();
+            self.sum = literal_arithmetic(&self.sum, &value, ArithmeticType::Plus).unwrap();
 
             if self.compute_average {
                 self.count += 1;
@@ -153,7 +153,7 @@ impl AggregateFunction for SumAverage {
                 Literal::Float(::std::f32::NAN)
             } else {
                 // See above for why we can unwrap.
-                literal_arithmetic(self.sum.clone(), Literal::Double(self.count.into()), ArithmeticType::Divide).unwrap()
+                literal_arithmetic(&self.sum, &Literal::Double(self.count.into()), ArithmeticType::Divide).unwrap()
             }
         } else {
             self.sum.clone()
@@ -268,7 +268,7 @@ impl AggregateFunction for MinMax {
         if self.value == Literal::Null {
             self.value = value;
         } else {
-            self.value = literal_arithmetic(self.value.clone(), value, self.func_type.into()).unwrap();
+            self.value = literal_arithmetic(&self.value, &value, self.func_type.into()).unwrap();
         }
     }
 
