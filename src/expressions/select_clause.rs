@@ -159,7 +159,7 @@ impl ::std::fmt::Display for SelectClause {
             try!(write!(f, "\toffset={}\n", offset));
         }
 
-        // TODO: ORDER BY, HAVING, correlated with?
+        // TODO: ORDER BY, correlated with?
         write!(f, "]")
     }
 }
