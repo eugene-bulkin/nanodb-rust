@@ -75,6 +75,8 @@ impl ::std::hash::Hash for Literal {
     }
 }
 
+impl Eq for Literal {}
+
 impl ::std::fmt::Display for Literal {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {

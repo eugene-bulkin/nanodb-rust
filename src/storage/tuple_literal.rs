@@ -1,6 +1,7 @@
 //! A module which stores utilities for a tuple literal.
 
 use std::default::Default;
+use std::slice::Iter;
 
 use ::expressions::Literal;
 use ::storage::{PinError, Pinnable, Tuple, TupleError};
@@ -39,6 +40,11 @@ impl TupleLiteral {
         }
     }
 
+    /// Returns an iterator over the literals in the tuple literal.
+    pub fn iter(&self) -> Iter<Literal> {
+        self.values.iter()
+    }
+
     /// Appends the specified value to the end of the tuple-literal.
     ///
     /// # Arguments
@@ -56,7 +62,7 @@ impl TupleLiteral {
     ///
     /// # Arguments
     /// * tuple - the tuple to make a copy of
-    pub fn from_tuple<T: Tuple + ?Sized>(tuple: &mut T) -> TupleLiteral {
+    pub fn from_tuple<T: Tuple + ? Sized>(tuple: &mut T) -> TupleLiteral {
         let mut result = TupleLiteral::new();
         result.append_tuple(tuple);
         result
@@ -66,7 +72,7 @@ impl TupleLiteral {
     ///
     /// # Arguments
     /// * tuple - the tuple data to copy into this tuple-literal
-    pub fn append_tuple<T: Tuple + ?Sized>(&mut self, tuple: &mut T) {
+    pub fn append_tuple<T: Tuple + ? Sized>(&mut self, tuple: &mut T) {
         for i in 0..tuple.get_column_count() {
             self.values.push(tuple.get_column_value(i).unwrap())
         }
@@ -82,7 +88,6 @@ impl ::std::ops::Index<usize> for TupleLiteral {
     fn index(&self, index: usize) -> &Literal {
         &self.values[index]
     }
-
 }
 
 impl Pinnable for TupleLiteral {

@@ -46,10 +46,14 @@ mod tests {
                                                            vec![SelectValue::WildcardColumn { table: None }],
                                                            None,
                                                            None,
+                                                           None,
+                                                           None,
                                                            None));
         let result2 = SelectCommand::new(SelectClause::new(FromClause::base_table("BAR".into(), None),
                                                            false,
                                                            vec![SelectValue::WildcardColumn { table: None }],
+                                                           None,
+                                                           None,
                                                            None,
                                                            None,
                                                            None));

@@ -61,6 +61,7 @@ macro_rules! check_has_args {
 
 macro_rules! impl_scalar_func {
     ($name:ident, | $env:ident, $args:ident, $planner:ident | $eval:block) => {
+        #[derive(Debug, Clone)]
         pub struct $name;
 
         impl $name {
@@ -70,6 +71,10 @@ macro_rules! impl_scalar_func {
         }
 
         impl Function for $name {
+            fn clone(&self) -> Self where Self: Sized {
+                $name
+            }
+
             fn evaluate(&self, $env: &mut Option<&mut Environment>, $args: Vec<Expression>, $planner: &Option<&Planner>) -> FunctionResult {
                 check_has_args!($args, $name);
 

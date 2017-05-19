@@ -24,6 +24,10 @@ pub struct SelectClause {
     pub offset: Option<u32>,
     /// The optional where clause.
     pub where_expr: Option<Expression>,
+    /// Optional group by expressions.
+    pub group_by_exprs: Option<Vec<Expression>>,
+    /// Optional HAVING expression.
+    pub having: Option<Expression>,
     from_schema: Option<Schema>,
 }
 
@@ -37,6 +41,8 @@ impl Default for SelectClause {
             limit: None,
             offset: None,
             where_expr: None,
+            group_by_exprs: None,
+            having: None,
             from_schema: None,
         }
     }
@@ -57,8 +63,12 @@ impl SelectClause {
                values: Vec<SelectValue>,
                limit: Option<u32>,
                offset: Option<u32>,
-               where_expr: Option<Expression>)
+               where_expr: Option<Expression>,
+               group_by_exprs: Option<Vec<Expression>>,
+               having: Option<Expression>)
                -> SelectClause {
+        // Ignore having expression without group by; this shouldn't happen from parsing.
+        let having = if group_by_exprs.is_none() { None } else { having };
         SelectClause {
             from_clause: Some(from_clause),
             distinct: distinct,
@@ -66,6 +76,8 @@ impl SelectClause {
             limit: limit,
             offset: offset,
             where_expr: where_expr,
+            group_by_exprs: group_by_exprs,
+            having: having,
             ..Default::default()
         }
     }
@@ -105,7 +117,7 @@ impl SelectClause {
         let schema = match self.from_clause {
             Some(ref mut clause) => {
                 try!(clause.compute_schema(file_manager, table_manager))
-            },
+            }
             None => {
                 try!(Schema::from_select_values(self.values.clone(), &mut None))
             }
@@ -131,6 +143,14 @@ impl ::std::fmt::Display for SelectClause {
             try!(write!(f, "\twhere={}\n", expr));
         }
 
+        if let Some(ref group_exprs) = self.group_by_exprs {
+            let values: Vec<String> = group_exprs.iter().map(|f| format!("{}", f)).collect();
+            try!(write!(f, "\tgroup_by={}\n", values.join(", ")));
+            if let Some(ref having) = self.having {
+                try!(write!(f, "\thaving={}\n", having));
+            }
+        }
+
         if let Some(limit) = self.limit {
             try!(write!(f, "\tlimit={}\n", limit));
         }
@@ -139,7 +159,7 @@ impl ::std::fmt::Display for SelectClause {
             try!(write!(f, "\toffset={}\n", offset));
         }
 
-        // TODO: GROUP BY, ORDER BY, HAVING, correlated with?
+        // TODO: ORDER BY, correlated with?
         write!(f, "]")
     }
 }
